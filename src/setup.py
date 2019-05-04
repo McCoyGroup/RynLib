@@ -1,5 +1,5 @@
 from distutils.core import setup, Extension
-import shutil, os, sys
+import shutil, os, sys, getpass
 
 curdir = os.getcwd()
 lib_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -7,11 +7,22 @@ os.chdir(os.path.join(lib_dir, "src"))
 sysargv1 = sys.argv
 
 sys.argv = ['build', 'build_ext', '--inplace']
+uuu = getpass.getuser()
+real_people = { "rjdiri" }
+lib_dirs = []
+libbies = []
+mrooos = []
+if uuu not in real_people:
+    print("you're not a real person, I'm not using entos")
+else:
+    lib_dirs.append(os.path.join(lib_dir, "lib"))
+    libbies.append("entos")
+    mrooos.append(("IM_A_REAL_BOY", 1))
 module = Extension(
     'RynLib',
     sources = [ 'RynLib.cpp' ],
-    library_dirs= [ os.path.join(lib_dir, "lib") ],
-    libraries = [ "entos" ]
+    library_dirs = lib_dirs,
+    libraries = libbies
 )
 
 setup (name = 'RynLib',

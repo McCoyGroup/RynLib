@@ -2,8 +2,11 @@
 #include "Python.h"
 #include <vector>
 #include <string>
-#include "dmc_interface.h"
+
+#ifdef IM_A_REAL_BOY
+#include "dmc_interface.h" // TURN THIS BACK ON TO ACTUALLY USE THIS; OFF FOR TESTING PURPOSES
 //#include "mpi.h" // need to load MPI
+#endif
 
 extern "C" {
 

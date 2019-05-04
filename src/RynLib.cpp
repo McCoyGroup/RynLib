@@ -48,7 +48,7 @@ std::vector<std::string> _getAtomTypes( PyObject* atoms, Py_ssize_t num_atoms ) 
         const char* atomStr = _GetPyString(atom, pyStr);
         std::string atomString = atomStr;
         mattsAtoms[i] = atomString;
-        Py_XDECREF(atom);
+//        Py_XDECREF(atom);
         Py_XDECREF(pyStr);
     }
 
@@ -65,7 +65,19 @@ std::vector< std::vector<double> > _getWalkerCoords(double* raw_data, int i, Py_
     return walker_coords;
 }
 
-PyObject *RynLib_callPot( PyObject* args, PyObject* kwargs ) {
+#ifndef ENTOS_ML_DMC_INTERFACE_H // tests when no entos
+double MillerGroup_entosPotential(
+        const std::vector< std::vector<double> > ,
+        const std::vector<std::string>,
+        bool hf_only = false
+        ){
+
+    return 50.2;
+
+}
+#endif //ENTOS_ML_DMC_INTERFACE_H
+
+PyObject *RynLib_callPot(PyObject* self, PyObject* args ) {
 
     PyObject* atoms;
     PyObject* coords;
@@ -77,6 +89,7 @@ PyObject *RynLib_callPot( PyObject* args, PyObject* kwargs ) {
 
     // Assumes number of walkers X number of atoms X 3
     double* raw_data = _GetDoubleDataArray(coords);
+    if (raw_data == NULL) return NULL;
     std::vector< std::vector<double> > walker_coords = _getWalkerCoords(raw_data, 0, num_atoms);
     double pot = MillerGroup_entosPotential(walker_coords, mattsAtoms);
 
@@ -85,7 +98,7 @@ PyObject *RynLib_callPot( PyObject* args, PyObject* kwargs ) {
 
 }
 
-PyObject *RynLib_callPotVec( PyObject* args, PyObject* kwargs ) {
+PyObject *RynLib_callPotVec( PyObject* self, PyObject* args ) {
     // vector version of callPot
 
     PyObject* atoms;
@@ -100,6 +113,7 @@ PyObject *RynLib_callPotVec( PyObject* args, PyObject* kwargs ) {
     Py_ssize_t num_walkers = PyObject_Length(atoms);
     std::vector<double> potVals(num_walkers);
     double* raw_data = _GetDoubleDataArray(coords);
+    if (raw_data == NULL) return NULL;
     for (int i = 0; i<num_walkers; i++) {
         std::vector< std::vector<double> > walker_coords = _getWalkerCoords(raw_data, i, num_atoms);
         double pot = MillerGroup_entosPotential(walker_coords, mattsAtoms);
@@ -111,7 +125,7 @@ PyObject *RynLib_callPotVec( PyObject* args, PyObject* kwargs ) {
 
 }
 
-PyObject *RynLib_testPot( PyObject* args, PyObject* kwargs ) {
+PyObject *RynLib_testPot( PyObject* self, PyObject* args ) {
 
     PyObject *hello;
 
@@ -127,7 +141,7 @@ static PyMethodDef RynLibMethods[] = {
 };
 
 
-#if (PY_MAJOR_VERSION == 3)
+#if PY_MAJOR_VERSION == 3
 const char RynLib_doc[] = "RynLib is for Ryna Dorisii";
 
 static struct PyModuleDef RynLibModule = {
