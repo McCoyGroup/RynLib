@@ -1,5 +1,6 @@
 #include "RynLib.h"
 
+#if PY_MAJOR_VERSION == 3
 const char *_GetPyString( PyObject* s, const char *enc, const char *err, PyObject *pyStr) {
     pyStr = PyUnicode_AsEncodedString(s, enc, err);
     if (pyStr == NULL) return NULL;
@@ -11,6 +12,32 @@ const char *_GetPyString( PyObject* s, PyObject *pyStr) {
     // unfortunately we need to pass the second pyStr so we can XDECREF it later
     return _GetPyString( s, "utf-8", "strict", pyStr); // utf-8 is safe since it contains ASCII fully
     }
+#else
+const char *_GetPyString( PyObject* s ) {
+    return PyString_AsString(s);
+}
+const char *_GetPyString( PyObject* s, PyObject *pyStr ) {
+    // just to unify the 2/3 interface
+    return _GetPyString( s );
+    }
+#endif
+
+std::vector<std::string> _getAtomTypes( PyObject* atoms, Py_ssize_t num_atoms ) {
+
+    std::vector<std::string> mattsAtoms(num_atoms);
+    for (int i = 0; i<num_atoms; i++) {
+        PyObject* atom = PyList_GetItem(atoms, i);
+        PyObject* pyStr = NULL;
+        const char* atomStr = _GetPyString(atom, pyStr);
+        std::string atomString = atomStr;
+        mattsAtoms[i] = atomString;
+//        Py_XDECREF(atom);
+        Py_XDECREF(pyStr);
+    }
+
+    return mattsAtoms;
+}
+
 
 Py_buffer _GetDataBuffer(PyObject *data) {
     Py_buffer view;
@@ -39,22 +66,6 @@ int int3d(int i, int j, int k, int m, int l) {
     return (m*l) * i + (l*j) + k;
 }
 
-std::vector<std::string> _getAtomTypes( PyObject* atoms, Py_ssize_t num_atoms ) {
-
-    std::vector<std::string> mattsAtoms(num_atoms);
-    for (int i = 0; i<num_atoms; i++) {
-        PyObject* atom = PyList_GetItem(atoms, i);
-        PyObject* pyStr = NULL;
-        const char* atomStr = _GetPyString(atom, pyStr);
-        std::string atomString = atomStr;
-        mattsAtoms[i] = atomString;
-//        Py_XDECREF(atom);
-        Py_XDECREF(pyStr);
-    }
-
-    return mattsAtoms;
-}
-
 std::vector< std::vector<double> > _getWalkerCoords(double* raw_data, int i, Py_ssize_t num_atoms) {
     std::vector< std::vector<double> > walker_coords(num_atoms, std::vector<double>(3));
     for (int j = 0; j<num_atoms; j++) {
@@ -72,7 +83,7 @@ double MillerGroup_entosPotential(
         bool hf_only = false
         ){
 
-    return 50.2;
+    return 52.0;
 
 }
 #endif //ENTOS_ML_DMC_INTERFACE_H
@@ -137,13 +148,13 @@ PyObject *RynLib_testPot( PyObject* self, PyObject* args ) {
 static PyMethodDef RynLibMethods[] = {
     {"rynaLovesDMC", RynLib_callPot, METH_VARARGS, "calls entos on a single walker"},
     {"rynaLovesDMCLots", RynLib_callPotVec, METH_VARARGS, "will someday call entos on a vector of walkers"},
-    {"rynaSaysYo", RynLib_testPot, METH_VARARGS, "a test flat potential for debugging"}
+    {"rynaSaysYo", RynLib_testPot, METH_VARARGS, "a test flat potential for debugging"},
+    {NULL, NULL, 0, NULL}
 };
 
 
 #if PY_MAJOR_VERSION == 3
 const char RynLib_doc[] = "RynLib is for Ryna Dorisii";
-
 static struct PyModuleDef RynLibModule = {
     PyModuleDef_HEAD_INIT,
     "RynLib",   /* name of module */

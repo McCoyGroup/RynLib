@@ -1,3 +1,4 @@
+from __future__ import print_function
 from distutils.core import setup, Extension
 import shutil, os, sys, getpass
 
@@ -22,7 +23,8 @@ module = Extension(
     'RynLib',
     sources = [ 'RynLib.cpp' ],
     library_dirs = lib_dirs,
-    libraries = libbies
+    libraries = libbies,
+    runtime_library_dirs = lib_dirs
 )
 
 setup (name = 'RynLib',
