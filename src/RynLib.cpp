@@ -76,18 +76,6 @@ std::vector< std::vector<double> > _getWalkerCoords(double* raw_data, int i, Py_
     return walker_coords;
 }
 
-#ifndef ENTOS_ML_DMC_INTERFACE_H // tests when no entos
-double MillerGroup_entosPotential(
-        const std::vector< std::vector<double> > ,
-        const std::vector<std::string>,
-        bool hf_only = false
-        ){
-
-    return 52.0;
-
-}
-#endif //ENTOS_ML_DMC_INTERFACE_H
-
 PyObject *RynLib_callPot(PyObject* self, PyObject* args ) {
 
     PyObject* atoms;

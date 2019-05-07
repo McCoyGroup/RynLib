@@ -18,13 +18,14 @@ if uuu not in real_people:
 else:
     lib_dirs.append(os.path.join(lib_dir, "lib"))
     libbies.append("entos")
-    mrooos.append(("IM_A_REAL_BOY", 1))
+    mrooos.append(("IM_A_REAL_BOY", None))
 module = Extension(
     'RynLib',
     sources = [ 'RynLib.cpp' ],
     library_dirs = lib_dirs,
     libraries = libbies,
-    runtime_library_dirs = lib_dirs
+    runtime_library_dirs = lib_dirs,
+    define_macros = mrooos
 )
 
 setup (name = 'RynLib',
