@@ -97,6 +97,49 @@ PyObject *RynLib_callPot(PyObject* self, PyObject* args ) {
 
 }
 
+std::vector<double> _mpiGetPot(
+        double* raw_data,
+        std::vector<std::string> atoms,
+        Py_ssize_t num_walkers,
+        Py_ssize_t num_atoms
+        ) {
+
+    // Set up return vector
+    std::vector<double> potVals(num_walkers);
+    double* pot_buf = potVals.data();
+    // Set up walker coord vector
+    std::vector< std::vector<double> > walker_coords(num_atoms, 3);
+    double* walker_buf = walker_coords.data();
+
+    // Initialize MPI state
+    MPI_Init(NULL, NULL);
+    int world_size;
+    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+    int world_rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
+
+    // Scatter data buffer to processors
+    MPI_Scatter(
+                raw_data,  // raw data buffer to chunk up
+                3*num_atoms, // three coordinates per atom per num_atoms per walker
+                MPI_DOUBLE, // coordinates stored as doubles
+                walker_buf, // raw array to write into
+                1, // single energy
+                MPI_DOUBLE, // energy returned as doubles
+                0, // root caller
+                MPI_COMM_WORLD // communicator handle
+                );
+
+    //std::vector< std::vector<double> > walker_coords = _getWalkerCoords(raw_data, i, num_atoms);
+    // should populate directly when calling Scatter so don't need this anymore
+    double pot = MillerGroup_entosPotential(walker_coords, atoms);
+
+    MPI_Gather(&pot, 1, MPI_INT, pot_buf, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Finalize();
+
+    return potVals;
+}
+
 PyObject *RynLib_callPotVec( PyObject* self, PyObject* args ) {
     // vector version of callPot
 
@@ -110,18 +153,25 @@ PyObject *RynLib_callPotVec( PyObject* self, PyObject* args ) {
 
     // Assumes number of walkers X number of atoms X 3
     Py_ssize_t num_walkers = PyObject_Length(atoms);
-    std::vector<double> potVals(num_walkers);
     double* raw_data = _GetDoubleDataArray(coords);
     if (raw_data == NULL) return NULL;
-    for (int i = 0; i<num_walkers; i++) {
-        std::vector< std::vector<double> > walker_coords = _getWalkerCoords(raw_data, i, num_atoms);
-        double pot = MillerGroup_entosPotential(walker_coords, mattsAtoms);
-        potVals[i] = pot;
-    };
+    // Get vector of values from MPI call
+    std::vector<double> pot_vals = _mpiGetPot(
+                raw_data, mattsAtoms, num_walkers, num_atoms
+                );
 
-    // TODO: NEED TO CONVERT BACK TO A NUMPY ARRAY IF WE DECIDE TO USE THIS BRANCH OF THE CODE
-    Py_RETURN_NONE;
+    // handle return to python sans error checking because laziness
+    PyObject *array_module = PyImport_ImportModule("numpy");
+    PyObject *builder = PyObject_GetAttrString(array_module, "zeros");
+    PyObject *dims = Py_BuildValue("(i)", num_walkers);
+    PyObject *pot = PyObject_Call(builder, dims);
+    Py_XDECREF(dims);
+    Py_XDECREF(builder);
+    Py_XDECREF(array_module);
+    double* data = _GetDoubleDataArray(pot);
+    memccpy(data, pot_vals.data(), sizeof(double), num_walkers);
 
+    return pot;
 }
 
 PyObject *RynLib_testPot( PyObject* self, PyObject* args ) {

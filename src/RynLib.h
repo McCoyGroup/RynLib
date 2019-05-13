@@ -6,6 +6,7 @@
 #ifdef IM_A_REAL_BOY
 
 #include "dmc_interface.h"
+#include "mpi.h
 // MillerGroup_entosPotential is really in libentos but this predeclares it
 
 #else
