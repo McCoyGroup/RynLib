@@ -108,7 +108,7 @@ std::vector<double> _mpiGetPot(
 
     // Set up return vector
     std::vector<double> potVals(num_walkers);
-    double* pot_buf = potVals.data();
+//    double* pot_buf = potVals.data();
     // Set up walker coord vector
     // std::vector< std::vector<double> > walker_coords(num_atoms, std::vector<double>(3));
     // double* walker_buf = walker_coords.data();
@@ -140,7 +140,9 @@ std::vector<double> _mpiGetPot(
 //    printf("%f\n", pot);
     free(walker_buf);
 
-    MPI_Gather(&pot, 1, MPI_DOUBLE, pot_buf, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    double pot_buf = 0.0;
+    MPI_Gather(&pot, 1, MPI_DOUBLE, &pot_buf, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    potVals[world_rank] = pot_buf;
     MPI_Finalize();
 
     return potVals;
