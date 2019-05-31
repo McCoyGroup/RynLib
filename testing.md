@@ -30,3 +30,6 @@ py_dir="$conda/include/python2.7"
 ```
 
 where these just find the appropriate resources
+
+It's working now for a single water molecule via MPI, but try multiple configs and make sure the MPI Scatter/Gather proc
+works for all of them
