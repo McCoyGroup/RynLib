@@ -137,10 +137,10 @@ std::vector<double> _mpiGetPot(
     // should populate directly when calling Scatter so don't need this anymore
     std::vector< std::vector<double> > walker_coords = _getWalkerCoords(walker_buf, 0, num_atoms);
     double pot = MillerGroup_entosPotential(walker_coords, atoms);
-    printf("%f\n", pot);
+//    printf("%f\n", pot);
     free(walker_buf);
 
-    MPI_Gather(&pot, 1, MPI_INT, pot_buf, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Gather(&pot, 1, MPI_DOUBLE, pot_buf, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
     MPI_Finalize();
 
     return potVals;
@@ -197,7 +197,7 @@ PyObject *RynLib_callPotVec( PyObject* self, PyObject* args ) {
     Py_XDECREF(array_module);
     Py_XDECREF(kw);
     double* data = _GetDoubleDataArray(pot);
-    memccpy(data, pot_vals.data(), sizeof(double), num_walkers);
+    memcpy(data, pot_vals.data(), sizeof(double)*num_walkers);
 
     return pot;
 }
