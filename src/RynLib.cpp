@@ -110,8 +110,8 @@ std::vector<double> _mpiGetPot(
     std::vector<double> potVals(num_walkers);
     double* pot_buf = potVals.data();
     // Set up walker coord vector
-//    std::vector< std::vector<double> > walker_coords(num_atoms, std::vector<double>(3));
-//    double* walker_buf = walker_coords.data();
+    // std::vector< std::vector<double> > walker_coords(num_atoms, std::vector<double>(3));
+    // double* walker_buf = walker_coords.data();
     double* walker_buf = (double*) malloc(num_atoms*3*sizeof(double));
 
     // Initialize MPI state
@@ -127,16 +127,17 @@ std::vector<double> _mpiGetPot(
                 3*num_atoms, // three coordinates per atom per num_atoms per walker
                 MPI_DOUBLE, // coordinates stored as doubles
                 walker_buf, // raw array to write into
-                1, // single energy
+                3*num_atoms, // single energy
                 MPI_DOUBLE, // energy returned as doubles
                 0, // root caller
                 MPI_COMM_WORLD // communicator handle
                 );
 
-    std::vector< std::vector<double> > walker_coords = _getWalkerCoords(walker_buf, 0, num_atoms);
+    //std::vector< std::vector<double> > walker_coords = _getWalkerCoords(raw_data, i, num_atoms);
     // should populate directly when calling Scatter so don't need this anymore
+    std::vector< std::vector<double> > walker_coords = _getWalkerCoords(walker_buf, 0, num_atoms);
     double pot = MillerGroup_entosPotential(walker_coords, atoms);
-
+    printf("%f\n", pot);
     free(walker_buf);
 
     MPI_Gather(&pot, 1, MPI_INT, pot_buf, 1, MPI_INT, 0, MPI_COMM_WORLD);
@@ -154,7 +155,7 @@ std::vector<double> _mpiGetPot(
         Py_ssize_t num_atoms
         ) {
 
-
+        printf("this is not for real boys");
         std::vector<double> potVals(num_walkers);
         double* pot_buf = potVals.data();
         return potVals;
@@ -183,14 +184,18 @@ PyObject *RynLib_callPotVec( PyObject* self, PyObject* args ) {
                 raw_data, mattsAtoms, num_walkers, num_atoms
                 );
 
+    printf("%f\n", pot_vals[0]);
     // handle return to python sans error checking because laziness
     PyObject *array_module = PyImport_ImportModule("numpy");
     PyObject *builder = PyObject_GetAttrString(array_module, "zeros");
-    PyObject *dims = Py_BuildValue("(i)", num_walkers);
-    PyObject *pot = PyObject_CallObject(builder, dims);
+    // issue might be that I need to pass dtype = float...
+    PyObject *dims = Py_BuildValue("((i))", num_walkers);
+    PyObject *kw = Py_BuildValue("{s:s}", "dtype", "float");
+    PyObject *pot = PyObject_Call(builder, dims, kw);
     Py_XDECREF(dims);
     Py_XDECREF(builder);
     Py_XDECREF(array_module);
+    Py_XDECREF(kw);
     double* data = _GetDoubleDataArray(pot);
     memccpy(data, pot_vals.data(), sizeof(double), num_walkers);
 

@@ -28,7 +28,8 @@ module = Extension(
     define_macros = mrooos
 )
 
-on_nersc = platform.node().startswith("cori") # a flag to set when building on nersc
+node_name = platform.node()
+on_nersc = node_name.startswith("cori") or node_name.startswith("nid") # a flag to set when building on nersc
 if on_nersc:
     print("Using build.sh to get around NERSC issues")
     os.system("build.sh")
