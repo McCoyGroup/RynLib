@@ -31,7 +31,7 @@ module = Extension(
 on_nersc = platform.node().startswith("cori") # a flag to set when building on nersc
 if on_nersc:
     print("Using build.sh to get around NERSC issues")
-    os.system("build.sh")
+    os.system(os.path.join(lib_dir, "src", "build.sh"))
 else:
     setup(name = 'RynLib',
        version = '1.0',

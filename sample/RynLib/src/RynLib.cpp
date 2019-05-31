@@ -110,8 +110,8 @@ std::vector<double> _mpiGetPot(
     std::vector<double> potVals(num_walkers);
     double* pot_buf = potVals.data();
     // Set up walker coord vector
-//    std::vector< std::vector<double> > walker_coords(num_atoms, std::vector<double>(3));
-//    double* walker_buf = walker_coords.data();
+    // std::vector< std::vector<double> > walker_coords(num_atoms, std::vector<double>(3));
+    // double* walker_buf = walker_coords.data();
     double* walker_buf = (double*) malloc(num_atoms*3*sizeof(double));
 
     // Initialize MPI state
@@ -133,8 +133,9 @@ std::vector<double> _mpiGetPot(
                 MPI_COMM_WORLD // communicator handle
                 );
 
-    std::vector< std::vector<double> > walker_coords = _getWalkerCoords(walker_buf, 0, num_atoms);
+    //std::vector< std::vector<double> > walker_coords = _getWalkerCoords(raw_data, i, num_atoms);
     // should populate directly when calling Scatter so don't need this anymore
+    std::vector< std::vector<double> > walker_coords = _getWalkerCoords(walker_buf, 0, num_atoms);
     double pot = MillerGroup_entosPotential(walker_coords, atoms);
 
     free(walker_buf);
