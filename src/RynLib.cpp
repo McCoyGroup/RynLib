@@ -99,28 +99,38 @@ PyObject *RynLib_callPot(PyObject* self, PyObject* args ) {
 
 #ifdef IM_A_REAL_BOY
 
+void _mpiInit(int* world_size, int* world_rank) {
+    // Initialize MPI state
+    int did_i_do_good_pops = 0;
+    MPI_Initialized(&did_i_do_good_pops); // need to check if we called Init once already
+    // printf("How'd I do? %d\n", did_i_do_good_pops);
+    if (!did_i_do_good_pops){
+        MPI_Init(NULL, NULL);
+       };
+    MPI_Comm_size(MPI_COMM_WORLD, world_size);
+    MPI_Comm_rank(MPI_COMM_WORLD, world_rank);
+    // printf("This many things %d and I am here %d\n", *world_size, *world_rank);
+}
+
+void _mpiFinalize() {
+    int did_i_do_bad_pops = 0;
+    MPI_Finalized(&did_i_do_bad_pops); // need to check if we called Init once already
+    if (!did_i_do_bad_pops){
+        MPI_Finalize();
+       };
+}
+
 std::vector<double> _mpiGetPot(
         double* raw_data,
         std::vector<std::string> atoms,
         Py_ssize_t num_walkers,
-        Py_ssize_t num_atoms
+        Py_ssize_t num_atoms,
+        int world_size,
+        int world_rank
         ) {
 
-    // Set up return vector
-    std::vector<double> potVals(num_walkers);
-//    double* pot_buf = potVals.data();
-    // Set up walker coord vector
-    // std::vector< std::vector<double> > walker_coords(num_atoms, std::vector<double>(3));
-    // double* walker_buf = walker_coords.data();
+    // create a buffer for the walkers to be fed into MPI
     double* walker_buf = (double*) malloc(num_atoms*3*sizeof(double));
-
-    // Initialize MPI state
-    MPI_Init(NULL, NULL);
-    int world_size;
-    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
-    int world_rank;
-    MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
-
     // Scatter data buffer to processors
     MPI_Scatter(
                 raw_data,  // raw data buffer to chunk up
@@ -133,28 +143,47 @@ std::vector<double> _mpiGetPot(
                 MPI_COMM_WORLD // communicator handle
                 );
 
-    //std::vector< std::vector<double> > walker_coords = _getWalkerCoords(raw_data, i, num_atoms);
-    // should populate directly when calling Scatter so don't need this anymore
     std::vector< std::vector<double> > walker_coords = _getWalkerCoords(walker_buf, 0, num_atoms);
+    // this is basically a hold-over from a previous implementation where our
     double pot = MillerGroup_entosPotential(walker_coords, atoms);
-//    printf("%f\n", pot);
     free(walker_buf);
 
-    double pot_buf = 0.0;
-    MPI_Gather(&pot, 1, MPI_DOUBLE, &pot_buf, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-    potVals[world_rank] = pot_buf;
-    MPI_Finalize();
+    //double pot_buf = 0.0;
+    //MPI_Gather(&pot, 1, MPI_DOUBLE, &pot_buf, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    //potVals[world_rank] = pot_buf;
+    double* pot_buf = (double*) malloc(world_size*sizeof(double)); // receive buffer
+    MPI_Gather(&pot, 1, MPI_DOUBLE, pot_buf, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
+    // convert double* to std::vector<double>
+    std::vector<double> potVals;
+    if( world_rank == 0 ) {
+      for (size_t i = 0; i < world_size; i++) {
+        potVals.push_back(pot_buf[i]);
+      }
+    }
+    free(pot_buf);
 
     return potVals;
 }
 
 #else
 
+void _mpiInit(int* world_size, int* world_rank) {
+    world_size = 0;
+    world_rank = 0;
+}
+
+void _mpiFinalize() {
+    // boop
+}
+
 std::vector<double> _mpiGetPot(
         double* raw_data,
         std::vector<std::string> atoms,
         Py_ssize_t num_walkers,
-        Py_ssize_t num_atoms
+        Py_ssize_t num_atoms,
+        int world_size,
+        int world_rank
         ) {
 
         printf("this is not for real boys");
@@ -178,30 +207,36 @@ PyObject *RynLib_callPotVec( PyObject* self, PyObject* args ) {
     std::vector<std::string> mattsAtoms = _getAtomTypes(atoms, num_atoms);
 
     // Assumes number of walkers X number of atoms X 3
-    Py_ssize_t num_walkers = PyObject_Length(atoms);
+    Py_ssize_t num_walkers = PyObject_Length(coords);
     double* raw_data = _GetDoubleDataArray(coords);
     if (raw_data == NULL) return NULL;
+    int world_size, world_rank;
+    _mpiInit(&world_size, &world_rank);
     // Get vector of values from MPI call
     std::vector<double> pot_vals = _mpiGetPot(
-                raw_data, mattsAtoms, num_walkers, num_atoms
+                raw_data, mattsAtoms, num_walkers, num_atoms,
+                world_size, world_rank
                 );
 
-    printf("%f\n", pot_vals[0]);
-    // handle return to python sans error checking because laziness
-    PyObject *array_module = PyImport_ImportModule("numpy");
-    PyObject *builder = PyObject_GetAttrString(array_module, "zeros");
-    // issue might be that I need to pass dtype = float...
-    PyObject *dims = Py_BuildValue("((i))", num_walkers);
-    PyObject *kw = Py_BuildValue("{s:s}", "dtype", "float");
-    PyObject *pot = PyObject_Call(builder, dims, kw);
-    Py_XDECREF(dims);
-    Py_XDECREF(builder);
-    Py_XDECREF(array_module);
-    Py_XDECREF(kw);
-    double* data = _GetDoubleDataArray(pot);
-    memcpy(data, pot_vals.data(), sizeof(double)*num_walkers);
+    if ( world_rank == 0 ){
+        // handle return to python sans error checking because laziness
+        PyObject *array_module = PyImport_ImportModule("numpy");
+        PyObject *builder = PyObject_GetAttrString(array_module, "zeros");
+        // issue might be that I need to pass dtype = float...
+        PyObject *dims = Py_BuildValue("((i))", num_walkers);
+        PyObject *kw = Py_BuildValue("{s:s}", "dtype", "float");
+        PyObject *pot = PyObject_Call(builder, dims, kw);
+        Py_XDECREF(dims);
+        Py_XDECREF(builder);
+        Py_XDECREF(array_module);
+        Py_XDECREF(kw);
+        double* data = _GetDoubleDataArray(pot);
+        memcpy(data, pot_vals.data(), sizeof(double)*num_walkers);
 
-    return pot;
+        return pot;
+    } else {
+        Py_RETURN_NONE;
+    }
 }
 
 PyObject *RynLib_testPot( PyObject* self, PyObject* args ) {
@@ -213,10 +248,29 @@ PyObject *RynLib_testPot( PyObject* self, PyObject* args ) {
 
 }
 
+PyObject *RynLib_giveMePI( PyObject* self, PyObject* args ) {
+
+    PyObject *hello;
+    int world_size, world_rank;
+    _mpiInit(&world_size, &world_rank);
+    hello = Py_BuildValue("(ii)", world_rank, world_size);
+    return hello;
+
+}
+
+PyObject *RynLib_noMorePI( PyObject* self, PyObject* args ) {
+
+    _mpiFinalize();
+    Py_RETURN_NONE;
+
+}
+
 static PyMethodDef RynLibMethods[] = {
     {"rynaLovesDMC", RynLib_callPot, METH_VARARGS, "calls entos on a single walker"},
     {"rynaLovesDMCLots", RynLib_callPotVec, METH_VARARGS, "will someday call entos on a vector of walkers"},
     {"rynaSaysYo", RynLib_testPot, METH_VARARGS, "a test flat potential for debugging"},
+    {"giveMePI", RynLib_giveMePI, METH_VARARGS, "calls Init and returns the processor rank"},
+    {"noMorePI", RynLib_noMorePI, METH_VARARGS, "calls Finalize in a safe fashion (can be done more than once)"},
     {NULL, NULL, 0, NULL}
 };
 
