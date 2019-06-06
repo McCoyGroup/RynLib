@@ -15,13 +15,16 @@ if who_am_i == 0:
     print("Number of processors (and walkers): {}".format(_24601))
 testWalkersss =np.array( [ testWalker ] * _24601 )
 testWalkersss += np.random.uniform(low=-.5, high=.5, size=testWalkersss.shape)
-test_iterations = 1
+test_iterations = 50
 test_results = np.zeros((test_iterations,))
+lets_get_going = time.time()
 for ttt in range(test_iterations):
     t0 = time.time()
-    test_result = rynaLovesDMCLots(testAtoms, testWalkersss) # this is necessary on the worker nodes to actually call the pot stuff
+    test_result = rynaLovesDMCLots(testAtoms, testWalkersss)
     test_results[ttt] = time.time() - t0
+gotta_go_fast = time.time() - lets_get_going
 if who_am_i == 0:
-    print("Got back: ", test_result)
+    print("Got back: {}".format(test_result))
+    print("Total time: {}s (over {} iterations)".format(gotta_go_fast, test_iterations))
     print("Average total: {}s Average time per walker: {}s".format(np.average(test_results), np.average(test_results)/_24601))
 noMorePI()
