@@ -1,4 +1,5 @@
 #include "RynLib.h"
+#include <random>
 
 #if PY_MAJOR_VERSION == 3
 const char *_GetPyString( PyObject* s, const char *enc, const char *err, PyObject *pyStr) {
@@ -38,7 +39,6 @@ std::vector<std::string> _getAtomTypes( PyObject* atoms, Py_ssize_t num_atoms ) 
     return mattsAtoms;
 }
 
-
 Py_buffer _GetDataBuffer(PyObject *data) {
     Py_buffer view;
     PyObject_GetBuffer(data, &view, PyBUF_CONTIG_RO);
@@ -62,7 +62,7 @@ double *_GetDoubleDataArray(PyObject *data) {
     return array;
 }
 
-int int3d(int i, int j, int k, int m, int l) {
+inline int int3d(int i, int j, int k, int m, int l) {
     return (m*l) * i + (l*j) + k;
 }
 
@@ -75,6 +75,35 @@ std::vector< std::vector<double> > _getWalkerCoords(double* raw_data, int i, Py_
     };
     return walker_coords;
 }
+
+void _printOutWalkerStuff( std::vector< std::vector<double> > walker_coords ) {
+    printf("This walker was bad: ( ");
+    for ( int i = 0; i < walker_coords.size(); i++) {
+        printf("(%f, %f, %f)", walker_coords[i][0], walker_coords[i][1], walker_coords[i][2]);
+        if ( i < walker_coords.size()-1 ) {
+            printf(", ");
+        }
+    }
+    printf(" )\n");
+}
+
+double _doopAPot(std::vector< std::vector<double> > walker_coords, std::vector<std::string> atoms) {
+    double pot;
+    try {
+        pot = MillerGroup_entosPotential(walker_coords, atoms);
+    } catch (int e) {
+        _printOutWalkerStuff(walker_coords);
+        pot = 1.0e9;
+    } catch (const char* e) {
+        _printOutWalkerStuff(walker_coords);
+        pot = 1.0e9;
+    } catch (...) {
+        _printOutWalkerStuff(walker_coords);
+        pot = 1.0e9;
+    }
+
+    return pot;
+};
 
 PyObject *RynLib_callPot(PyObject* self, PyObject* args ) {
 
@@ -90,7 +119,7 @@ PyObject *RynLib_callPot(PyObject* self, PyObject* args ) {
     double* raw_data = _GetDoubleDataArray(coords);
     if (raw_data == NULL) return NULL;
     std::vector< std::vector<double> > walker_coords = _getWalkerCoords(raw_data, 0, num_atoms);
-    double pot = MillerGroup_entosPotential(walker_coords, mattsAtoms);
+    double pot = _doopAPot(walker_coords, mattsAtoms);
 
     PyObject *potVal = Py_BuildValue("f", pot);
     return potVal;
@@ -120,13 +149,14 @@ void _mpiFinalize() {
        };
 }
 
-std::vector<double> _mpiGetPot(
+std::vector<std::vector<double> > _mpiGetPot(
         double* raw_data,
         std::vector<std::string> atoms,
         Py_ssize_t num_walkers,
         Py_ssize_t num_atoms,
         int world_size,
-        int world_rank
+        int world_rank,
+        int ncalls
         ) {
 
     // create a buffer for the walkers to be fed into MPI
@@ -145,21 +175,32 @@ std::vector<double> _mpiGetPot(
 
     std::vector< std::vector<double> > walker_coords = _getWalkerCoords(walker_buf, 0, num_atoms);
     // this is basically a hold-over from a previous implementation where our
-    double pot = MillerGroup_entosPotential(walker_coords, atoms);
+    // double* pot_buf;
+    // if (world_rank == 0) {
+    double* pot_buf = (double*) malloc(ncalls*world_size*sizeof(double)); // receive buffer
+    //};
+
+    std::vector<double> pots(ncalls);
+    for (int i = 0; i < ncalls; i++) {
+
+        pots[i] = _doopAPot(walker_coords, atoms);
+        // TODO: Insert code to perturb walkers
+
+    }
+
+
+    MPI_Gather(pots.data(), ncalls, MPI_DOUBLE, pot_buf, ncalls, MPI_DOUBLE, 0, MPI_COMM_WORLD);
     free(walker_buf);
 
-    //double pot_buf = 0.0;
-    //MPI_Gather(&pot, 1, MPI_DOUBLE, &pot_buf, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-    //potVals[world_rank] = pot_buf;
-    double* pot_buf = (double*) malloc(world_size*sizeof(double)); // receive buffer
-    MPI_Gather(&pot, 1, MPI_DOUBLE, pot_buf, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-
     // convert double* to std::vector<double>
-    std::vector<double> potVals;
+    std::vector<std::vector<double> > potVals(ncalls, std::vector<double>(world_size));
     if( world_rank == 0 ) {
-      for (size_t i = 0; i < world_size; i++) {
-        potVals.push_back(pot_buf[i]);
-      }
+        // this is effectively column ordered at this point I think...
+        for (size_t j = 0; j < world_size; j++) {
+            for (size_t i = 0; i < ncalls; i++) {
+                potVals[i][j] = pot_buf[j*ncalls + i];
+            }
+        }
     }
     free(pot_buf);
 
@@ -177,18 +218,18 @@ void _mpiFinalize() {
     // boop
 }
 
-std::vector<double> _mpiGetPot(
+std::vector<std::vector<double> > _mpiGetPot(
         double* raw_data,
         std::vector<std::string> atoms,
         Py_ssize_t num_walkers,
         Py_ssize_t num_atoms,
         int world_size,
-        int world_rank
+        int world_rank,
+        int ncalls
         ) {
 
         printf("this is not for real boys");
-        std::vector<double> potVals(num_walkers);
-        double* pot_buf = potVals.data();
+        std::vector<d<std::vector<double> > potVals(ncalls, std::vector<double>(num_walkers));
         return potVals;
 
         }
@@ -200,7 +241,8 @@ PyObject *RynLib_callPotVec( PyObject* self, PyObject* args ) {
 
     PyObject* atoms;
     PyObject* coords;
-    if ( !PyArg_ParseTuple(args, "OO", &atoms, &coords) ) return NULL;
+    int ncalls;
+    if ( !PyArg_ParseTuple(args, "OOi", &atoms, &coords, &ncalls) ) return NULL;
 
     // Assumes we get n atom type names
     Py_ssize_t num_atoms = PyObject_Length(atoms);
@@ -213,9 +255,9 @@ PyObject *RynLib_callPotVec( PyObject* self, PyObject* args ) {
     int world_size, world_rank;
     _mpiInit(&world_size, &world_rank);
     // Get vector of values from MPI call
-    std::vector<double> pot_vals = _mpiGetPot(
+    std::vector<std::vector<double> > pot_vals = _mpiGetPot(
                 raw_data, mattsAtoms, num_walkers, num_atoms,
-                world_size, world_rank
+                world_size, world_rank, ncalls
                 );
 
     if ( world_rank == 0 ){
@@ -223,7 +265,7 @@ PyObject *RynLib_callPotVec( PyObject* self, PyObject* args ) {
         PyObject *array_module = PyImport_ImportModule("numpy");
         PyObject *builder = PyObject_GetAttrString(array_module, "zeros");
         // issue might be that I need to pass dtype = float...
-        PyObject *dims = Py_BuildValue("((i))", num_walkers);
+        PyObject *dims = Py_BuildValue("((ii))", ncalls, num_walkers);
         PyObject *kw = Py_BuildValue("{s:s}", "dtype", "float");
         PyObject *pot = PyObject_Call(builder, dims, kw);
         Py_XDECREF(dims);
@@ -231,7 +273,7 @@ PyObject *RynLib_callPotVec( PyObject* self, PyObject* args ) {
         Py_XDECREF(array_module);
         Py_XDECREF(kw);
         double* data = _GetDoubleDataArray(pot);
-        memcpy(data, pot_vals.data(), sizeof(double)*num_walkers);
+        memcpy(data, pot_vals.data(), sizeof(double)*num_walkers*ncalls);
 
         return pot;
     } else {

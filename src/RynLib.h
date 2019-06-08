@@ -30,3 +30,9 @@ static PyObject *RynLib_callPotVec
 
 static PyObject *RynLib_testPot
     ( PyObject *, PyObject * );
+
+static PyObject *RynLib_giveMePi
+    ( PyObject *, PyObject * );
+
+static PyObject *RynLib_noMorePi
+    ( PyObject *, PyObject * );

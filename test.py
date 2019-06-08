@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
@@ -11,3 +13,10 @@ testWalker = np.array([
 ])
 testAtoms = [ "H", "H", "O" ]
 print(rynaLovesDMC(testAtoms, testWalker))
+
+testWalker = np.array([
+    [0.9578400,0.0000000,0.0000000],
+    [0.9578400,0.0000000,0.0000000],
+    [0.0000000,0.0000000,0.0000000]
+])
+rynaLovesDMC(testAtoms, testWalker)

@@ -4,7 +4,8 @@ import shutil, os, sys, getpass, platform
 
 curdir = os.getcwd()
 lib_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-os.chdir(os.path.join(lib_dir, "src"))
+src_dir=os.path.join(lib_dir, "src")
+os.chdir(src_dir)
 sysargv1 = sys.argv
 
 sys.argv = ['build', 'build_ext', '--inplace']
@@ -32,13 +33,14 @@ node_name = platform.node()
 on_nersc = node_name.startswith("cori") or node_name.startswith("nid") # a flag to set when building on nersc
 if on_nersc:
     print("Using build.sh to get around NERSC issues")
-    os.system("build.sh")
+    os.system(os.path.join(src_dir, "build.sh"))
 else:
-    setup(name = 'RynLib',
+    setup(
+       name = 'RynLib',
        version = '1.0',
        description = 'Ryna Dorisii loves loops',
        ext_modules = [module],
-       language="c++"
+       language = "c++"
        )
 
 os.chdir(curdir)
