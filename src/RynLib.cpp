@@ -162,6 +162,10 @@ void _mpiFinalize() {
        };
 }
 
+void _mpiBarrier() {
+    MPI_Barrier(MPI_COMM_WORLD);
+}
+
 PotentialArray _mpiGetPot(
         double* raw_data,
         const Names &atoms,
@@ -223,6 +227,10 @@ void _mpiInit(int* world_size, int* world_rank) {
 }
 
 void _mpiFinalize() {
+    // boop
+}
+
+void _mpiBarrier() {
     // boop
 }
 
@@ -332,12 +340,20 @@ PyObject *RynLib_noMorePI( PyObject* self, PyObject* args ) {
 
 }
 
+PyObject *RynLib_holdMyPI( PyObject* self, PyObject* args ) {
+
+    _mpiBarrier();
+    Py_RETURN_NONE;
+
+}
+
 static PyMethodDef RynLibMethods[] = {
     {"rynaLovesDMC", RynLib_callPot, METH_VARARGS, "calls entos on a single walker"},
     {"rynaLovesDMCLots", RynLib_callPotVec, METH_VARARGS, "will someday call entos on a vector of walkers"},
     {"rynaSaysYo", RynLib_testPot, METH_VARARGS, "a test flat potential for debugging"},
     {"giveMePI", RynLib_giveMePI, METH_VARARGS, "calls Init and returns the processor rank"},
     {"noMorePI", RynLib_noMorePI, METH_VARARGS, "calls Finalize in a safe fashion (can be done more than once)"},
+    {"holdMyPI", RynLib_holdMyPI, METH_VARARGS, "calls Barrier"},
     {NULL, NULL, 0, NULL}
 };
 

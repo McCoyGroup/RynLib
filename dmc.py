@@ -1,3 +1,4 @@
+from __future__ import print_function
 import numpy as np, os
 
 ##############################################################################################################
@@ -50,7 +51,8 @@ class Simulation:
                  write_wavefunctions = None,
                  output_folder = None,
                  log_file = None,
-                 verbosity = 0
+                 verbosity = 0,
+                 dummied = False # for MPI usage
                  ):
         """ Sets up all the necessary simulation data to run a DMC
 
@@ -123,6 +125,8 @@ class Simulation:
             equilibration = lambda s, e=equilibration: s.step_num > e #classic lambda parameter binding
         self.equilibration_check = equilibration
 
+        self.dummied = dummied
+
     @property
     def zpe(self):
         return self.get_zpe()
@@ -137,7 +141,7 @@ class Simulation:
         return self._equilibrated
 
     def log_print(self, message, *params, verbosity = 1, **kwargs):
-        if verbosity <= self.verbosity and self.log_file is not None:
+        if not self.dummied and verbosity <= self.verbosity and self.log_file is not None:
             log = self.log_file
             if isinstance(log, str):
                 if not os.path.isdir(os.path.dirname(log)):
@@ -198,25 +202,27 @@ class Simulation:
             nsteps = self.prop_steps
 
         v=self.verbosity
-        if v:
-            self.log_print("Starting step {}", self.step_num, verbosity=5)
-            self.log_print("Moving coordinates {} steps", nsteps, verbosity=5)
-        coord_sets = self.walkers.displace(nsteps)
-        if v:
-            self.log_print("Computing potential energy", verbosity=5)
-        energies = self.potential(self.walkers.atoms, coord_sets)
-        self.step_num += nsteps
-        if v:
-            self.log_print("Updating walker weights", verbosity=5)
-        weights = self.update_weights(energies, self.walkers.weights)
-        self.walkers.weights = weights
-        if v:
-            self.log_print("Branching", verbosity=5)
-        self.branch()
-        if v:
-            self.log_print("Applying descendent weighting", verbosity=5)
-        self.descendent_weight()
-
+        if not self.dummied:
+            if v:
+                self.log_print("Starting step {}", self.step_num, verbosity=5)
+                self.log_print("Moving coordinates {} steps", nsteps, verbosity=5)
+            coord_sets = self.walkers.displace(nsteps)
+            if v:
+                self.log_print("Computing potential energy", verbosity=5)
+            energies = self.potential(self.walkers.atoms, coord_sets)
+            self.step_num += nsteps
+            if v:
+                self.log_print("Updating walker weights", verbosity=5)
+            weights = self.update_weights(energies, self.walkers.weights)
+            self.walkers.weights = weights
+            if v:
+                self.log_print("Branching", verbosity=5)
+            self.branch()
+            if v:
+                self.log_print("Applying descendent weighting", verbosity=5)
+            self.descendent_weight()
+        else:
+            self.potential(self.walkers.atoms, np.broadcast_to(self.walkers.coords, (n,) + self.walkers.coords.shape))
         # Plotter.plot_psi(self)
 
     def _compute_vref(self, energies, weights):

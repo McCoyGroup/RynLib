@@ -14,7 +14,7 @@ who_am_i, _24601 = giveMePI()
 if who_am_i == 0:
     print("Number of processors (and walkers): {}".format(_24601))
 
-testWalkersss =np.array( [ testWalker ] * _24601 )
+testWalkersss = np.array( [ testWalker ] * _24601 )
 testWalkersss += np.random.uniform(low=-.5, high=.5, size=testWalkersss.shape)
 test_iterations = 1
 test_results = np.zeros((test_iterations,))
