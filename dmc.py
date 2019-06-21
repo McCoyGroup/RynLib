@@ -208,8 +208,8 @@ class Simulation:
             weights *= new_wts
         return weights
 
-    def branch(self, energies):
-        return self.walkers.branch(energies)
+    def branch(self):
+        return self.walkers.branch()
 
     def descendent_weight(self):
         """Calls into the walker descendent weighting if the timing is right
@@ -272,12 +272,9 @@ class WalkerSet:
         coords = self.get_displaced_coords(n)
         self.coords = coords[-1]
         return coords
-    def branch(self, energies):
-        """Handles branching in the system. Also handles adding the changes to energies, but maybe that's more communication
-        between Simulation and WalkerSet than I really want... this might be better placed in the Simulation class altogether
+    def branch(self):
+        """Handles branching in the system.
 
-        :param energies:
-        :type energies:
         :return:
         :rtype:
         """
@@ -286,7 +283,7 @@ class WalkerSet:
         walkers = self.coords
         parents = self.parents
         threshold = 1.0 / self.num_walkers
-        eliminated_walkers = np.argwhere(self.weights < threshold)
+        eliminated_walkers = np.argwhere(weights < threshold)
         # self.log_print('Walkers being removed: {}'.format(len(eliminated_walkers)))
         # self.log_print('Max weight in ensemble: {}'.format(np.amax(weights)))
 
@@ -294,11 +291,9 @@ class WalkerSet:
             cloning = np.argmax(weights)
             parents[dying] = parents[cloning]
             walkers[dying] = walkers[cloning]
-            energies[dying] = energies[cloning]
             weights[dying] = weights[cloning] / 2.0
             weights[cloning] /= 2.0
 
-        return energies
     def descendent_weight(self):
         """Handles the descendent weighting in the system
 
