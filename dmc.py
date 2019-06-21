@@ -45,10 +45,12 @@ class Simulation:
                  num_time_steps = None,
                  alpha = None,
                  potential = None,
-                 descendent_weighting_delay = None,
+                 equilibration = None,
+                 descendent_weighting = None,
+                 write_wavefunctions = None,
                  output_folder = None,
                  log_file = None,
-                 verbose = False
+                 verbosity = 0
                  ):
         """ Sets up all the necessary simulation data to run a DMC
 
@@ -68,10 +70,10 @@ class Simulation:
         :type num_time_steps: int
         :param alpha: ...used in calculating the reference potential value but I can't remember why...
         :type alpha: float
-        :param potential: the function that will take a set of atoms and sets of configurations and spit back out potential valeu
+        :param potential: the function that will take a set of atoms and sets of configurations and spit back out potential value
         :type potential: function or callable
-        :param descendent_weighting_delay: the number of steps to propagate before calling into the descendent weighting code
-        :type descendent_weighting_delay: int
+        :param descendent_weighting: the number of steps before descendent weighting and the number of steps to go before saving
+        :type descendent_weighting: (int, int)
         :param log_file: the file to write log stuff to
         :type log_file: str or stream or other file-like-object
         :param output_folder: the folder to write all data stuff to
@@ -94,10 +96,17 @@ class Simulation:
 
         self.time_step = time_step
         self.D = D # not sure what this is supposed to be...?
-        self.walkers.initialize(self,time_step,D)
+        self.walkers.initialize(self, time_step, D)
 
-        self.descendent_weighting_delay = descendent_weighting_delay
-        self._last_desc_weighting_step = 0
+        self._dw_delay, self._dw_steps = descendent_weighting
+        self._write_wavefunctions = write_wavefunctions
+        if write_wavefunctions:
+            self.wavefunctions = deque(maxlen=1)
+        else:
+            self.wavefunctions = deque()
+        self._num_wavefunctions = 0 # here so we can do things with save_wavefunction
+        self._last_dw_step = 0
+        self._dw_initialized_step = None
 
         if output_folder is None:
             output_folder = os.path.join(os.path.abspath("dmc_data"), self.name)
@@ -107,18 +116,37 @@ class Simulation:
             log_file = os.path.join(self.output_folder, "log.txt")
         self.log_file = log_file
 
-        self.verbose = verbose
+        self.verbosity = verbosity
 
-    def log_print(self, *message, **kwargs):
-        if not self.log_file is None:
+        self._equilibrated = False
+        if isinstance(equilibration, int):
+            equilibration = lambda s, e=equilibration: s.step_num > e #classic lambda parameter binding
+        self.equilibration_check = equilibration
+
+    @property
+    def zpe(self):
+        return self.get_zpe()
+    def get_zpe(self, n = 30):
+        import itertools
+        return np.average(np.array(itertools.islice(self.reference_potentials, -n, 1)))
+
+    @property
+    def equilibrated(self):
+        if not self._equilibrated:
+            self._equilibrated = self.equilibration_check(self)
+        return self._equilibrated
+
+    def log_print(self, message, *params, verbosity = 1, **kwargs):
+        if verbosity <= self.verbosity and self.log_file is not None:
             log = self.log_file
             if isinstance(log, str):
                 if not os.path.isdir(os.path.dirname(log)):
                     os.makedirs(os.path.dirname(log))
                 with open(log, "a") as lf: # this is potentially quite slow but I am also quite lazy
-                    print(*message, file = lf, **kwargs)
+                    print(message.format(*params), file = lf, **kwargs)
             else:
-                print(*message, file = log, **kwargs)
+                print(message.format(*params), file = log, **kwargs)
+
     def snapshot(self):
         import pickle
         if not os.path.isdir(self.output_folder):
@@ -132,12 +160,22 @@ class Simulation:
 
         file = os.path.join(walker_dir, 'walkers_{}.pickle'.format(self.time_step))
         self.walkers.snapshot(file)
+    def save_wavefunction(self):
+        """Save wavefunctions to a numpy binary
 
-    @property
-    def zpe(self):
-        return self.get_zpe()
-    def get_zpe(self, n = 30):
-        return np.average(np.array(self.reference_potentials[-30:]))
+        :return:
+        :rtype:
+        """
+
+
+        wf_dir = os.path.join(self.output_folder, "wavefunctions")
+        if not os.path.isdir(wf_dir):
+            os.makedirs(wf_dir)
+        file = os.path.join(wf_dir, 'wavefunction_{}.npz'.format(self._num_wavefunctions))
+        if self.verbosity:
+            self.log_print("Saving wavefunction to {}", file, verbosity=2)
+        np.savez(file, *self.wavefunctions[-1])
+        return file
 
     def run(self):
         """Runs the DMC until we've gone through the requested number of time steps
@@ -159,24 +197,24 @@ class Simulation:
         if nsteps is None:
             nsteps = self.prop_steps
 
-        v=self.verbose
+        v=self.verbosity
         if v:
-            self.log_print("Starting step {}".format(self.step_num))
-            self.log_print("Moving coordinates {} steps".format(nsteps))
+            self.log_print("Starting step {}", self.step_num, verbosity=5)
+            self.log_print("Moving coordinates {} steps", nsteps, verbosity=5)
         coord_sets = self.walkers.displace(nsteps)
         if v:
-            self.log_print("Computing potential energy")
+            self.log_print("Computing potential energy", verbosity=5)
         energies = self.potential(self.walkers.atoms, coord_sets)
         self.step_num += nsteps
         if v:
-            self.log_print("Updating walker weights")
+            self.log_print("Updating walker weights", verbosity=5)
         weights = self.update_weights(energies, self.walkers.weights)
         self.walkers.weights = weights
         if v:
-            self.log_print("Branching")
+            self.log_print("Branching", verbosity=5)
         self.branch()
         if v:
-            self.log_print("Applying descendent weighting")
+            self.log_print("Applying descendent weighting", verbosity=5)
         self.descendent_weight()
 
         # Plotter.plot_psi(self)
@@ -224,10 +262,21 @@ class Simulation:
         :return:
         :rtype:
         """
-        do_it = self.step_num - self._last_desc_weighting_step >= self.descendent_weighting_delay
-        if do_it:
-            dw = self.walkers.descendent_weight() # not sure where I want to cache these...
-            self._last_desc_weighting_step = self.step_num
+        if self.equilibrated:
+            step = self.step_num
+            if (self._dw_initialized_step is not None) and step - self._dw_initialized_step >= self._dw_steps:
+                self.log_print("Collecting descendent weights at time step {}", step, verbosity=3)
+                dw = self.walkers.descendent_weight() # not sure where I want to cache these...
+                self.wavefunctions.append(dw)
+                self._num_wavefunctions += 1
+                if self._write_wavefunctions:
+                    self.save_wavefunction()
+                self._dw_initialized_step = None
+            elif step - self._last_dw_step >= self._dw_delay:
+                if self.verbosity:
+                    self.log_print("Starting descendent weighting propagation at time step {}", step, verbosity=3)
+                self._dw_initialized_step = step
+                self._last_dw_step = step
 
 class WalkerSet:
     def __init__(self, atoms = None, masses = None, initial_walker = None, num_walkers = None):
@@ -258,7 +307,7 @@ class WalkerSet:
         """
         self.deltaT = deltaT
         self.sigmas = np.sqrt((2 * D * deltaT) / self.masses)
-        self.log_print = sim.log_print
+        self.log_print = sim.log_print # this makes it abundantly clear that branching should *not* be on the WalkerSet
     def get_displacements(self, steps = 1):
         shape = (steps, ) + self.coords.shape[:-2] + self.coords.shape[-1:]
         disps = np.array([
@@ -304,8 +353,8 @@ class WalkerSet:
         parents = self.parents
         threshold = 1.0 / self.num_walkers
         eliminated_walkers = np.argwhere(weights < threshold).flatten()
-        # self.log_print('Walkers being removed: {}'.format(len(eliminated_walkers)))
-        # self.log_print('Max weight in ensemble: {}'.format(np.amax(weights)))
+        self.log_print('Walkers being removed: {}', len(eliminated_walkers), verbosity=4)
+        self.log_print('Max weight in ensemble: {}', np.amax(weights), verbosity=4)
 
         for dying in eliminated_walkers: # gotta do it iteratively to get the max_weight_walker right..
             cloning = np.argmax(weights)
@@ -323,10 +372,12 @@ class WalkerSet:
         """
 
         weights = np.array( [ np.sum(self.weights[ self.parents == i ]) for i in range(self.num_walkers) ] )
-        self.descendent_weights = (self._parents, weights, self._parent_weights)
+        descendent_weights = (self._parents, weights, self._parent_weights)
         self._parents = self.coords.copy()
         self._parent_weights = self.weights.copy()
         self.parents = np.arange(self.num_walkers)
+
+        return descendent_weights
 
     def snapshot(self, file):
         """Snapshots the current walker set to file"""
@@ -389,10 +440,10 @@ class Plotter:
         import matplotlib.pyplot as plt
         w = sim.walkers
         fig, axes = plt.subplots()
-        coord, dw, ow = w.descendent_weights
+        coord, dw, ow = sim.wavefunctions[-1]
         coord = coord.flatten()
 
-        hist, bins = np.histogram(coord, weights=(dw*ow), bins = 20, density = True)
+        hist, bins = np.histogram(coord, weights=dw, bins = 20, density = True)
         bins -= (bins[1] - bins[0]) / 2
         axes.plot(bins[:-1], hist)
         plt.show()
@@ -402,7 +453,7 @@ if __name__ == "__main__":
 
     import sys
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    # from RynLib.loader import *
+    from RynLib.loader import *
 
     walkers = WalkerSet(
         atoms = Constants.water_structure[0],
@@ -410,30 +461,31 @@ if __name__ == "__main__":
         num_walkers = 100
     )
 
+    dwDelay = 500
     nDw = 30
     deltaT = 5.0
     alpha = 1.0 / (2.0 * deltaT)
+    equil = 1000
     ntimeSteps = 10000
     ntimeSteps += nDw
 
-
-    def exportCoords(cds, fn):  # for partridge schwinke
-        cds = np.array(cds)
-        fl = open(fn, "w+")
-        fl.write('%d\n' % len(cds))
-        for i in range(len(cds)):  # for a walker
-            for j in range(len(cds[i])):  # for a certain # of atoms
-                fl.write('%5.16f %5.16f %5.16f\n' % (cds[i, j, 0], cds[i, j, 1], cds[i, j, 2]))
-        fl.close()
-    def PatrickShinglePotential(atms,walkerSet):
-        import subprocess as sub
-        bigPotz = np.zeros(walkerSet.shape[:2])
-        for i,coordz in enumerate(walkerSet):
-            exportCoords(coordz, 'PES/PES0' + '/hoh_coord.dat')
-            proc = sub.Popen('./calc_h2o_pot', cwd='PES/PES0')
-            proc.wait()
-            bigPotz[i] = np.loadtxt('PES/PES0' + '/hoh_pot.dat')
-        return bigPotz
+    # def exportCoords(cds, fn):  # for partridge schwinke
+    #     cds = np.array(cds)
+    #     fl = open(fn, "w+")
+    #     fl.write('%d\n' % len(cds))
+    #     for i in range(len(cds)):  # for a walker
+    #         for j in range(len(cds[i])):  # for a certain # of atoms
+    #             fl.write('%5.16f %5.16f %5.16f\n' % (cds[i, j, 0], cds[i, j, 1], cds[i, j, 2]))
+    #     fl.close()
+    # def PatrickShinglePotential(atms,walkerSet):
+    #     import subprocess as sub
+    #     bigPotz = np.zeros(walkerSet.shape[:2])
+    #     for i,coordz in enumerate(walkerSet):
+    #         exportCoords(coordz, 'PES/PES0' + '/hoh_coord.dat')
+    #         proc = sub.Popen('./calc_h2o_pot', cwd='PES/PES0')
+    #         proc.wait()
+    #         bigPotz[i] = np.loadtxt('PES/PES0' + '/hoh_pot.dat')
+    #     return bigPotz
 
 
     sim = Simulation(
@@ -442,13 +494,17 @@ if __name__ == "__main__":
         walker_set = walkers,
         time_step = 5.0, D = 1/2.0,
 
+        alpha = alpha,
+        potential = rynaLovesDMCLots,
+
         num_time_steps = ntimeSteps,
         steps_per_propagation = 1,
+        equilibration = equil,
 
-        alpha = alpha,
-        descendent_weighting_delay = nDw,
+        descendent_weighting = (dwDelay, nDw),
         output_folder = os.path.expanduser("~/Desktop"),
-        potential = PatrickShinglePotential,
+
+        write_wavefunctions = False,
         log_file=sys.stdout
 
     )
@@ -466,17 +522,21 @@ if __name__ == "__main__":
     #     "ho",
     #     """Test harmonic oscillator""",
     #     walker_set = ho_walkers,
-    #     time_step = .01, D = 2.0,
-    #
-    #     num_time_steps = ntimeSteps,
-    #     steps_per_propagation = 1,
+    #     time_step = 5.0, D = 1/2.0,
     #
     #     alpha = alpha,
-    #     descendent_weighting_delay = nDw,
-    #     output_folder = os.path.expanduser("~/Desktop"),
     #     potential = hoop,
-    #     log_file = sys.stdout
     #
+    #     num_time_steps = ntimeSteps,
+    #     steps_per_propagation = 10,
+    #
+    #     descendent_weighting = (dwDelay, nDw),
+    #     equilibration = equil,
+    #     write_wavefunctions = False,
+    #
+    #     output_folder = os.path.expanduser("~/Desktop"),
+    #     log_file = sys.stdout,
+    #     verbosity=0
     # )
 
     try:
