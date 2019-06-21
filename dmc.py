@@ -133,6 +133,12 @@ class Simulation:
         file = os.path.join(walker_dir, 'walkers_{}.pickle'.format(self.time_step))
         self.walkers.snapshot(file)
 
+    @property
+    def zpe(self):
+        return self.get_zpe()
+    def get_zpe(self, n = 30):
+        return np.average(np.array(self.reference_potentials[-30:]))
+
     def run(self):
         """Runs the DMC until we've gone through the requested number of time steps
 
