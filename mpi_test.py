@@ -13,17 +13,21 @@ testAtoms = [ "H", "H", "O" ]
 who_am_i, _24601 = giveMePI()
 if who_am_i == 0:
     print("Number of processors (and walkers): {}".format(_24601))
+
 testWalkersss =np.array( [ testWalker ] * _24601 )
 testWalkersss += np.random.uniform(low=-.5, high=.5, size=testWalkersss.shape)
 test_iterations = 1
 test_results = np.zeros((test_iterations,))
 lets_get_going = time.time()
-nsteps = 1
+nsteps = 5
+testWalkersss = np.broadcast_to(testWalkersss, (nsteps,) + testWalkersss.shape).copy() # this is actually probably important
+# print(testWalkersss)
 for ttt in range(test_iterations):
     t0 = time.time()
-    test_result = rynaLovesDMCLots(testAtoms, testWalkersss, nsteps)
+    test_result = rynaLovesDMCLots(testAtoms, testWalkersss)
     test_results[ttt] = time.time() - t0
 gotta_go_fast = time.time() - lets_get_going
+
 if who_am_i == 0:
     print("Got back: {}".format(test_result))
     print("Total time: {}s (over {} iterations)".format(gotta_go_fast, test_iterations))
