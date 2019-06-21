@@ -218,17 +218,17 @@ PotentialArray _mpiGetPot(
 #else
 
 void _mpiInit(int* world_size, int* world_rank) {
-    world_size = 0;
-    world_rank = 0;
+    *world_size = 1;
+    *world_rank = 0;
 }
 
 void _mpiFinalize() {
     // boop
 }
 
-std::vector<std::vector<double> > _mpiGetPot(
+PotentialArray _mpiGetPot(
         double* raw_data,
-        std::vector<std::string> atoms,
+        Names atoms,
         int ncalls,
         Py_ssize_t num_walkers,
         Py_ssize_t num_atoms,
@@ -236,8 +236,8 @@ std::vector<std::vector<double> > _mpiGetPot(
         int world_rank
         ) {
 
-        printf("this is not for real boys");
-        std::vector< std::vector<double> > potVals(ncalls, std::vector<double>(num_walkers));
+//        printf("this is not for real boys");
+        PotentialArray potVals(ncalls, PotentialVector(num_walkers, 52.0));
         return potVals;
 
         }
