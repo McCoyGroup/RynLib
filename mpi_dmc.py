@@ -2,7 +2,7 @@ from __future__ import print_function
 import sys, os, numpy as np, time
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from . import *
+from RynLib import *
 
 who_am_i, _24601 = giveMePI() # les do some dmizc
 if who_am_i == 0:
@@ -47,7 +47,6 @@ sim = Simulation(
     verbosity=5
 
 )
-
 
 holdMyPi() # blocks until all our friends arrive
 
