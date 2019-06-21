@@ -45,7 +45,7 @@
 				<Option compiler="gcc"/>
 				<Compiler>
 					<Add option="-DIM_A_REAL_BOY"/>
-					<Add directory="/Users/Mark/Documents/UW/Group/Ryan/RynLib/src/../../../../Research/Common/private"/>
+					<Add directory="/Users/Mark/Documents/UW/Research/Common/private"/>
 					<Add directory="/Library/Frameworks/Python.framework/Versions/3.7/include/python3.7m"/>
 					<Add directory="/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include/c++/v1"/>
 					<Add directory="/usr/local/include"/>
@@ -69,7 +69,7 @@
 				<Option compiler="gcc"/>
 				<Compiler>
 					<Add option="-DIM_A_REAL_BOY"/>
-					<Add directory="/Users/Mark/Documents/UW/Group/Ryan/RynLib/src/../../../../Research/Common/private"/>
+					<Add directory="/Users/Mark/Documents/UW/Research/Common/private"/>
 					<Add directory="/Library/Frameworks/Python.framework/Versions/3.7/include/python3.7m"/>
 					<Add directory="/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include/c++/v1"/>
 					<Add directory="/usr/local/include"/>

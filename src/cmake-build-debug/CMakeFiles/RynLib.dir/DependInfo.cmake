@@ -15,7 +15,7 @@ set(CMAKE_TARGET_DEFINITIONS_CXX
 
 # The include file search paths:
 set(CMAKE_CXX_TARGET_INCLUDE_PATH
-  "../../../../../Research/Common/private"
+  "/Users/Mark/Documents/UW/Research/Common/private"
   "/Library/Frameworks/Python.framework/Versions/3.7/include/python3.7m"
   )
 

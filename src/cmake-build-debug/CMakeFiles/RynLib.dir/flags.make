@@ -6,5 +6,5 @@ CXX_FLAGS = -g -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/Ma
 
 CXX_DEFINES = -DIM_A_REAL_BOY
 
-CXX_INCLUDES = -I/Users/Mark/Documents/UW/Group/Ryan/RynLib/src/../../../../Research/Common/private -I/Library/Frameworks/Python.framework/Versions/3.7/include/python3.7m 
+CXX_INCLUDES = -I/Users/Mark/Documents/UW/Research/Common/private -I/Library/Frameworks/Python.framework/Versions/3.7/include/python3.7m 
 
