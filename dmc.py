@@ -39,7 +39,9 @@ class Constants:
     )
 
 class Simulation:
-    def __init__(self, name, description,
+    def __init__(self,
+                 name = "dmc",
+                 description = "a dmc",
                  walker_set = None,
                  D = None, time_step = None,
                  steps_per_propagation = None,
@@ -98,6 +100,30 @@ class Simulation:
         :param world_rank: the world_rank of the processor in an MPI call
         :type world_rank: int
         """
+
+        # store params for snapshotting
+        self._params = dict(
+            name= name,
+            description = description,
+            D = D,
+            time_step = time_step,
+            steps_per_propagation = steps_per_propagation,
+            num_time_steps = num_time_steps,
+            alpha = alpha,
+            potential = potential,
+            equilibration = equilibration,
+            descendent_weighting = descendent_weighting,
+            write_wavefunctions = write_wavefunctions,
+            checkpoint_at = checkpoint_at,
+            zpe_averages = zpe_averages,
+            output_folder = output_folder,
+            log_file = log_file,
+            verbosity = verbosity,
+            dummied = dummied, # for MPI usage
+            world_rank = world_rank
+        )
+
+
         from collections import deque
 
         self.name = name
@@ -161,6 +187,7 @@ class Simulation:
     LOG_STEPS = 5
     LOG_MPI = 7
     LOG_ALL = 10
+    LOG_DEBUG = 100
     def log_print(self, message, *params, **kwargs):
         if 'verbosity' in kwargs:
             verbosity = kwargs['verbosity']
@@ -187,7 +214,7 @@ class Simulation:
             n = self.zpe_averages
 
         if len(self.reference_potentials) > n:
-            vrefs = itertools.islice(self.reference_potentials, -n, 1)
+            vrefs = itertools.islice(self.reference_potentials, len(self.reference_potentials)-n, 1)
         else:
             vrefs = self.reference_potentials
         return np.average(np.array(vrefs))
@@ -201,8 +228,10 @@ class Simulation:
     def checkpoint(self):
         if self._checkpoint(self):
             self.log_print("Checkpointing simulation", verbosity=self.LOG_STEPS)
-            self.snapshot("checkpoint.pickle")
-            self.save_energies()
+            # self.snapshot("checkpoint.pickle")
+            self.snapshot_energies()
+            self.snapshot_params()
+            self.snapshot_walkers()
     def snapshot(self, file="snapshot.pickle"):
         """Saves a snapshot of the simulation to file
 
@@ -211,6 +240,8 @@ class Simulation:
         :return:
         :rtype:
         """
+        raise NotImplementedError("Turns out pickle doesn't like this")
+
         import pickle
 
         f = os.path.abspath(file)
@@ -220,16 +251,35 @@ class Simulation:
             f = os.path.join(self.output_folder, file)
         with open(f, "w+") as binary:
             pickle.dump(self, binary)
-    def snapshot_walkers(self):
+    def snapshot_params(self, file="params.pickle"):
+        """Saves a snapshot of the params to a pickle
+
+        :return:
+        :rtype:
+        """
+        import pickle
+
+        self._params.update(step_num = self.step_num)
+        f = os.path.abspath(file)
+        if not os.path.isfile(f):
+            f = os.path.join(self.output_folder, file)
+        out_dir = os.path.dirname(f)
+        if not os.path.isdir(out_dir):
+            os.makedirs(out_dir)
+        with open(f, "w+") as binary:
+            pickle.dump(self._params, binary)
+    def snapshot_walkers(self, file="walkers.npz"):
         """Saves a snapshot of the walkers to a pickle
 
         :return:
         :rtype:
         """
-        walker_dir = os.path.join(self.output_folder, "walkers")
-        if not os.path.isdir(walker_dir):
-            os.makedirs(walker_dir)
-        file = os.path.join(walker_dir, 'walkers_{}.pickle'.format(self.time_step))
+        f = os.path.abspath(file)
+        if not os.path.isfile(f):
+            f = os.path.join(self.output_folder, file)
+        out_dir = os.path.dirname(f)
+        if not os.path.isdir(out_dir):
+            os.makedirs(out_dir)
         self.walkers.snapshot(file)
     def save_wavefunction(self):
         """Save wavefunctions to a numpy binary
@@ -243,9 +293,9 @@ class Simulation:
         file = os.path.join(wf_dir, 'wavefunction_{}.npz'.format(self._num_wavefunctions))
         if self.verbosity:
             self.log_print("Saving wavefunction to {}", file, verbosity=self.LOG_STEPS)
-        np.savez(file, *self.wavefunctions[-1])
+        np.savez(file, **self.wavefunctions[-1])
         return file
-    def save_energies(self, file="energies"):
+    def snapshot_energies(self, file="energies"):
         """Saves a snapshot of the energies to a numpy binary
 
        :param file:
@@ -288,7 +338,7 @@ class Simulation:
             coord_sets = self.walkers.displace(nsteps)
             self.log_print("Computing potential energy", verbosity=self.LOG_STATUS)
             start = time.time()
-            energies = self.potential(self.walkers.atoms, coord_sets)
+            energies = self.potential(self.walkers.atoms, coord_sets, sim=self)
             end = time.time()
             self.log_print("    took {}s", end-start, verbosity=self.LOG_STATUS)
             self.step_num += nsteps
@@ -310,7 +360,7 @@ class Simulation:
             except AttributeError:
                 self._dummy_walkers = np.broadcast_to(self.walkers.coords, (nsteps,) + self.walkers.coords.shape).copy()
                 walk = self._dummy_walkers
-            self.potential(self.walkers.atoms, walk)
+            self.potential(self.walkers.atoms, walk, sim=self)
             self.step_num += nsteps
         # Plotter.plot_psi(self)
 
@@ -325,7 +375,11 @@ class Simulation:
         :rtype: float
         """
 
-        Vbar = np.average(energies, weights=weights, axis = 0)
+        energy_threshold = 10.8 # cutoff above which potential is really an error
+        pick_spec = energies < energy_threshold
+        e_pick = energies[pick_spec]
+        w_pick = weights[pick_spec]
+        Vbar = np.average(e_pick, weights=w_pick, axis = 0)
         num_walkers = len(weights)
         correction=np.sum(weights-np.ones(num_walkers), axis = 0)/num_walkers
         vref = Vbar - (self.alpha * correction)
@@ -342,10 +396,12 @@ class Simulation:
         :rtype: np.ndarray
         """
         for e in energies: # this is basically a reduce call, but there's no real reason not to keep it like this
+            self.log_print("Energies: {}", e, verbosity=self.LOG_DEBUG)
             Vref = self._compute_vref(e, weights)
             self.reference_potentials.append(Vref) # a constant time operation
-            new_wts = np.exp(-1.0 * (e - Vref) * self.time_step)
+            new_wts = np.nan_to_num(np.exp(-1.0 * (e - Vref) * self.time_step))
             weights *= new_wts
+            self.log_print("Weights: {}", weights, verbosity=self.LOG_DEBUG)
         return weights
 
     def branch(self):
@@ -388,7 +444,6 @@ class WalkerSet:
         self.parents = np.arange(num_walkers)
         self._parents = self.coords.copy()
         self._parent_weights = self.weights.copy()
-        self.descendent_weights = None
 
     def initialize(self, sim, deltaT, D):
         """Sets up necessary parameters for use in calculating displacements and stuff
@@ -460,7 +515,7 @@ class WalkerSet:
         """
 
         weights = np.array( [ np.sum(self.weights[ self.parents == i ]) for i in range(self.num_walkers) ] )
-        descendent_weights = (self._parents, weights, self._parent_weights)
+        descendent_weights = {"coords":self._parents, "weights":weights, "original_weights":self._parent_weights}
         self._parents = self.coords.copy()
         self._parent_weights = self.weights.copy()
         self.parents = np.arange(self.num_walkers)
@@ -469,10 +524,8 @@ class WalkerSet:
 
     def snapshot(self, file):
         """Snapshots the current walker set to file"""
-        import pickle
 
-        with open(file, "w+") as binary:
-            pickle.dump(self, binary)
+        np.savez(file, coords=self.coords, weights=self.weights, sigmas=self.sigmas, parents=self.parents)
 
 class Plotter:
     _mpl_loaded = False

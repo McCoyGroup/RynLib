@@ -22,9 +22,10 @@ equil = 1000
 ntimeSteps = 10000
 ntimeSteps += nDw
 
-def potential(atoms, walkers):
+def potential(atoms, walkers, sim=None):
     res = rynaLovesDMCLots(atoms, walkers)
-    # holdMyPI()
+    # if sim.world_rank == 0:
+    holdMyPI()
     return res
 
 sim = Simulation(
@@ -46,7 +47,7 @@ sim = Simulation(
     write_wavefunctions = True,
 
     world_rank = who_am_i,
-    verbosity=10 # 5 will just get info on potential updates and time elapsed for that
+    verbosity=Simulation.LOG_DEBUG
 
 )
 
@@ -62,7 +63,7 @@ if who_am_i == 0:
 else:
     sim.log_print("    starting simulation on core {}".format(who_am_i), verbosity=7)
 
-# holdMyPI() # blocks until all our friends arrive
+holdMyPI() # blocks until all our friends arrive
 sim.run()
 
 if who_am_i == 0:
