@@ -1,4 +1,5 @@
 #include "RynLib.h"
+#include <stdio.h>
 
 typedef std::vector<double> Point;
 typedef Point PotentialVector;
@@ -90,6 +91,20 @@ Coordinates _getWalkerCoords(const double* raw_data, int i, Py_ssize_t num_atoms
     return walker_coords;
 }
 
+#ifdef IM_A_REAL_BOY
+void _printOutWalkerStuff( Coordinates walker_coords ) {
+    FILE * err = fopen("bad_walkers.txt", "a");
+    fprintf(err, "This walker was bad: ( ");
+    for ( size_t i = 0; i < walker_coords.size(); i++) {
+        fprintf(err, "(%f, %f, %f)", walker_coords[i][0], walker_coords[i][1], walker_coords[i][2]);
+        if ( i < walker_coords.size()-1 ) {
+            fprintf(err, ", ");
+        }
+    }
+    fprintf(err, " )\n");
+    fclose(err);
+}
+#else
 void _printOutWalkerStuff( Coordinates walker_coords ) {
     printf("This walker was bad: ( ");
     for ( size_t i = 0; i < walker_coords.size(); i++) {
@@ -100,6 +115,7 @@ void _printOutWalkerStuff( Coordinates walker_coords ) {
     }
     printf(" )\n");
 }
+#endif
 
 double _doopAPot(const Coordinates &walker_coords, const Names &atoms) {
     double pot;

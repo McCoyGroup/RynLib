@@ -1,5 +1,5 @@
 from __future__ import print_function
-import numpy as np, os
+import numpy as np, os, time
 
 ##############################################################################################################
 #
@@ -49,12 +49,15 @@ class Simulation:
                  equilibration = None,
                  descendent_weighting = None,
                  write_wavefunctions = None,
+                 checkpoint_at = None,
+                 zpe_averages = 1000,
                  output_folder = None,
                  log_file = None,
                  verbosity = 0,
-                 dummied = False # for MPI usage
+                 dummied = None, # for MPI usage
+                 world_rank = 0
                  ):
-        """ Sets up all the necessary simulation data to run a DMC
+        """Sets up all the necessary simulation data to run a DMC
 
         :param name: name to be used when storing file data
         :type name: str
@@ -70,7 +73,7 @@ class Simulation:
         :type steps_per_propagation: int
         :param num_time_steps: the total number of time steps the simulation should run for (initially)
         :type num_time_steps: int
-        :param alpha: ...used in calculating the reference potential value but I can't remember why...
+        :param alpha: used in finding the branching correction to the reference potential
         :type alpha: float
         :param potential: the function that will take a set of atoms and sets of configurations and spit back out potential value
         :type potential: function or callable
@@ -80,6 +83,20 @@ class Simulation:
         :type log_file: str or stream or other file-like-object
         :param output_folder: the folder to write all data stuff to
         :type output_folder: str
+        :param equilibration: the number of timesteps or method to determine equilibration
+        :type equilibration: int or callable
+        :param write_wavefunctions: whether or not to write wavefunctions to file after descedent weighting
+        :type write_wavefunctions: bool
+        :param checkpoint_at: the number of timesteps to progress before checkpointing (None means never)
+        :type checkpoint_at: int or None
+        :param verbosity: the verbosity level for log printing
+        :type verbosity: int
+        :param zpe_averages: the number of steps to average the ZPE over
+        :type zpe_averages: int
+        :param dummied: whether or not to just use for potential calls (exists for hooking into MPI and parallel methods)
+        :type dummied: bool
+        :param world_rank: the world_rank of the processor in an MPI call
+        :type world_rank: int
         """
         from collections import deque
 
@@ -125,14 +142,55 @@ class Simulation:
             equilibration = lambda s, e=equilibration: s.step_num > e #classic lambda parameter binding
         self.equilibration_check = equilibration
 
+        if dummied is None:
+            dummied = world_rank != 0
         self.dummied = dummied
+        self.world_rank = world_rank
+
+        self._previous_checkpoint = 0
+        if isinstance(checkpoint_at, int):
+            checkpoint_at = lambda s, c=checkpoint_at: s.step_num - s._previous_checkpoint > c
+        elif checkpoint_at is None:
+            checkpoint_at = lambda *a: False
+        self._checkpoint = checkpoint_at
+
+        self.zpe_averages = zpe_averages
+
+    LOG_BASIC = 1
+    LOG_STATUS = 3
+    LOG_STEPS = 5
+    LOG_MPI = 7
+    LOG_ALL = 10
+    def log_print(self, message, *params, **kwargs):
+        if 'verbosity' in kwargs:
+            verbosity = kwargs['verbosity']
+            del kwargs['verbosity']
+        else:
+            verbosity = self.LOG_BASIC
+        if verbosity <= self.verbosity and self.log_file is not None:
+            log = self.log_file
+            if isinstance(log, str):
+                if not os.path.isdir(os.path.dirname(log)):
+                    os.makedirs(os.path.dirname(log))
+                #O_NONBLOCK is *nix only
+                with open(log, "a", os.O_NONBLOCK) as lf: # this is potentially quite slow but I am also quite lazy
+                    print(message.format(*params), file = lf, **kwargs)
+            else:
+                print(message.format(*params), file = log, **kwargs)
 
     @property
     def zpe(self):
         return self.get_zpe()
-    def get_zpe(self, n = 30):
+    def get_zpe(self, n = None):
         import itertools
-        return np.average(np.array(itertools.islice(self.reference_potentials, -n, 1)))
+        if n is None:
+            n = self.zpe_averages
+
+        if len(self.reference_potentials) > n:
+            vrefs = itertools.islice(self.reference_potentials, -n, 1)
+        else:
+            vrefs = self.reference_potentials
+        return np.average(np.array(vrefs))
 
     @property
     def equilibrated(self):
@@ -140,28 +198,37 @@ class Simulation:
             self._equilibrated = self.equilibration_check(self)
         return self._equilibrated
 
-    def log_print(self, message, *params, verbosity = 1, **kwargs):
-        if not self.dummied and verbosity <= self.verbosity and self.log_file is not None:
-            log = self.log_file
-            if isinstance(log, str):
-                if not os.path.isdir(os.path.dirname(log)):
-                    os.makedirs(os.path.dirname(log))
-                with open(log, "a") as lf: # this is potentially quite slow but I am also quite lazy
-                    print(message.format(*params), file = lf, **kwargs)
-            else:
-                print(message.format(*params), file = log, **kwargs)
+    def checkpoint(self):
+        if self._checkpoint(self):
+            self.log_print("Checkpointing simulation", verbosity=self.LOG_STEPS)
+            self.snapshot("checkpoint.pickle")
+            self.save_energies()
+    def snapshot(self, file="snapshot.pickle"):
+        """Saves a snapshot of the simulation to file
 
-    def snapshot(self):
+        :param file:
+        :type file:
+        :return:
+        :rtype:
+        """
         import pickle
-        if not os.path.isdir(self.output_folder):
-            os.makedirs(self.output_folder)
-        file = os.path.join(self.output_folder, "snapshot.pickle")
-        pickle.dump(self, file)
+
+        f = os.path.abspath(file)
+        if not os.path.isfile(f):
+            if not os.path.isdir(self.output_folder):
+                os.makedirs(self.output_folder)
+            f = os.path.join(self.output_folder, file)
+        with open(f, "w+") as binary:
+            pickle.dump(self, binary)
     def snapshot_walkers(self):
+        """Saves a snapshot of the walkers to a pickle
+
+        :return:
+        :rtype:
+        """
         walker_dir = os.path.join(self.output_folder, "walkers")
         if not os.path.isdir(walker_dir):
             os.makedirs(walker_dir)
-
         file = os.path.join(walker_dir, 'walkers_{}.pickle'.format(self.time_step))
         self.walkers.snapshot(file)
     def save_wavefunction(self):
@@ -170,16 +237,30 @@ class Simulation:
         :return:
         :rtype:
         """
-
-
         wf_dir = os.path.join(self.output_folder, "wavefunctions")
         if not os.path.isdir(wf_dir):
             os.makedirs(wf_dir)
         file = os.path.join(wf_dir, 'wavefunction_{}.npz'.format(self._num_wavefunctions))
         if self.verbosity:
-            self.log_print("Saving wavefunction to {}", file, verbosity=2)
+            self.log_print("Saving wavefunction to {}", file, verbosity=self.LOG_STEPS)
         np.savez(file, *self.wavefunctions[-1])
         return file
+    def save_energies(self, file="energies"):
+        """Saves a snapshot of the energies to a numpy binary
+
+       :param file:
+       :type file:
+       :return:
+       :rtype:
+       """
+
+        f = os.path.abspath(file)
+        if not os.path.isfile(f):
+            if not os.path.isdir(self.output_folder):
+                os.makedirs(self.output_folder)
+            f = os.path.join(self.output_folder, file)
+        np.save(f, np.array(self.reference_potentials))
+        return f
 
     def run(self):
         """Runs the DMC until we've gone through the requested number of time steps
@@ -201,28 +282,36 @@ class Simulation:
         if nsteps is None:
             nsteps = self.prop_steps
 
-        v=self.verbosity
         if not self.dummied:
-            if v:
-                self.log_print("Starting step {}", self.step_num, verbosity=5)
-                self.log_print("Moving coordinates {} steps", nsteps, verbosity=5)
+            self.log_print("Starting step {}", self.step_num, verbosity=self.LOG_STATUS)
+            self.log_print("Moving coordinates {} steps", nsteps, verbosity=self.LOG_STEPS)
             coord_sets = self.walkers.displace(nsteps)
-            if v:
-                self.log_print("Computing potential energy", verbosity=5)
+            self.log_print("Computing potential energy", verbosity=self.LOG_STATUS)
+            start = time.time()
             energies = self.potential(self.walkers.atoms, coord_sets)
+            end = time.time()
+            self.log_print("    took {}s", end-start, verbosity=self.LOG_STATUS)
             self.step_num += nsteps
-            if v:
-                self.log_print("Updating walker weights", verbosity=5)
+            self.log_print("Updating walker weights", verbosity=self.LOG_STEPS)
             weights = self.update_weights(energies, self.walkers.weights)
             self.walkers.weights = weights
-            if v:
-                self.log_print("Branching", verbosity=5)
+            self.log_print("Branching", verbosity=self.LOG_STEPS)
             self.branch()
-            if v:
-                self.log_print("Applying descendent weighting", verbosity=5)
+            self.log_print("Applying descendent weighting", verbosity=self.LOG_STEPS)
             self.descendent_weight()
+            self.checkpoint()
+            if self.verbosity >= self.LOG_STATUS: # we do the check here so as to not waste time computing ZPE... even though that waste is effectively 0
+                self.log_print("Zero-point Energy: {}", self.zpe, verbosity=self.LOG_STATUS)
         else:
-            self.potential(self.walkers.atoms, np.broadcast_to(self.walkers.coords, (n,) + self.walkers.coords.shape))
+            # self.log_print("Starting step {} on core {}", self.step_num, verbosity=self.LOG_STEPS)
+            self.log_print("    computing potential energy on core {}", self.world_rank, verbosity=self.LOG_MPI)
+            try:
+                walk = self._dummy_walkers
+            except AttributeError:
+                self._dummy_walkers = np.broadcast_to(self.walkers.coords, (nsteps,) + self.walkers.coords.shape).copy()
+                walk = self._dummy_walkers
+            self.potential(self.walkers.atoms, walk)
+            self.step_num += nsteps
         # Plotter.plot_psi(self)
 
     def _compute_vref(self, energies, weights):
@@ -271,7 +360,7 @@ class Simulation:
         if self.equilibrated:
             step = self.step_num
             if (self._dw_initialized_step is not None) and step - self._dw_initialized_step >= self._dw_steps:
-                self.log_print("Collecting descendent weights at time step {}", step, verbosity=3)
+                self.log_print("Collecting descendent weights at time step {}", step, verbosity=self.LOG_STATUS)
                 dw = self.walkers.descendent_weight() # not sure where I want to cache these...
                 self.wavefunctions.append(dw)
                 self._num_wavefunctions += 1
@@ -280,7 +369,7 @@ class Simulation:
                 self._dw_initialized_step = None
             elif step - self._last_dw_step >= self._dw_delay:
                 if self.verbosity:
-                    self.log_print("Starting descendent weighting propagation at time step {}", step, verbosity=3)
+                    self.log_print("Starting descendent weighting propagation at time step {}", step, verbosity=self.LOG_STATUS)
                 self._dw_initialized_step = step
                 self._last_dw_step = step
 
@@ -319,16 +408,9 @@ class WalkerSet:
         disps = np.array([
             np.random.normal(0.0, sig, size = shape) for sig in self.sigmas
         ])
-        # transpose seems to be somewhat broken (?)
-        # disp_roll = np.arange(len(disps.shape))
-        # disp_roll = np.concatenate((np.roll(disp_roll[:-1], 1), disp_roll[-1:]))
-        # print(disp_roll)
-        # disps = disps.transpose(disp_roll)
 
-        disps = np.transpose(disps,(1,2,0,3))
+        disps = np.transpose(disps, (1,2,0,3))
 
-        # for i in range(len(shape) - 1):
-        #     disps = disps.swapaxes(i, i + 1)
         return disps
     def get_displaced_coords(self, n=1):
         # accum_disp = np.cumsum(self.get_displacements(n), axis=1)
@@ -359,8 +441,8 @@ class WalkerSet:
         parents = self.parents
         threshold = 1.0 / self.num_walkers
         eliminated_walkers = np.argwhere(weights < threshold).flatten()
-        self.log_print('Walkers being removed: {}', len(eliminated_walkers), verbosity=4)
-        self.log_print('Max weight in ensemble: {}', np.amax(weights), verbosity=4)
+        self.log_print('Walkers being removed: {}', len(eliminated_walkers), verbosity=Simulation.LOG_STATUS) # -__-
+        self.log_print('Max weight in ensemble: {}', np.amax(weights), verbosity=Simulation.LOG_STATUS)
 
         for dying in eliminated_walkers: # gotta do it iteratively to get the max_weight_walker right..
             cloning = np.argmax(weights)
@@ -388,7 +470,9 @@ class WalkerSet:
     def snapshot(self, file):
         """Snapshots the current walker set to file"""
         import pickle
-        pickle.dump(self, file) # this could easily be replaced with numpy.savetxt though
+
+        with open(file, "w+") as binary:
+            pickle.dump(self, binary)
 
 class Plotter:
     _mpl_loaded = False

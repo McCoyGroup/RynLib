@@ -15,7 +15,7 @@ walkers = WalkerSet(
 )
 
 dwDelay = 500
-nDw = 30
+nDw = 50
 deltaT = 5.0
 alpha = 1.0 / (2.0 * deltaT)
 equil = 1000
@@ -24,6 +24,7 @@ ntimeSteps += nDw
 
 def potential(atoms, walkers):
     res = rynaLovesDMCLots(atoms, walkers)
+    # holdMyPI()
     return res
 
 sim = Simulation(
@@ -36,20 +37,38 @@ sim = Simulation(
     potential = potential,
 
     num_time_steps = ntimeSteps,
-    steps_per_propagation = 1,
+    steps_per_propagation = 10,
     equilibration = equil,
 
-    descendent_weighting = (dwDelay, nDw),
+    checkpoint_at = dwDelay + nDw,
 
+    descendent_weighting = (dwDelay, nDw),
     write_wavefunctions = True,
 
-    dummied= who_am_i != 0,
-    verbosity=5
+    world_rank = who_am_i,
+    verbosity=10 # 5 will just get info on potential updates and time elapsed for that
 
 )
 
-holdMyPi() # blocks until all our friends arrive
+out = sim.log_file
+line_buffering = 1
 
+
+if who_am_i == 0:
+    start = time.time()
+    with open(sim.log_file, 'w+'):
+        pass
+    sim.log_print("Starting DMC simulation")
+else:
+    sim.log_print("    starting simulation on core {}".format(who_am_i), verbosity=7)
+
+# holdMyPI() # blocks until all our friends arrive
 sim.run()
 
-noMorePI() # closes up shop
+if who_am_i == 0:
+    end = time.time()
+    elapsed = end-start
+    sim.log_print("Simulation finished in {}s.\nZPE = {}".format(elapsed, sim.zpe))
+    sim.snapshot()
+else:
+    sim.log_print("    core {} finished".format(who_am_i), verbosity=7)
