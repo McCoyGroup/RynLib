@@ -426,6 +426,7 @@ class Simulation:
             elif step - self._last_dw_step >= self._dw_delay:
                 if self.verbosity:
                     self.log_print("Starting descendent weighting propagation at time step {}", step, verbosity=self.LOG_STATUS)
+                self.walkers._setup_dw()
                 self._dw_initialized_step = step
                 self._last_dw_step = step
 
@@ -507,6 +508,9 @@ class WalkerSet:
             weights[dying] = weights[cloning] / 2.0
             weights[cloning] /= 2.0
 
+    def _setup_dw(self):
+        self._parents = self.coords.copy()
+        self._parent_weights = self.weights.copy()
     def descendent_weight(self):
         """Handles the descendent weighting in the system
 
@@ -516,8 +520,6 @@ class WalkerSet:
 
         weights = np.array( [ np.sum(self.weights[ self.parents == i ]) for i in range(self.num_walkers) ] )
         descendent_weights = {"coords":self._parents, "weights":weights, "original_weights":self._parent_weights}
-        self._parents = self.coords.copy()
-        self._parent_weights = self.weights.copy()
         self.parents = np.arange(self.num_walkers)
 
         return descendent_weights
