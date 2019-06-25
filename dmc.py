@@ -509,6 +509,7 @@ class WalkerSet:
             weights[cloning] /= 2.0
 
     def _setup_dw(self):
+        self.parents = np.arange(self.num_walkers)
         self._parents = self.coords.copy()
         self._parent_weights = self.weights.copy()
     def descendent_weight(self):
@@ -520,7 +521,6 @@ class WalkerSet:
 
         weights = np.array( [ np.sum(self.weights[ self.parents == i ]) for i in range(self.num_walkers) ] )
         descendent_weights = {"coords":self._parents, "weights":weights, "original_weights":self._parent_weights}
-        self.parents = np.arange(self.num_walkers)
 
         return descendent_weights
 
