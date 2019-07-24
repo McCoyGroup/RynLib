@@ -1,5 +1,6 @@
 #include "RynLib.h"
 #include <stdio.h>
+#include <stdexcept>
 
 typedef std::vector<double> Point;
 typedef Point PotentialVector;
@@ -119,15 +120,11 @@ void _printOutWalkerStuff( Coordinates walker_coords ) {
 
 double _doopAPot(const Coordinates &walker_coords, const Names &atoms) {
     double pot;
+
     try {
         pot = MillerGroup_entosPotential(walker_coords, atoms);
-    } catch (int e) {
-        _printOutWalkerStuff(walker_coords);
-        pot = 1.0e9;
-    } catch (const char* e) {
-        _printOutWalkerStuff(walker_coords);
-        pot = 1.0e9;
-    } catch (...) {
+    } catch (std::exception &e) {
+        PyErr_SetString(PyExc_ValueError, e.what());
         _printOutWalkerStuff(walker_coords);
         pot = 1.0e9;
     }
@@ -149,7 +146,12 @@ PyObject *RynLib_callPot(PyObject* self, PyObject* args ) {
     double* raw_data = _GetDoubleDataArray(coords);
     if (raw_data == NULL) return NULL;
     Coordinates walker_coords = _getWalkerCoords(raw_data, 0, num_atoms);
-    double pot = _doopAPot(walker_coords, mattsAtoms);
+    double pot;
+//    try {
+        pot = _doopAPot(walker_coords, mattsAtoms);
+//    } catch(...) {
+//        return NULL;
+//    }
 
     PyObject *potVal = Py_BuildValue("f", pot);
     return potVal;

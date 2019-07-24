@@ -18,7 +18,7 @@ if uuu not in real_people:
     print("you're not a real person, I'm not using entos")
 else:
     lib_dirs.append(os.path.join(lib_dir, "lib"))
-    libbies.append("entos")
+    libbies.extend(("entos", "ecpint", "intception"))
     mrooos.append(("IM_A_REAL_BOY", None))
 module = Extension(
     'RynLib',
