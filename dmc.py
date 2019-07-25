@@ -110,7 +110,6 @@ class Simulation:
             steps_per_propagation = steps_per_propagation,
             num_time_steps = num_time_steps,
             alpha = alpha,
-            potential = potential,
             equilibration = equilibration,
             descendent_weighting = descendent_weighting,
             write_wavefunctions = write_wavefunctions,
@@ -122,7 +121,6 @@ class Simulation:
             dummied = dummied, # for MPI usage
             world_rank = world_rank
         )
-
 
         from collections import deque
 
@@ -212,9 +210,8 @@ class Simulation:
         import itertools
         if n is None:
             n = self.zpe_averages
-
         if len(self.reference_potentials) > n:
-            vrefs = itertools.islice(self.reference_potentials, len(self.reference_potentials)-n, 1)
+            vrefs = np.array(itertools.islice(self.reference_potentials, len(self.reference_potentials)-n, 1))
         else:
             vrefs = self.reference_potentials
         return np.average(np.array(vrefs))
@@ -232,6 +229,30 @@ class Simulation:
             self.snapshot_energies()
             self.snapshot_params()
             self.snapshot_walkers()
+
+    @classmethod
+    def reload(cls,
+               output_folder,
+               params_file = "params.pickle",
+               energies_file = 'energies.npy'
+               ):
+        """Reloads a Simulation object from a director with specified params file
+
+        :param core_dir:
+        :type core_dir:
+        :param params_file:
+        :type params_file:
+        """
+        import pickle
+
+        params_file = os.path.join(output_folder, params_file) if not os.path.isfile(params_file) else params_file
+        with open(params_file) as pf:
+            params = pickle.load(pf)
+
+        energies_file = os.path.join(output_folder, energies_file) if not os.path.isfile(energies_file) else energies_file
+        energies = np.load(energies_file)
+
+
     def snapshot(self, file="snapshot.pickle"):
         """Saves a snapshot of the simulation to file
 
@@ -251,6 +272,7 @@ class Simulation:
             f = os.path.join(self.output_folder, file)
         with open(f, "w+") as binary:
             pickle.dump(self, binary)
+
     def snapshot_params(self, file="params.pickle"):
         """Saves a snapshot of the params to a pickle
 
@@ -443,6 +465,7 @@ class WalkerSet:
         self.weights = np.ones(num_walkers)
 
         self.parents = np.arange(num_walkers)
+        self.sigmas = None
         self._parents = self.coords.copy()
         self._parent_weights = self.weights.copy()
 
@@ -457,7 +480,8 @@ class WalkerSet:
         :rtype:
         """
         self.deltaT = deltaT
-        self.sigmas = np.sqrt((2 * D * deltaT) / self.masses)
+        if self.sigmas is not None:
+            self.sigmas = np.sqrt((2 * D * deltaT) / self.masses)
         self.log_print = sim.log_print # this makes it abundantly clear that branching should *not* be on the WalkerSet
     def get_displacements(self, steps = 1):
         shape = (steps, ) + self.coords.shape[:-2] + self.coords.shape[-1:]
@@ -527,7 +551,37 @@ class WalkerSet:
     def snapshot(self, file):
         """Snapshots the current walker set to file"""
 
-        np.savez(file, coords=self.coords, weights=self.weights, sigmas=self.sigmas, parents=self.parents)
+        np.savez(file,
+                 coords=self.coords, weights=self.weights, sigmas=self.sigmas,
+                 parents=self.parents,
+                 parent_coords=self._parents,
+                 parent_weights = self._parent_weights
+                 )
+
+    @classmethod
+    def load(cls, file, atoms = None, masses = None):
+        """Reloads WalkerSet from file"""
+
+        npz = np.load(file)
+
+        sigs = npz['sigmas']
+
+        if masses is None:
+            masses = np.ones(len(sigs))
+        if atoms is None:
+            atoms = ['H'] * len(sigs)
+
+        coords = npz['coords']
+        self = cls(atoms = atoms, masses = masses, initial_walker=coords, num_walkers=len(coords))
+
+        self.parents = npz['parents']
+        self.sigmas = npz['sigmas']
+        self.weights = npz['weights']
+        self.parents = npz['parents']
+        self._parent_weights = npz['parent_weights']
+        self._parent_coords = npz['parent_coords']
+
+        return self
 
 class Plotter:
     _mpl_loaded = False
