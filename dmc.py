@@ -55,6 +55,7 @@ class Simulation:
                  descendent_weighting = None,
                  write_wavefunctions = None,
                  checkpoint_at = None,
+                 save_snapshots = None,
                  zpe_averages = 1000,
                  output_folder = None,
                  log_file = None,
@@ -120,6 +121,7 @@ class Simulation:
             descendent_weighting = descendent_weighting,
             write_wavefunctions = write_wavefunctions,
             checkpoint_at = checkpoint_at,
+            save_snapshots = save_snapshots,
             zpe_averages = zpe_averages,
             output_folder = output_folder,
             log_file = log_file,
@@ -184,6 +186,7 @@ class Simulation:
         elif checkpoint_at is None:
             checkpoint_at = lambda *a: False
         self._checkpoint = checkpoint_at
+        self._save_snapshots = save_snapshots
 
         self.zpe_averages = zpe_averages
 
@@ -239,7 +242,7 @@ class Simulation:
             # self.snapshot("checkpoint.pickle")
             self.snapshot_energies()
             self.snapshot_params()
-            self.snapshot_walkers()
+            self.snapshot_walkers(save_stepnum = self._save_snapshots == True)
 
     @classmethod
     def reload(cls,
@@ -304,6 +307,9 @@ class Simulation:
         import pickle
 
         self._params.update(step_num = self.step_num)
+        if not isinstance(self._params['log_file'], str):
+            del self._params['log_file']
+
         f = os.path.abspath(file)
         if not os.path.isfile(f):
             f = os.path.join(self.output_folder, file)
@@ -312,20 +318,22 @@ class Simulation:
             os.makedirs(out_dir)
         with open(f, "w+") as binary:
             pickle.dump(self._params, binary)
-    def snapshot_walkers(self, file="walkers.npz"):
+
+    def snapshot_walkers(self, file="walkers{}.npz", save_stepnum = True):
         """Saves a snapshot of the walkers to a pickle
 
         :return:
         :rtype:
         """
 
-        f = os.path.abspath(file)
+        f = os.path.abspath(file.format("" if save_stepnum else self.step_num))
         if not os.path.isfile(f):
             f = os.path.join(self.output_folder, file)
         out_dir = os.path.dirname(f)
         if not os.path.isdir(out_dir):
             os.makedirs(out_dir)
         self.walkers.snapshot(f)
+
     def save_wavefunction(self, file = 'wavefunction_{}.npz'):
         """Save wavefunctions to a numpy binary
 
@@ -340,6 +348,7 @@ class Simulation:
         self.log_print("Saving wavefunction to {}", file, verbosity=self.LOG_STEPS)
         np.savez(file, **self.wavefunctions[-1])
         return file
+
     def snapshot_energies(self, file="energies"):
         """Saves a snapshot of the energies to a numpy binary
 
