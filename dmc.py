@@ -8,7 +8,7 @@ import numpy as np, os, time
 class Constants:
     atomic_units = {
         "wavenumbers" : 4.55634e-6,
-        "angstroms" : 0.529177,
+        "angstroms" : 1/0.529177,
         "amu" : 1.000000000000000000/6.02213670000e23/9.10938970000e-28   #1822.88839  g/mol -> a.u.
     }
 
@@ -29,12 +29,15 @@ class Constants:
             m = cls.convert(*m)
         return m
 
+    # this really shouldn't be here........... but oh well
     water_structure = (
-        ["H", "H", "O" ],
+        ["O", "H", "H"],
         np.array(
-            [[0.9578400,0.0000000,0.0000000],
-             [-0.2399535,0.9272970,0.0000000],
-             [0.0000000,0.0000000,0.0000000]]
+            [
+                [0.0000000,0.0000000,0.0000000],
+                [0.9578400,0.0000000,0.0000000],
+                [-0.2399535,0.9272970,0.0000000]
+            ]
         )
     )
 
@@ -57,7 +60,10 @@ class Simulation:
                  log_file = None,
                  verbosity = 0,
                  dummied = None, # for MPI usage
-                 world_rank = 0
+                 world_rank = 0,
+
+                 # for restarts
+                 step_num = 0
                  ):
         """Sets up all the necessary simulation data to run a DMC
 
@@ -119,7 +125,8 @@ class Simulation:
             log_file = log_file,
             verbosity = verbosity,
             dummied = dummied, # for MPI usage
-            world_rank = world_rank
+            world_rank = world_rank,
+            step_num = step_num
         )
 
         from collections import deque
@@ -133,7 +140,7 @@ class Simulation:
         self.alpha = alpha
         self.reference_potentials = deque() # just a convenient data structure to push into
 
-        self.step_num = 0
+        self.step_num = step_num
         self.num_time_steps = num_time_steps
         self.prop_steps = steps_per_propagation
 
@@ -173,7 +180,7 @@ class Simulation:
 
         self._previous_checkpoint = 0
         if isinstance(checkpoint_at, int):
-            checkpoint_at = lambda s, c=checkpoint_at: s.step_num - s._previous_checkpoint > c
+            checkpoint_at = lambda s, c=checkpoint_at: s.step_num - s._previous_checkpoint >= c
         elif checkpoint_at is None:
             checkpoint_at = lambda *a: False
         self._checkpoint = checkpoint_at
@@ -196,7 +203,10 @@ class Simulation:
             log = self.log_file
             if isinstance(log, str):
                 if not os.path.isdir(os.path.dirname(log)):
-                    os.makedirs(os.path.dirname(log))
+                    try:
+                        os.makedirs(os.path.dirname(log))
+                    except OSError:
+                        pass
                 #O_NONBLOCK is *nix only
                 with open(log, "a", os.O_NONBLOCK) as lf: # this is potentially quite slow but I am also quite lazy
                     print(message.format(*params), file = lf, **kwargs)
@@ -211,10 +221,10 @@ class Simulation:
         if n is None:
             n = self.zpe_averages
         if len(self.reference_potentials) > n:
-            vrefs = np.array(itertools.islice(self.reference_potentials, len(self.reference_potentials)-n, 1))
+            vrefs = list(itertools.islice(self.reference_potentials, len(self.reference_potentials)-n, None, 1))
         else:
             vrefs = self.reference_potentials
-        return np.average(np.array(vrefs))
+        return Constants.convert(np.average(np.array(vrefs)), "wavenumbers", in_AU = False)
 
     @property
     def equilibrated(self):
@@ -222,8 +232,9 @@ class Simulation:
             self._equilibrated = self.equilibration_check(self)
         return self._equilibrated
 
-    def checkpoint(self):
-        if self._checkpoint(self):
+    def checkpoint(self, test = True):
+        if (not test) or self._checkpoint(self):
+            self._previous_checkpoint = self.step_num
             self.log_print("Checkpointing simulation", verbosity=self.LOG_STEPS)
             # self.snapshot("checkpoint.pickle")
             self.snapshot_energies()
@@ -234,7 +245,8 @@ class Simulation:
     def reload(cls,
                output_folder,
                params_file = "params.pickle",
-               energies_file = 'energies.npy'
+               energies_file = 'energies.npy',
+               walkers_file="walkers.npz"
                ):
         """Reloads a Simulation object from a director with specified params file
 
@@ -244,6 +256,10 @@ class Simulation:
         :type params_file:
         """
         import pickle
+        from collections import deque
+
+        if not os.path.isdir(output_folder):
+            output_folder = os.path.join(os.path.abspath("dmc_data"), output_folder)
 
         params_file = os.path.join(output_folder, params_file) if not os.path.isfile(params_file) else params_file
         with open(params_file) as pf:
@@ -252,6 +268,12 @@ class Simulation:
         energies_file = os.path.join(output_folder, energies_file) if not os.path.isfile(energies_file) else energies_file
         energies = np.load(energies_file)
 
+        walkers_file = os.path.join(output_folder, walkers_file) if not os.path.isfile(walkers_file) else walkers_file
+        walkers = WalkerSet.load(walkers_file)
+        self = cls(walker_set = walkers, **params)
+        self.reference_potentials = deque(energies)
+
+        return self
 
     def snapshot(self, file="snapshot.pickle"):
         """Saves a snapshot of the simulation to file
@@ -296,25 +318,26 @@ class Simulation:
         :return:
         :rtype:
         """
+
         f = os.path.abspath(file)
         if not os.path.isfile(f):
             f = os.path.join(self.output_folder, file)
         out_dir = os.path.dirname(f)
         if not os.path.isdir(out_dir):
             os.makedirs(out_dir)
-        self.walkers.snapshot(file)
-    def save_wavefunction(self):
+        self.walkers.snapshot(f)
+    def save_wavefunction(self, file = 'wavefunction_{}.npz'):
         """Save wavefunctions to a numpy binary
 
         :return:
         :rtype:
         """
+        file = file.format(self._num_wavefunctions)
         wf_dir = os.path.join(self.output_folder, "wavefunctions")
         if not os.path.isdir(wf_dir):
             os.makedirs(wf_dir)
-        file = os.path.join(wf_dir, 'wavefunction_{}.npz'.format(self._num_wavefunctions))
-        if self.verbosity:
-            self.log_print("Saving wavefunction to {}", file, verbosity=self.LOG_STEPS)
+        file = os.path.join(wf_dir, file)
+        self.log_print("Saving wavefunction to {}", file, verbosity=self.LOG_STEPS)
         np.savez(file, **self.wavefunctions[-1])
         return file
     def snapshot_energies(self, file="energies"):
@@ -340,8 +363,13 @@ class Simulation:
         :return:
         :rtype:
         """
-        while self.step_num < self.num_time_steps:
-            self.propagate()
+
+        try:
+            while self.step_num < self.num_time_steps:
+                self.propagate()
+        except:
+            self.checkpoint(test=False)
+            raise
 
     def propagate(self, nsteps = None):
         """Propagates the system forward n steps
@@ -461,7 +489,13 @@ class WalkerSet:
         if masses is None:
             masses = np.array([ Constants.mass(a) for a in self.atoms ])
         self.masses = masses
-        self.coords = np.array([ initial_walker ] * num_walkers)
+
+        if len(initial_walker.shape) == 2:
+            initial_walker = np.array([ initial_walker ] * num_walkers)
+        else:
+            self.num_walkers = len(initial_walker)
+
+        self.coords = initial_walker
         self.weights = np.ones(num_walkers)
 
         self.parents = np.arange(num_walkers)
@@ -480,16 +514,19 @@ class WalkerSet:
         :rtype:
         """
         self.deltaT = deltaT
-        if self.sigmas is not None:
+        if self.sigmas is None:
             self.sigmas = np.sqrt((2 * D * deltaT) / self.masses)
         self.log_print = sim.log_print # this makes it abundantly clear that branching should *not* be on the WalkerSet
-    def get_displacements(self, steps = 1):
+    def get_displacements(self, steps = 1, in_AU = False):
         shape = (steps, ) + self.coords.shape[:-2] + self.coords.shape[-1:]
         disps = np.array([
             np.random.normal(0.0, sig, size = shape) for sig in self.sigmas
         ])
 
-        disps = np.transpose(disps, (1,2,0,3))
+        disps = np.transpose(disps, (1, 2, 0, 3))
+
+        if not in_AU:
+            disps = Constants.convert(disps, "angstroms", in_AU = False)
 
         return disps
     def get_displaced_coords(self, n=1):

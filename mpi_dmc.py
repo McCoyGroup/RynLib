@@ -4,13 +4,39 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from RynLib import *
 
+# Sets up the MPI part of the thing. We use _24601 processors and thus _24601 walkers.
 who_am_i, _24601 = giveMePI() # les do some dmizc
 if who_am_i == 0:
     print("Number of processors (and walkers): {}".format(_24601))
 
+
+def load_walkers(init_file, how_many_fren_u_hav = _24601):
+    """Loads walkers configurations from an XYZ laid out like:
+    OX OY OZ H1X H1Y H1Z H2X H2Y H2Z
+
+    :param init_file: XYZ file to load from
+    :type init_file:
+    :param how_many_fren_u_hav: how many walkers are in the simulation
+    :type how_many_fren_u_hav:
+    """
+
+    help_me_johnny = np.loadtxt(init_file)
+    how_many_fren_i_hav = len(help_me_johnny)
+
+    if how_many_fren_u_hav < how_many_fren_i_hav:
+        help_me_johnny = help_me_johnny[:how_many_fren_u_hav]
+    elif how_many_fren_u_hav > how_many_fren_i_hav:
+        down_by_5 = how_many_fren_u_hav - how_many_fren_i_hav
+        replicons = 1 + (down_by_5 // how_many_fren_i_hav)
+        help_me_johnny = np.stack([help_me_johnny]*replicons)[:how_many_fren_u_hav]
+
+    help_me_johnny = np.reshape(help_me_johnny, (how_many_fren_u_hav, 3, 3))
+    return help_me_johnny
+
+thank_you_victor = "water_start.dat"
 walkers = WalkerSet(
     atoms = Constants.water_structure[0],
-    initial_walker = Constants.water_structure[1] * 1.01, # inflate it a bit
+    initial_walker = Constants.water_structure[1] * 1.01, # inflate it a bit ##load_walkers(thank_you_victor)
     num_walkers = _24601
 )
 
@@ -23,10 +49,22 @@ ntimeSteps = 10000
 ntimeSteps += nDw
 
 def potential(atoms, walkers, sim=None):
-    res = rynaLovesDMCLots(atoms, walkers)
-    # if sim.world_rank == 0:
+    import io
+    fake_stderr = io.StringIO()
+    try:
+        real_stderr = sys.stderr
+        sys.stderr = fake_stderr
+        res = rynaLovesDMCLots(atoms, walkers)
+    finally:
+        sys.stderr = real_stderr
+
+    err_msg = fake_stderr.getvalue()
+    if err_msg:
+        sim.log_print('\ton potential call got error\n\t\t{}\n\tfor walkers\n\t\t{}', err_msg, walkers)
+
     holdMyPI()
     return res
+
 
 sim = Simulation(
     "water_simple",
