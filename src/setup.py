@@ -9,17 +9,26 @@ os.chdir(src_dir)
 sysargv1 = sys.argv
 
 sys.argv = ['build', 'build_ext', '--inplace']
-uuu = getpass.getuser()
-real_people = { "rjdiri", "b3m2a1", "vgl2" }
+
 lib_dirs = []
 libbies = []
 mrooos = []
-if uuu not in real_people:
-    print("you're not a real person, I'm not using entos")
+
+node_name = platform.node()
+on_nersc = node_name.startswith("cori") or node_name.startswith("nid") # a flag to set when building on nersc
+
+sadboydebug=False
+
+if not on_nersc:
+    print("you're not a on NERSC, I'm not using entos")
 else:
-    lib_dirs.append(os.path.join(lib_dir, "lib"))
-    libbies.extend(("entos", "ecpint", "intception"))
-    mrooos.append(("IM_A_REAL_BOY", None))
+    if sadboydebug:
+        mrooos.append(("SADBOYDEBUG", None))
+    else:
+        lib_dirs.append(os.path.join(lib_dir, "lib"))
+        libbies.extend(("entos", "ecpint", "intception"))
+        mrooos.append(("IM_A_REAL_BOY", None))
+
 module = Extension(
     'RynLib',
     sources = [ 'RynLib.cpp' ],
@@ -29,8 +38,6 @@ module = Extension(
     define_macros = mrooos
 )
 
-node_name = platform.node()
-on_nersc = node_name.startswith("cori") or node_name.startswith("nid") # a flag to set when building on nersc
 if on_nersc:
     print("Using build.sh to get around NERSC issues")
     os.system(os.path.join(src_dir, "build.sh"))

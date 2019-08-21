@@ -1,4 +1,18 @@
 #include "RynLib.h"
+
+#ifdef SADBOYDEBUG
+
+static PyMethodDef RynLibMethods[] = {
+    {NULL, NULL, 0, NULL}
+};
+
+PyMODINIT_FUNC initRynLib(void)
+{
+    (void) Py_InitModule("RynLib", RynLibMethods);
+}
+
+#else
+
 #include <stdio.h>
 #include <stdexcept>
 
@@ -125,7 +139,7 @@ double _doopAPot(const Coordinates &walker_coords, const Names &atoms) {
         pot = MillerGroup_entosPotential(walker_coords, atoms);
     } catch (std::exception &e) {
         PyErr_SetString(PyExc_ValueError, e.what());
-        _printOutWalkerStuff(walker_coords);
+//        _printOutWalkerStuff(walker_coords);
         pot = 1.0e9;
     }
 
@@ -398,5 +412,7 @@ PyMODINIT_FUNC initRynLib(void)
 {
     (void) Py_InitModule("RynLib", RynLibMethods);
 }
+
+#endif
 
 #endif

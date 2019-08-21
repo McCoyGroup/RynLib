@@ -526,7 +526,7 @@ class WalkerSet:
         if self.sigmas is None:
             self.sigmas = np.sqrt((2 * D * deltaT) / self.masses)
         self.log_print = sim.log_print # this makes it abundantly clear that branching should *not* be on the WalkerSet
-    def get_displacements(self, steps = 1, in_AU = False):
+    def get_displacements(self, steps = 1, in_AU = True):
         shape = (steps, ) + self.coords.shape[:-2] + self.coords.shape[-1:]
         disps = np.array([
             np.random.normal(0.0, sig, size = shape) for sig in self.sigmas

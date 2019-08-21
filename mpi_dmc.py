@@ -54,7 +54,7 @@ def potential(atoms, walkers, sim=None):
     try:
         real_stderr = sys.stderr
         sys.stderr = fake_stderr
-        res = rynaLovesDMCLots(atoms, walkers)
+        res = rynaLovesDMCLots(Constants.convert(atoms, "Angstroms", in_AU=False), walkers)
     finally:
         sys.stderr = real_stderr
 

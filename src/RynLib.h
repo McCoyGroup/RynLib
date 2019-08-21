@@ -1,5 +1,12 @@
 
 #include "Python.h"
+
+#ifdef SADBOYDEBUG
+
+// Empty do nothing debug config for cleanest debugging
+
+#else
+
 #include <vector>
 #include <string>
 
@@ -11,15 +18,14 @@
 
 #else
 // for testing we roll our own which always spits out 52
-double MillerGroup_entosPotential(
-        const std::vector< std::vector<double> > ,
-        const std::vector<std::string>,
-        bool hf_only = false
-        ){
+
+double MillerGroup_entosPotential
+        (const std::vector< std::vector<double> > , const std::vector<std::string>, bool hf_only = false) {
 
     return 52.0;
 
 }
+
 #endif //ENTOS_ML_DMC_INTERFACE_H
 
 static PyObject *RynLib_callPot
@@ -36,3 +42,5 @@ static PyObject *RynLib_giveMePi
 
 static PyObject *RynLib_noMorePi
     ( PyObject *, PyObject * );
+
+#endif
