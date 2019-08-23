@@ -307,7 +307,7 @@ class Simulation:
         import pickle
 
         self._params.update(step_num = self.step_num)
-        if not isinstance(self._params['log_file'], str):
+        if 'log_file' in self._params and not isinstance(self._params['log_file'], str):
             del self._params['log_file']
 
         f = os.path.abspath(file)
@@ -326,7 +326,8 @@ class Simulation:
         :rtype:
         """
 
-        f = os.path.abspath(file.format("" if save_stepnum else self.step_num))
+        file = file.format("" if save_stepnum else self.step_num)
+        f = os.path.abspath(file)
         if not os.path.isfile(f):
             f = os.path.join(self.output_folder, file)
         out_dir = os.path.dirname(f)

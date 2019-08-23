@@ -136,7 +136,7 @@ double _doopAPot(const Coordinates &walker_coords, const Names &atoms) {
     double pot;
 
     try {
-        pot = MillerGroup_entosPotential(walker_coords, atoms);
+        pot = MillerGroup_entosPotential(walker_coords, atoms, true); // use only hf
     } catch (std::exception &e) {
         PyErr_SetString(PyExc_ValueError, e.what());
 //        _printOutWalkerStuff(walker_coords);

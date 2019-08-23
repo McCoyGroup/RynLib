@@ -36,7 +36,7 @@ def load_walkers(init_file, how_many_fren_u_hav = _24601):
 thank_you_victor = "water_start.dat"
 walkers = WalkerSet(
     atoms = Constants.water_structure[0],
-    initial_walker = Constants.water_structure[1] * 1.01, # inflate it a bit ##load_walkers(thank_you_victor)
+    initial_walker = Constants.convert(Constants.water_structure[1] * 1.01, "angstroms", in_AU=True), # inflate it a bit ##load_walkers(thank_you_victor)
     num_walkers = _24601
 )
 
@@ -54,7 +54,7 @@ def potential(atoms, walkers, sim=None):
     try:
         real_stderr = sys.stderr
         sys.stderr = fake_stderr
-        res = rynaLovesDMCLots(Constants.convert(atoms, "Angstroms", in_AU=False), walkers)
+        res = rynaLovesDMCLots(atoms, Constants.convert(walkers, "angstroms", in_AU=False))
     finally:
         sys.stderr = real_stderr
 
@@ -79,7 +79,7 @@ sim = Simulation(
     steps_per_propagation = 10,
     equilibration = equil,
 
-    checkpoint_at = dwDelay + nDw,
+    checkpoint_at = 100,
 
     descendent_weighting = (dwDelay, nDw),
     write_wavefunctions = True,
