@@ -136,7 +136,8 @@ double _doopAPot(const Coordinates &walker_coords, const Names &atoms) {
     double pot;
 
     try {
-        pot = MillerGroup_entosPotential(walker_coords, atoms, true); // use only hf
+        // pot = MillerGroup_entosPotential(walker_coords, atoms, true); // use only hf
+        pot = MillerGroup_entosPotential(walker_coords, atoms); // use ml as well
     } catch (std::exception &e) {
         PyErr_SetString(PyExc_ValueError, e.what());
 //        _printOutWalkerStuff(walker_coords);
@@ -239,10 +240,10 @@ PotentialArray _mpiGetPot(
     // convert double* to std::vector<double>
     PotentialArray potVals(ncalls, PotentialVector(world_size));
     if( world_rank == 0 ) {
-        // this is effectively column ordered at this point I think...
-        for (size_t j = 0; j < world_size; j++) {
-            for (size_t i = 0; i < ncalls; i++) {
-                potVals[i][j] = pot_buf[j*ncalls + i];
+        // at this point we have chunks where we have world_size number of blocks of length ncalls
+        for (size_t j = 0; j < ncalls; j++) {
+            for (size_t i = 0; i < world_size; i++) {
+                potVals[j][i] = pot_buf[j*world_size + i];
             }
         }
     }
