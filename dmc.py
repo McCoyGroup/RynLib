@@ -149,6 +149,7 @@ class Simulation:
         self.time_step = time_step
         self.D = D # not sure what this is supposed to be...?
         self.walkers.initialize(self, time_step, D)
+        self.start_time = time.time()
 
         self._dw_delay, self._dw_steps = descendent_weighting
         self._write_wavefunctions = write_wavefunctions
@@ -193,6 +194,7 @@ class Simulation:
     LOG_BASIC = 1
     LOG_STATUS = 3
     LOG_STEPS = 5
+    LOG_DATA = 6
     LOG_MPI = 7
     LOG_ALL = 10
     LOG_DEBUG = 100
@@ -374,10 +376,29 @@ class Simulation:
         :rtype:
         """
 
+        log = self.log_file
+        if isinstance(log, str):
+            if not os.path.isdir(os.path.dirname(log)):
+                try:
+                    os.makedirs(os.path.dirname(log))
+                except OSError:
+                    pass
         try:
-            while self.step_num < self.num_time_steps:
-                self.propagate()
+            # we add in some logic here to manage opening the log_file if need be so that every call into
+            # log_print doesn't need to open it
+            if isinstance(log, str):
+                with open(log, "a", os.O_NONBLOCK) as lf:
+                    # this is potentially quite slow but I am also quite lazy
+                    # it's not clear, either, that this won't deadlock but it's worth trying...
+                    self.log_file = lf
+                    while self.step_num < self.num_time_steps:
+                        self.propagate()
+            else:
+                while self.step_num < self.num_time_steps:
+                    self.propagate()
         except:
+            if isinstance(log, str):
+                self.log_file = log
             self.checkpoint(test=False)
             raise
 
@@ -412,9 +433,14 @@ class Simulation:
             self.checkpoint()
             if self.verbosity >= self.LOG_STATUS: # we do the check here so as to not waste time computing ZPE... even though that waste is effectively 0
                 self.log_print("Zero-point Energy: {}", self.zpe, verbosity=self.LOG_STATUS)
+            self.log_print("Runtime: {}s", round(time.time()-self.start_time), verbosity=self.LOG_STATUS)
         else:
             # self.log_print("Starting step {} on core {}", self.step_num, verbosity=self.LOG_STEPS)
-            self.log_print("    computing potential energy on core {}", self.world_rank, verbosity=self.LOG_MPI)
+            self.log_print(
+                "    computing potential energy on core {}",
+                self.world_rank,
+                verbosity=self.LOG_MPI
+            )
             try:
                 walk = self._dummy_walkers
             except AttributeError:
@@ -456,12 +482,12 @@ class Simulation:
         :rtype: np.ndarray
         """
         for e in energies: # this is basically a reduce call, but there's no real reason not to keep it like this
-            self.log_print("Energies: {}", e, verbosity=self.LOG_DEBUG)
+            self.log_print("Energies: {}", e, verbosity=self.LOG_DATA)
             Vref = self._compute_vref(e, weights)
             self.reference_potentials.append(Vref) # a constant time operation
             new_wts = np.nan_to_num(np.exp(-1.0 * (e - Vref) * self.time_step))
             weights *= new_wts
-            self.log_print("Weights: {}", weights, verbosity=self.LOG_DEBUG)
+            self.log_print("Weights: {}", weights, verbosity=self.LOG_DATA)
         return weights
 
     def branch(self):
