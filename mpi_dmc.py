@@ -4,13 +4,49 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from RynLib import *
 
-# Sets up the MPI part of the thing. We use _24601 processors and thus _24601 walkers.
-who_am_i, _24601 = giveMePI() # les do some dmizc
+########################################################################################################
+#
+#
+#                                      PARAMETERS WOWWWWWWWWWW
+#
+#
+########################################################################################################
+
+#
+# Number of walkers
+#
+# Sets up the MPI part of the thing. We use _24601 processors and thus _24601 * num_walkers_per_core walkers.
+who_am_i, _24601 = giveMePI()
+num_walkers_per_core = 3
 if who_am_i == 0:
-    print("Number of processors (and walkers): {}".format(_24601))
+    num_walkers = _24601 * num_walkers_per_core
+else:
+    # we're just a single core, after all
+    num_walkers = num_walkers_per_core
 
+#
+# Actual run parameters
+#
+dwDelay = 500
+nDw = 50
+deltaT = 5.0
+alpha = 1.0 / (2.0 * deltaT)
+equil = 1000
+ntimeSteps = 10000
+ntimeSteps += nDw
 
-def load_walkers(init_file, how_many_fren_u_hav = _24601):
+########################################################################################################
+#
+#
+#                                     SIMULATE FOR REAL NOW GUYS
+#
+#
+########################################################################################################
+if who_am_i == 0:
+    print("Number of processors / walkers: {} / {}".format(_24601, num_walkers))
+
+# once upon a time a long long time ago I was <s>a ho</s> working with structures Victor gave me -- no more
+def load_walkers(init_file, how_many_fren_u_hav = num_walkers):
     """Loads walkers configurations from an XYZ laid out like:
     OX OY OZ H1X H1Y H1Z H2X H2Y H2Z
 
@@ -33,21 +69,21 @@ def load_walkers(init_file, how_many_fren_u_hav = _24601):
     help_me_johnny = np.reshape(help_me_johnny, (how_many_fren_u_hav, 3, 3))
     return help_me_johnny
 
+
+#
+#   Initialize walker set
+#
 thank_you_victor = "water_start.dat"
 walkers = WalkerSet(
     atoms = Constants.water_structure[0],
     initial_walker = Constants.convert(Constants.water_structure[1] * 1.01, "angstroms", in_AU=True), # inflate it a bit ##load_walkers(thank_you_victor)
-    num_walkers = _24601
+    num_walkers = num_walkers
 )
 
-dwDelay = 500
-nDw = 50
-deltaT = 5.0
-alpha = 1.0 / (2.0 * deltaT)
-equil = 1000
-ntimeSteps = 10000
-ntimeSteps += nDw
 
+#
+#   Define potential over our walkers
+#
 def potential(atoms, walkers, sim=None):
     import io
     fake_stderr = io.StringIO()
@@ -66,6 +102,9 @@ def potential(atoms, walkers, sim=None):
     return res
 
 
+#
+#   Initialize simulation
+#
 sim = Simulation(
     "water_simple",
     """ A simple water scan using Entos and MPI to get the potential (and including ML later)""",
@@ -89,10 +128,14 @@ sim = Simulation(
 
 )
 
+
+# Can't remember what this is for???
 out = sim.log_file
 line_buffering = 1
 
-
+#
+#   Run simulation
+#
 if who_am_i == 0:
     start = time.time()
     with open(sim.log_file, 'w+'):
@@ -104,6 +147,9 @@ else:
 holdMyPI() # blocks until all our friends arrive
 sim.run()
 
+#
+#   Tell me I did good, Pops ;_;
+#
 if who_am_i == 0:
     end = time.time()
     elapsed = end-start
