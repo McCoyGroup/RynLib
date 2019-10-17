@@ -15,7 +15,11 @@ libbies = []
 mrooos = []
 
 node_name = platform.node()
-on_nersc = node_name.startswith("cori") or node_name.startswith("nid") # a flag to set when building on nersc
+
+on_nersc = (
+    # we'll support Mox too I guess...
+    node_name.startswith("cori") or node_name.startswith("nid") # a flag to set when building on nersc
+)
 
 sadboydebug=False
 

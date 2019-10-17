@@ -81,6 +81,10 @@ double *_GetDoubleDataArray(PyObject *data) {
     return array;
 }
 
+inline int ind2d(int i, int j, int n, int m) {
+    return m * i + j;
+}
+// here I ignore `n` because... well I originally wrote it like that
 inline int int3d(int i, int j, int k, int m, int l) {
     return (m*l) * i + (l*j) + k;
 }
@@ -243,25 +247,28 @@ PotentialArray _mpiGetPot(
     //
     // At the end we have a potential array that is m * (ncalls * num_walkers_per_core) walkers and we need to make this
     // back into the clean (ncalls, num_walkers) array we expect in the end
-    //
 
-    int num_walkers_per_core = (num_walkers / world_size); // we're gonna assume the former is divisible by the latter
+    // we're gonna assume the former is divisible by the latter on world_rank == 0
+    // and that it's just plain `num_walkers` on every other world_rank
+    int num_walkers_per_core = (num_walkers / world_size);
+    if (world_rank > 0) {
+        // means we're only feeding in num_walkers because we're not on world_rank == 0
+        num_walkers_per_core = num_walkers;
+    }
 
     // create a buffer for the walkers to be fed into MPI
     int walker_cnum = num_atoms*3;
-    int walker_size = walker_cnum*sizeof(Real_t);
     int walkers_to_core = ncalls * num_walkers_per_core;
 
-    auto walker_buf = (RawWalkerBuffer) malloc(walkers_to_core * walker_size);
-
+    auto walker_buf = (RawWalkerBuffer) malloc(walkers_to_core * walker_cnum * sizeof(Real_t));
     // Scatter data buffer to processors
     MPI_Scatter(
             raw_data,  // raw data buffer to chunk up
             walkers_to_core * walker_cnum, // three coordinates per atom per num_atoms per walker
             MPI_DOUBLE, // coordinates stored as doubles
             walker_buf, // raw array to write into
-            walkers_to_core * walker_cnum, // single energy
-            MPI_DOUBLE, // energy returned as doubles
+            walkers_to_core * walker_cnum, // three coordinates per atom per num_atoms per walker
+            MPI_DOUBLE, // coordinates stored as doubles
             0, // root caller
             MPI_COMM_WORLD // communicator handle
     );
@@ -280,7 +287,10 @@ PotentialArray _mpiGetPot(
     // we don't work with the walker data anymore?
     free(walker_buf);
 
-    auto pot_buf = (RawPotentialBuffer) malloc(ncalls * num_walkers * sizeof(Real_t));
+    RawPotentialBuffer pot_buf;
+    if ( world_rank == 0) {
+        pot_buf = (RawPotentialBuffer) malloc(ncalls * num_walkers * sizeof(Real_t));
+    }
     // receive buffer -- needs to be the number of walkers total in the system
     MPI_Gather(
             pots.data(),
@@ -293,14 +303,15 @@ PotentialArray _mpiGetPot(
             MPI_COMM_WORLD // communicator handle
             );
 
+
     // convert double* to std::vector<double>
     PotentialArray potVals(ncalls, PotentialVector(num_walkers, 0));
     if( world_rank == 0 ) {
         // at this point we have chunks where we have world_size number of blocks of length ncalls * num_walkers_per_core
         // we _want_ the data to come out as an (ncalls, num_walkers)
-        for (size_t j = 0; j < ncalls; j++) {
-            for (size_t i = 0; i < num_walkers; i++) {
-                potVals[j][i] = pot_buf[j*num_walkers + i];
+        for (size_t call = 0; call < ncalls; call++) {
+            for (size_t walker = 0; walker < num_walkers; walker++) {
+                potVals[call][walker] = pot_buf[ind2d(call, walker, ncalls, num_walkers)];
             }
         }
     }
@@ -599,8 +610,6 @@ PyObject *RynLib_callPot(PyObject* self, PyObject* args ) {
     return potVal;
 
 }
-
-
 
 PyObject *RynLib_callPotVec( PyObject* self, PyObject* args ) {
     // vector version of callPot

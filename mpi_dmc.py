@@ -22,6 +22,7 @@ if who_am_i == 0:
     num_walkers = _24601 * num_walkers_per_core
 else:
     # we're just a single core, after all
+    # THIS IS IMPORTANT BECAUSE I USE THIS ASSUMPTION ON THE MPI SIDE BECAUSE I WAS TOO LAZY TO ADD A PARAMETER TO THE CALL
     num_walkers = num_walkers_per_core
 
 #

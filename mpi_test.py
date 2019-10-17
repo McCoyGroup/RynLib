@@ -80,11 +80,13 @@ if who_am_i == 0:
 #
 testWalkersss = np.array( [ testWalker ] * num_walkers )
 testWalkersss += np.random.uniform(low=-params.displacement_radius, high=params.displacement_radius, size=testWalkersss.shape)
-test_iterations = params.steps_per_call
+test_iterations = params.iterations
 test_results = np.zeros((test_iterations,))
 lets_get_going = time.time()
-nsteps = params.iterations
-testWalkersss = np.broadcast_to(testWalkersss, (nsteps,) + testWalkersss.shape).copy() # this is actually probably important
+nsteps = params.steps_per_call
+testWalkersss = np.ascontiguousarray(
+    np.broadcast_to(testWalkersss, (nsteps,) + testWalkersss.shape)
+) # this forces contiguous memory layout
 
 #
 # run tests
@@ -111,10 +113,18 @@ if who_am_i == 0:
             "  with shape {}".format(test_result.shape),
             sep="\n"
             )
+    else:
+        print(
+            "Got back result with shape {}".format(test_result.shape),
+            sep="\n"
+        )
     print("Total time: {}s (over {} iterations)".format(gotta_go_fast, test_iterations))
     print("Average total: {}s Average time per walker: {}s".format(np.average(test_results), np.average(test_results)/num_walkers/nsteps))
 
+
+# raise Exception("why god why")
 #
 # tell MPI it did good
 #
+
 noMorePI()
