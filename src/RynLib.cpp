@@ -321,236 +321,229 @@ PotentialArray _mpiGetPot(
 }
 
 
-/*
- * Targeted, asynchronous MPI methods for walker broadcasting and whatnot
- *
- * We'll make use of a core-specific CORE_PROPAGATOR which will keep track of which walkers are on that given node
- *
- * On each loop we'll ask for the next n potential values, do the branching on the python side, send out a flag to all
- * the nodes telling them whether or not they need to (a) send their walker (b) update their walker or (c) do nothing
- * the ones that need to send will send at then these will be sent out to the ones that need to recieve
- *
- */
-
-
-/*
-
- // Temporarily turning off all this
-
-WalkerPropagator CORE_PROPAGATOR; // This is the specific WalkerPropagator we're gonna be using for a given core
-void _mpiSetUpSimulation(
-        RawWalkerBuffer raw_data,
-        const Names &atoms,
-        const Weights &sigmas,
-        int ncalls,
-        Py_ssize_t num_walkers,
-        Py_ssize_t num_atoms,
-        int world_size,
-        int world_rank
-        ) {
-
-    int num_walkers_per_core = (num_walkers / world_size); // we're gonna assume the former is divisible by the latter
-
-    // create a buffer for the walkers to be fed into MPI
-    int walker_size = num_atoms*3*sizeof(Real_t);
-    auto walker_buf = (RawWalkerBuffer) malloc(num_walkers_per_core*walker_size);
-
-    // Scatter data buffer to processors
-    MPI_Scatter(
-            raw_data,  // raw data buffer to chunk up
-            num_walkers_per_core*walker_size, // three coordinates per atom per num_atoms per walker
-            MPI_DOUBLE, // coordinates stored as doubles
-            walker_buf, // raw array to write into
-            num_walkers_per_core*walker_size, // single energy
-            MPI_DOUBLE, // energy returned as doubles
-            0, // root caller
-            MPI_COMM_WORLD // communicator handle
-    );
-
-    // I might be using too much memory here? But ah well
-    Configurations walkers (num_walkers_per_core, Coordinates(num_atoms, Point(3)));
-    for (int n = 0; n < num_walkers_per_core; n++){
-        walkers[n] = _getWalkerCoords(walker_buf, n, num_atoms);
-    }
-    free(walker_buf);
-
-    // On each core parse these back out, allocate them into a Configurations array, init the CORE_PROPAGATOR
-    CORE_PROPAGATOR.init(
-            atoms,
-            walkers,
-            sigmas,
-            ncalls
-            );
-
-    // https://stackoverflow.com/a/48168458/5720002
-    // If MPI_Scatter couldn't promise us a specific type of ordering we'd need to do some work here to get the
-    // appropriate ordering out. Instead we can just make use of that fact to compute the initial ordering once on the
-    // python size
-
-}
-
-
-// There's a hard-limit implict here that we won't try to run a job with more than 10000 walkers / core
-// I chose to do this as a struct instead of an enum because I felt that it was nicer to read COMM_FLAGS.___
-struct COMM_FLAGS_t {
-    int DONT_SEND_WALKER;
-    int SEND_WALKER;
-    int UPDATE_WALKER;
-} COMM_FLAGS = {0, 10000, 20000};
-
-struct DecodedMessage {
-    int what_do;
-    int how_many;
-};
-
-DecodedMessage decode_send_message(const int msg){
-    // we're gonna assume now that we've gotten out a number from our message that is greater than 10000
-    // we now need to piece back how many walkers we need to work with and we're gonna then encode the position info
-    // in the raw walker buffer
-    DecodedMessage decode;
-    if (msg > COMM_FLAGS.UPDATE_WALKER) {
-        decode.what_do = COMM_FLAGS.UPDATE_WALKER;
-        decode.how_many = msg % decode.what_do;
-    } else if (msg > COMM_FLAGS.SEND_WALKER) {
-        decode.what_do = COMM_FLAGS.SEND_WALKER;
-        decode.how_many = msg % decode.what_do;
-    } else {
-        decode.what_do = COMM_FLAGS.DONT_SEND_WALKER;
-        decode.how_many = 0;
-    }
-
-    return decode;
-};
-
-RawWalkerBuffer _mpiGetWalkersFromCores(
-        Py_ssize_t num_walkers,
-        Py_ssize_t num_atoms,
-        int world_size,
-        int world_rank
-) {
-
-    // We'll use this as a way to get _all_ of the walker data out of the simulation
-    // it won't be used much, I imagine, but as long as it gets called on all of the cores it should work...
-    // maybe every like 100th timestep or something we'll get back all of our walker data, you know?
-
-    int walker_size = num_atoms*3*sizeof(Real_t);
-    int num_walkers_per_core = num_walkers / world_size;
-    if (world_rank == 0) {
-        // allocate buffer for getting the walkers back out of the simulation
-        auto walker_buf = (RawWalkerBuffer) malloc(num_walkers*walker_size);
-    } else {
-        RawWalkerBuffer walker_buf;
-    }
-
-    MPI_Gather(
-            CORE_PROPAGATOR.data(),
-            num_walkers_per_core*walker_size, // number of walkers fed in
-            MPI_DOUBLE,
-            walker_buf, // buffer to get the potential values back
-            num_walkers_per_core*walker_size, // number of walkers fed in
-            MPI_DOUBLE,
-            0,
-            MPI_COMM_WORLD
-    );
-
-    return walker_buf;
-
-}
-
-RawPotentialBuffer _mpiGetPotFromCores(
-        Py_ssize_t num_walkers,
-        int world_size,
-        int world_rank
-) {
-    // this'll be called by every core so that the Gather actually works
-
-    int num_walkers_per_core = num_walkers / world_size;
-    if (world_rank == 0) {
-        // allocate buffer for getting the potential values back out of the simulation
-        auto pot_buf = (RawPotentialBuffer) malloc(num_walkers);
-    } else {
-        RawPotentialBuffer pot_buf = NULL;
-    }
-
-    MPI_Gather(
-            CORE_PROPAGATOR.get_pots(),
-            CORE_PROPAGATOR.prop_steps * num_walkers_per_core, // number of steps calculated
-            MPI_DOUBLE,
-            pot_buf, // buffer to get the potential values back
-            CORE_PROPAGATOR.prop_steps * num_walkers_per_core, // number of walkers fed in
-            MPI_DOUBLE,
-            0,
-            MPI_COMM_WORLD
-    );
-
-    return pot_buf;
-
-}
-
-Configurations _mpiCommunicateWalkersToCores(
-        CoreWalkerMap birthed,
-        CoreWalkerMap dead,
-        int world_size,
-        int world_rank
-        ) {
-
-    // This would be the dream:
-    //   we tell a _specific_ core that we want its current walker and it feeds it back to us
-    //   the issue here is that the core has no asynchronous listener in place to know to listen for that message
-    //   and even if it did that would slow down the HF part of the calculation unless I could put some kind of "pause"
-    //   in place -- this would probably be manageable, but likely isn't worth it
-    //
-    // Instead we're gonna do this like so:
-    //   we _asynchronously_ broadcast a flag to all cores telling them to give us their walkers or not
-    //   at the same time we set up the right of listeners on rank_0 for those cores which we asked for data
-    //   then after doing that we'll of course have to use MPI_Waitall on the specific recvs request set, at which point
-    //   we can copy out the walker data into a Configurations array
-
-    // broadcast to the cores that don't need to do anything that they're good to continue
-    CoreMap::const_iterator core_spec;
-    CoreWalkerMap::const_iterator core_spec;
-    MPI_Request *req;
-    for (CoreID core = 0; core < world_size; core++ ) {
-        core_spec = birthed.find(core);
-        if (core_spec == birthed.end()) {
-            core_spec = dead.find(core);
-            if (core_spec == dead.end()) {
-                MPI_Isend(
-                        &COMM_FLAGS.DONT_SEND_WALKER,
-                        1,
-                        MPI_INTEGER,
-                        core,
-                        0, // not sure what this tag is...
-                        MPI_COMM_WORLD,
-                        req
-                        );
-            }
-        }
-    }
-
-    // iterate over the birthed walkers -> set up a Recv for each and just get all of the walkers out of a core?
-    //  --> probably best for now
-    std::vector<MPI_Request> recvs(birthed.size());
-    int i = 0;
-    for (auto it birthed.begin(); it != birthed.end(); ++it) {
-        MPI_Irecv(
-                &COMM_FLAGS.DONT_SEND_WALKER,
-                1,
-                MPI_INTEGER,
-                core,
-                0, // not sure what this tag is...
-                MPI_COMM_WORLD,
-                req
-        );
-
-
-    }
-
-
-}
-
-
- */
+///*
+// * Targeted, asynchronous MPI methods for walker broadcasting and whatnot
+// *
+// * We'll make use of a core-specific CORE_PROPAGATOR which will keep track of which walkers are on that given node
+// *
+// * On each loop we'll ask for the next n potential values, do the branching on the python side, send out a flag to all
+// * the nodes telling them whether or not they need to (a) send their walker (b) update their walker or (c) do nothing
+// * the ones that need to send will send at then these will be sent out to the ones that need to recieve
+// *
+// */
+//
+//WalkerPropagator CORE_PROPAGATOR; // This is the specific WalkerPropagator we're gonna be using for a given core
+//void _mpiSetUpSimulation(
+//        RawWalkerBuffer raw_data,
+//        const Names &atoms,
+//        const Weights &sigmas,
+//        int ncalls,
+//        Py_ssize_t num_walkers,
+//        Py_ssize_t num_atoms,
+//        int world_size,
+//        int world_rank
+//        ) {
+//
+//    int num_walkers_per_core = (num_walkers / world_size); // we're gonna assume the former is divisible by the latter
+//
+//    // create a buffer for the walkers to be fed into MPI
+//    int walker_size = num_atoms*3*sizeof(Real_t);
+//    auto walker_buf = (RawWalkerBuffer) malloc(num_walkers_per_core*walker_size);
+//
+//    // Scatter data buffer to processors
+//    MPI_Scatter(
+//            raw_data,  // raw data buffer to chunk up
+//            num_walkers_per_core*walker_size, // three coordinates per atom per num_atoms per walker
+//            MPI_DOUBLE, // coordinates stored as doubles
+//            walker_buf, // raw array to write into
+//            num_walkers_per_core*walker_size, // single energy
+//            MPI_DOUBLE, // energy returned as doubles
+//            0, // root caller
+//            MPI_COMM_WORLD // communicator handle
+//    );
+//
+//    // I might be using too much memory here? But ah well
+//    Configurations walkers (num_walkers_per_core, Coordinates(num_atoms, Point(3)));
+//    for (int n = 0; n < num_walkers_per_core; n++){
+//        walkers[n] = _getWalkerCoords(walker_buf, n, num_atoms);
+//    }
+//    free(walker_buf);
+//
+//    // On each core parse these back out, allocate them into a Configurations array, init the CORE_PROPAGATOR
+//    CORE_PROPAGATOR.init(
+//            atoms,
+//            walkers,
+//            sigmas,
+//            ncalls,
+//            world_size
+//            );
+//
+//    // https://stackoverflow.com/a/48168458/5720002
+//    // If MPI_Scatter couldn't promise us a specific type of ordering we'd need to do some work here to get the
+//    // appropriate ordering out. Instead we can just make use of that fact to compute the initial ordering once on the
+//    // python size
+//
+//}
+//
+//RawWalkerBuffer _mpiGetWalkersFromCores(
+//        Py_ssize_t num_walkers,
+//        Py_ssize_t num_atoms,
+//        int world_size,
+//        int world_rank
+//) {
+//
+//    // We'll use this as a way to get _all_ of the walker data out of the simulation
+//    // it won't be used much, I imagine, but as long as it gets called on all of the cores it should work...
+//    // maybe every like 100th timestep or something we'll get back all of our walker data, you know?
+//
+//    int walker_size = num_atoms*3*sizeof(Real_t);
+//    int num_walkers_per_core = num_walkers / world_size;
+//    RawWalkerBuffer walker_buf;
+//    if (world_rank == 0) {
+//        // allocate buffer for getting the walkers back out of the simulation
+//        walker_buf = (RawWalkerBuffer) malloc(num_walkers*walker_size);
+//    }
+//
+//    MPI_Gather(
+//            CORE_PROPAGATOR.walkers.data(),
+//            num_walkers_per_core*walker_size, // number of walkers fed in
+//            MPI_DOUBLE,
+//            walker_buf, // buffer to get the potential values back
+//            num_walkers_per_core*walker_size, // number of walkers fed in
+//            MPI_DOUBLE,
+//            0,
+//            MPI_COMM_WORLD
+//    );
+//
+//    return walker_buf;
+//
+//}
+//
+//RawPotentialBuffer _mpiGetPotFromCores(
+//        Py_ssize_t num_walkers,
+//        int world_size,
+//        int world_rank
+//) {
+//    // this'll have to be called by every core so that the Gather actually works
+//
+//    int num_walkers_per_core = num_walkers / world_size;
+//    RawPotentialBuffer pot_buf;
+//    if (world_rank == 0) {
+//        // allocate buffer for getting the potential values back out of the simulation
+//        auto pot_buf = (RawPotentialBuffer) malloc(num_walkers);
+//    }
+//
+//    MPI_Gather(
+//            CORE_PROPAGATOR.get_pots(),
+//            CORE_PROPAGATOR.prop_steps * num_walkers_per_core, // number of steps calculated
+//            MPI_DOUBLE,
+//            pot_buf, // buffer to get the potential values back
+//            CORE_PROPAGATOR.prop_steps * num_walkers_per_core, // number of walkers fed in
+//            MPI_DOUBLE,
+//            0,
+//            MPI_COMM_WORLD
+//    );
+//
+//    return pot_buf;
+//
+//}
+//
+//Configurations _mpiRemapWalkersToCores(
+//        std::vector<WalkerIDs> reborn_from_the_ashes,
+//        int world_size,
+//        int world_rank
+//        ) {
+//
+//    // New thought:
+//    //  we send async broadcast a message that encodes how many walkers to expect to get and how many to expect to send
+//    //  this will allow ones that get 00 to continue forward and HF away
+//    //
+//    //  those that are told they need to get walkers will then get a message encoding which walkers they can expect to update and from where
+//    //  that will be implicit in the second digit in the first message and thus will allow them to set up the appropriate Irecv calls
+//    //
+//    //  after that message goes out the ones that will need to send will be sent basically the same message, but telling them which
+//    //  to send and to where and they'll push out the appropriate Isend calls
+//    //
+//    //  I think this maximizes asynchronicity since only the cores that need to chat will ever be frozen while they wait for their messages to go through
+//    //  (and actually only the ones that need to _recieve_ will ever have to wait)
+//
+//
+//    // here I'm making use of the fact that CoreID and WalkerID have to be the same type (int) but it does feel icky -_-
+//    std::vector<WalkerIDs> messages(CORE_PROPAGATOR.world_size, WalkerIDs(2, 0));
+//    std::vector<WalkerIDs> birthing(CORE_PROPAGATOR.world_size);
+//    std::vector<WalkerIDs> dying(CORE_PROPAGATOR.world_size);
+//    if (world_rank == 0) {
+//        CoreID from_core;
+//        CoreID to_core;
+//        for (auto walkers : reborn_from_the_ashes) {
+//            from_core = CORE_PROPAGATOR.walker_map[walkers[0]];
+//            messages[from_core][0]++;
+//            birthing[from_core].push_back(walkers[0]);
+//            to_core = CORE_PROPAGATOR.walker_map[walkers[1]];
+//            messages[to_core][1]++;
+//            dying[from_core].push_back(walkers[1]);
+//        }
+//    }
+//
+//    // send out the messages and capture them in message
+//    WalkerIDs message(2, 0);
+//    MPI_Scatter( // I might want this to be Iscatter ?
+//            messages.data(),
+//            2,
+//            MPI_INT,
+//            message.data(),
+//            2,
+//            MPI_INT,
+//            0,
+//            MPI_COMM_WORLD
+//            );
+//
+//    // now if we're recieving children set up a Recv to get them
+//    std::vector<MPI_Request> reqs;
+//    Configurations my_kidz;
+//    CoreIDs the_mothers_of_my_children;
+//    if (message[1] > 0) {
+//        int child_support = message[1];
+//        the_mothers_of_my_children.reserve(child_support);
+//        MPI_Status status;
+//        MPI_Recv(
+//                the_mothers_of_my_children.data(),
+//                child_support,
+//                MPI_INT,
+//                0,
+//                0,
+//                MPI_COMM_WORLD,
+//                &status
+//                );
+//
+//        reqs.reserve(child_support);
+//        int num_atoms = CORE_PROPAGATOR.atoms.size();
+//        my_kidz.resize(
+//                child_support,
+//                Coordinates (num_atoms, Point(3))
+//                );
+//
+//        // set up the requests to get walkers from cores
+//        for ( int i = 0; i<child_support; i++ ) {
+//            MPI_Irecv(
+//                my_kidz[i].data(),
+//                num_atoms * 3,
+//                MPI_DOUBLE,
+//                the_mothers_of_my_children[i],
+//                0,
+//                MPI_COMM_WORLD,
+//                &reqs[i]
+//                );
+//        }
+//
+//    }
+//
+//    // if we're sending children set up a Send to get them
+//
+//
+//
+//
+//}
 
 #else
 

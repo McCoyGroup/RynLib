@@ -33,7 +33,7 @@ double MillerGroup_entosPotential
 #include <stdio.h>
 #include <stdexcept>
 #include <random>
-#include <map>
+#include <unordered_map>
 
 typedef double Real_t; // easy hook in case we wanted to use a different precision object or something in the future
 typedef Real_t* RawWalkerBuffer;
@@ -53,8 +53,6 @@ typedef int CoreID;
 typedef std::vector<CoreID> CoreIDs;
 typedef int WalkerID;
 typedef std::vector<WalkerID> WalkerIDs;
-typedef std::map<CoreID, WalkerIDs> CoreWalkerMap;
-typedef std::map<CoreID, CoreWalkerMap> CoreCoreMap;
 
 /*
  * WalkerPropagator Setup
@@ -87,6 +85,8 @@ class WalkerPropagator {
         // these will be unused but potentially useful
         CoreID core_num;
         WalkerIDs walker_ids;
+        CoreIDs walker_map; // will be the same for all cores but computed only once
+        int world_size;
 
         std::default_random_engine engine;
         RNGVector distributions;
@@ -99,16 +99,32 @@ class WalkerPropagator {
                 Names atoms,
                 Configurations walkers,
                 Weights sigmas,
-                int prop_steps
+                int prop_steps,
+                int world_size
         ){
             this->atoms = atoms;
             this->walkers = walkers;
             this->sigmas = sigmas;
             this->prop_steps = prop_steps;
+            this->world_size = world_size;
             distributions = RNGVector(3);
             for ( int i = 0; i < 3; i++ ) {
                 distributions[i] = RNG(0, sigmas[i]);
             }
+
+            auto num_walkers = walkers.size();
+            auto total_walkers = world_size * num_walkers;
+
+            // compute the walker_map
+            CoreID core = 0;
+            walker_map.reserve(total_walkers);
+            for (WalkerID walker = 0; walker++; walker < total_walkers) {
+                walker_map[walker] = core;
+                if ( walker % num_walkers == num_walkers - 1) { // right before we roll over
+                    core++;
+                }
+            }
+
             initialized = true;
         }
 
