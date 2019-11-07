@@ -84,16 +84,20 @@ test_iterations = params.iterations
 test_results = np.zeros((test_iterations,))
 lets_get_going = time.time()
 nsteps = params.steps_per_call
-testWalkersss = np.ascontiguousarray(
-    np.broadcast_to(testWalkersss, (nsteps,) + testWalkersss.shape)
-) # this forces contiguous memory layout
+testWalkersss = np.broadcast_to(testWalkersss, (nsteps,) + testWalkersss.shape)
 
 #
 # run tests
 #
 for ttt in range(test_iterations):
     t0 = time.time()
-    test_result = rynaLovesDMCLots(testAtoms, testWalkersss)
+    test_walkers_reshaped = np.ascontiguousarray(testWalkersss.transpose(1, 0, 2, 3))
+    test_result = rynaLovesDMCLots(
+        testAtoms,
+        test_walkers_reshaped
+    ) # this gets the correct memory layout
+    # then we gotta transpose back to the input layout
+    test_result = test_result.transpose()
     test_results[ttt] = time.time() - t0
 gotta_go_fast = time.time() - lets_get_going
 

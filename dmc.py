@@ -397,10 +397,11 @@ class Simulation:
                 while self.step_num < self.num_time_steps:
                     self.propagate()
         except:
-            if isinstance(log, str):
-                self.log_file = log
             self.checkpoint(test=False)
             raise
+        finally:
+            if isinstance(log, str):
+                self.log_file = log
 
     def propagate(self, nsteps = None):
         """Propagates the system forward n steps
@@ -569,6 +570,7 @@ class WalkerSet:
         # accum_disp = np.cumsum(self.get_displacements(n), axis=1)
         # return np.broadcast_to(self.coords, (n,) + self.coords.shape) + accum_disp # hoping the broadcasting makes this work...
 
+        # this is a kinda crummy way to get this, but it allows us to get our n sets of displacements
         crds = np.zeros((n,) + self.coords.shape, dtype='float')
         bloop = self.coords
         disps = self.get_displacements(n)

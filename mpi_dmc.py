@@ -153,10 +153,16 @@ walkers = WalkerSet(
 def potential(atoms, walkers, sim=None):
     import io
     fake_stderr = io.StringIO()
+
     try:
         real_stderr = sys.stderr
         sys.stderr = fake_stderr
-        res = rynaLovesDMCLots(atoms, Constants.convert(walkers, "angstroms", in_AU=False))
+        walkers_new = Constants.convert(walkers, "angstroms", in_AU=False) #np.ndarray
+        walkers_new = np.ascontiguousarray(walkers_new.transpose(1, 0, 2, 3))
+        # this makes our walkers the right shape to be used at the C++ level
+        # this is actually low-key _crucial_ to the code working correctly
+        res = rynaLovesDMCLots(atoms, walkers_new)
+        res = res.transpose()
     finally:
         sys.stderr = real_stderr
 
@@ -195,18 +201,25 @@ sim = Simulation(
 
 )
 
-
-# Can't remember what this is for???
-out = sim.log_file
-line_buffering = 1
-
 #
 #   Run simulation
 #
-if who_am_i == 0:
-    start = time.time()
+
+out = sim.log_file
+
+if not os.path.exists(os.path.dirname(out)):
+    try:
+        os.makedirs(os.path.dirname(out))
+    except OSError:
+        pass
+try:
     with open(sim.log_file, 'w+'):
         pass
+except OSError:
+    pass
+
+if who_am_i == 0:
+    start = time.time()
     sim.log_print("Starting DMC simulation")
 else:
     sim.log_print("    starting simulation on core {}".format(who_am_i), verbosity=7)
@@ -221,6 +234,6 @@ if who_am_i == 0:
     end = time.time()
     elapsed = end-start
     sim.log_print("Simulation finished in {}s.\nZPE = {}".format(elapsed, sim.zpe))
-    sim.snapshot()
+    sim.checkpoint(test=False)
 else:
     sim.log_print("    core {} finished".format(who_am_i), verbosity=7)

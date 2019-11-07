@@ -277,21 +277,45 @@ PotentialArray _mpiGetPot(
     Coordinates walker_coords (num_atoms, Point(3));
 
     // Do the same with the potentials
+    // walkers_to_core is the number of calls * the number of walkers per core
+    // We initialize a _single_ potential vector to handle all of this junk because the data is coming out of python
+    // as a single vector
+
+    // The annoying thing is that the buffer is oriented like:
+    //   [
+    //      walker_0(t=0), walker_0(t=1), ... walker_0(t=n),
+    //      walker_1(t=0), walker_1(t=1), ... walker_1(t=n),
+    //      ...,
+    //      walker_m(t=0), walker_m(t=1), ... walker_m(t=n)
+    //   ]
+    // Each chunk looks like:
+    //   [
+    //      walker_i(t=0), walker_i(t=1), ... walker_i(t=n),
+    //      ...,
+    //      walker_(i+k)(t=0), walker_(i+k)(t=1), ... walker_(i+k)(t=n)
+    //   ]
+
     PotentialVector pots(walkers_to_core, 0);
     for (int i = 0; i < walkers_to_core; i++) {
         // Some amount of wasteful copying but ah well
         walker_coords = _getWalkerCoords(walker_buf, i, num_atoms);
         pots[i] = _doopAPot(walker_coords, atoms);
     }
+    //   [
+    //      pot_i(t=0), pot_i(t=1), ... pot_i(t=n),
+    //      ...,
+    //      pot_(i+k)(t=0), pot_(i+k)(t=1), ... pot_(i+k)(t=n)
+    //   ]
 
     // we don't work with the walker data anymore?
     free(walker_buf);
 
+    // receive buffer -- needs to be the number of walkers total in the system,
+    // so we take the number of walkers and multiply it into the number of calls we make
     RawPotentialBuffer pot_buf;
     if ( world_rank == 0) {
         pot_buf = (RawPotentialBuffer) malloc(ncalls * num_walkers * sizeof(Real_t));
     }
-    // receive buffer -- needs to be the number of walkers total in the system
     MPI_Gather(
             pots.data(),
             walkers_to_core, // number of walkers fed in
@@ -303,19 +327,26 @@ PotentialArray _mpiGetPot(
             MPI_COMM_WORLD // communicator handle
             );
 
-
     // convert double* to std::vector<double>
-    PotentialArray potVals(ncalls, PotentialVector(num_walkers, 0));
+    // We currently have:
+    //   [
+    //      pot_0(t=0), walker_0(t=1), ... walker_0(t=n),
+    //      pot_1(t=0), walker_1(t=1), ... walker_1(t=n),
+    //      ...,
+    //      pot_m(t=0), walker_m(t=1), ... walker_m(t=n)
+    //   ]
+    // And so we'll just directly copy it in?
+    PotentialArray potVals(num_walkers, PotentialVector(ncalls, 0));
     if( world_rank == 0 ) {
-        // at this point we have chunks where we have world_size number of blocks of length ncalls * num_walkers_per_core
-        // we _want_ the data to come out as an (ncalls, num_walkers)
+        // at this point we have (num_walkers, ncalls) shaped potVals array, too, so I'm just gonna copy it
+        // I think I _also_ copy it again downstream but, to be honest, I don't care???
         for (size_t call = 0; call < ncalls; call++) {
             for (size_t walker = 0; walker < num_walkers; walker++) {
-                potVals[call][walker] = pot_buf[ind2d(call, walker, ncalls, num_walkers)];
+                potVals[walker][call] = pot_buf[ind2d(walker, call, num_walkers, ncalls)];
             }
         }
+        free(pot_buf);
     }
-    free(pot_buf);
 
     return potVals;
 }
@@ -616,24 +647,29 @@ PyObject *RynLib_callPotVec( PyObject* self, PyObject* args ) {
     if (PyErr_Occurred()) return NULL;
     Names mattsAtoms = _getAtomTypes(atoms, num_atoms);
 
-    // Assumes number of walkers X number of atoms X 3
-    Py_ssize_t ncalls = PyObject_Length(coords);
-    if (PyErr_Occurred()) return NULL;
 
+    // we'll assume we have number of walkers X ncalls X number of atoms X 3
     PyObject *shape = PyObject_GetAttrString(coords, "shape");
     if (shape == NULL) return NULL;
-    PyObject *num_obj = PyTuple_GetItem(shape, 1);
-    if (num_obj == NULL) return NULL;
-    Py_ssize_t num_walkers = _FromInt(num_obj);
+
+    PyObject *num_walkers_obj = PyTuple_GetItem(shape, 0);
+    if (num_walkers_obj == NULL) return NULL;
+    Py_ssize_t num_walkers = _FromInt(num_walkers_obj);
     if (PyErr_Occurred()) return NULL;
 
+    PyObject *ncalls_obj = PyTuple_GetItem(shape, 1);
+    if (ncalls_obj == NULL) return NULL;
+    Py_ssize_t ncalls = _FromInt(ncalls_obj);
+    if (PyErr_Occurred()) return NULL;
+
+    // this thing should have the walker number as the slowest moving index then the number of the timestep
+    // that way we'll really have the correct memory entering into our calls
     double* raw_data = _GetDoubleDataArray(coords);
     if (raw_data == NULL) return NULL;
 
     int world_size, world_rank;
     _mpiInit(&world_size, &world_rank);
     // Get vector of values from MPI call
-
     PotentialArray pot_vals = _mpiGetPot(
                 raw_data, mattsAtoms,
                 ncalls,
@@ -644,7 +680,7 @@ PyObject *RynLib_callPotVec( PyObject* self, PyObject* args ) {
                 );
 
     if ( world_rank == 0 ){
-        return _fillNumPyArray(pot_vals, ncalls, num_walkers);
+        return _fillNumPyArray(pot_vals, num_walkers, ncalls);
     } else {
         Py_RETURN_NONE;
     }
