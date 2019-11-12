@@ -369,6 +369,9 @@ class Simulation:
         np.save(f, np.array(self.reference_potentials))
         return f
 
+    def _prop(self):
+        while self.step_num < self.num_time_steps:
+            self.propagate()
     def run(self):
         """Runs the DMC until we've gone through the requested number of time steps
 
@@ -383,24 +386,31 @@ class Simulation:
                     os.makedirs(os.path.dirname(log))
                 except OSError:
                     pass
-        try:
-            # we add in some logic here to manage opening the log_file if need be so that every call into
-            # log_print doesn't need to open it
-            if isinstance(log, str):
-                with open(log, "a", os.O_NONBLOCK) as lf:
-                    # this is potentially quite slow but I am also quite lazy
-                    # it's not clear, either, that this won't deadlock but it's worth trying...
-                    self.log_file = lf
-                    while self.step_num < self.num_time_steps:
-                        self.propagate()
+
+        # we add in some logic here to manage opening the log_file if need be so that every call into
+        # log_print doesn't need to open it
+        lf = None
+        if isinstance(log, str):
+            try:
+                lf = open(log, "a", os.O_NONBLOCK)
+            except OSError:
+                pass
             else:
-                while self.step_num < self.num_time_steps:
-                    self.propagate()
+                self.log_file = lf
+        else:
+            lf = None
+
+        try:
+            self._prop()
         except:
+            if lf is not None:
+                lf.close()
+                self.log_file = log
             self.checkpoint(test=False)
             raise
         finally:
-            if isinstance(log, str):
+            if lf is not None:
+                lf.close()
                 self.log_file = log
 
     def propagate(self, nsteps = None):

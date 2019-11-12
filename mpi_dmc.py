@@ -162,7 +162,8 @@ def potential(atoms, walkers, sim=None):
         # this makes our walkers the right shape to be used at the C++ level
         # this is actually low-key _crucial_ to the code working correctly
         res = rynaLovesDMCLots(atoms, walkers_new)
-        res = res.transpose()
+        if res is not None:
+            res = res.transpose()
     finally:
         sys.stderr = real_stderr
 
