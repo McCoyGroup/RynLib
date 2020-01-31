@@ -1,4 +1,7 @@
 
+#ifndef RYNLIB_H
+#define RYNLIB_H
+
 #include "Python.h"
 
 #ifdef SADBOYDEBUG
@@ -7,141 +10,38 @@
 
 #else
 
-#include <vector>
-#include <string>
-
 #ifdef IM_A_REAL_BOY
+#define I_HAVE_PIE
+#define I_AM_A_TREE_PERSON
+#endif
+
+#ifdef I_AM_A_TREE_PERSON
 
 #include "dmc_interface.h"
-#include "mpi.h"
 // MillerGroup_entosPotential is really in libentos but this predeclares it
 
 #else
-// for testing we roll our own which always spits out 52
 
+#include <vector>
+#include <string>
+// for testing we roll our own which always spits out 52
 double MillerGroup_entosPotential
         (const std::vector< std::vector<double> > , const std::vector<std::string>, bool hf_only = false) {
-
     return 52.0;
-
 }
 
-#endif //ENTOS_ML_DMC_INTERFACE_H
+#endif
+
+#ifdef I_HAVE_PIE
+
+#include "mpi.h"
+
+#endif
 
 // We'll do a bunch of typedefs and includes and stuff to make it easier to work with/debug this stuff
 
-#include <stdio.h>
-#include <stdexcept>
-#include <random>
-#include <unordered_map>
 
-typedef double Real_t; // easy hook in case we wanted to use a different precision object or something in the future
-typedef Real_t* RawWalkerBuffer;
-typedef Real_t* RawPotentialBuffer;
-typedef std::vector<Real_t> Point;
-typedef Point PotentialVector;
-typedef Point Weights;
-typedef std::vector< Point > Coordinates;
-typedef Coordinates PotentialArray;
-typedef std::vector< Coordinates > Configurations;
-typedef std::string Name;
-typedef std::vector<std::string> Names;
-typedef std::normal_distribution<Real_t> RNG;
-typedef std::vector<RNG> RNGVector;
-
-typedef int CoreID;
-typedef std::vector<CoreID> CoreIDs;
-typedef int WalkerID;
-typedef std::vector<WalkerID> WalkerIDs;
-
-/*
- * WalkerPropagator Setup
- *
- * the new, minimal-communication setup for RynLib makes use of a WalkerPropagator class to handle the core walker
- * modifications and stuff
- *
- */
-
-// We'll set up a WalkerPropagator class that will be initialized on a per-core basis from the passed
-// array of walkers. This will also get the atom names and the sigmas at the initialization.
-// We'll bind the object pointer to a PyCapsule object that we can then attach to our simulation for further calls.
-// This thing will maintain a normal_distribution object that will be used to propagate the walkers forward and to
-// calculate all of the potential values in turn
-
-class WalkerPropagator {
-
-    // I'm just gonna make this all public because... honestly why not?
-    public:
-        bool initialized;
-
-        // these are needed to actually compute the potential value
-        Names atoms;
-        Configurations walkers;
-
-        // this is used for actually propagating the system forward
-        Weights sigmas;
-        int prop_steps;
-
-        // these will be unused but potentially useful
-        CoreID core_num;
-        WalkerIDs walker_ids;
-        CoreIDs walker_map; // will be the same for all cores but computed only once
-        int world_size;
-
-        std::default_random_engine engine;
-        RNGVector distributions;
-
-        // this is basically the only method that matters -- this is what will get generate and return all the potential values
-        RawPotentialBuffer get_pots();
-
-        // initialization function so that we can do this separately from construction
-        void init(
-                Names atoms,
-                Configurations walkers,
-                Weights sigmas,
-                int prop_steps,
-                int world_size
-        ){
-            this->atoms = atoms;
-            this->walkers = walkers;
-            this->sigmas = sigmas;
-            this->prop_steps = prop_steps;
-            this->world_size = world_size;
-            distributions = RNGVector(3);
-            for ( int i = 0; i < 3; i++ ) {
-                distributions[i] = RNG(0, sigmas[i]);
-            }
-
-            auto num_walkers = walkers.size();
-            auto total_walkers = world_size * num_walkers;
-
-            // compute the walker_map
-            CoreID core = 0;
-            walker_map.reserve(total_walkers);
-            for (WalkerID walker = 0; walker++; walker < total_walkers) {
-                walker_map[walker] = core;
-                if ( walker % num_walkers == num_walkers - 1) { // right before we roll over
-                    core++;
-                }
-            }
-
-            initialized = true;
-        }
-
-        WalkerPropagator(
-                bool initialized = false
-                ){
-            this->initialized = initialized;
-        };
-};
-struct CoreSpec {
-    // we use this to package up which cores have which walkers so we can easily feed this back to the
-    // python side of things for management
-    CoreIDs cores;
-    std::vector<WalkerIDs> walkers;
-};
-
-
+#include "RynTypes.hpp"
 
 /*
  * Python Interface
@@ -167,5 +67,7 @@ static PyObject *RynLib_finalizeMPI
 
 static PyObject *RynLib_holdMPI
         ( PyObject *, PyObject * );
+
+#endif
 
 #endif

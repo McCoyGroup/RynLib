@@ -238,7 +238,7 @@ class Simulation:
         return self._equilibrated
 
     def checkpoint(self, test = True):
-        if (not test) or self._checkpoint(self):
+        if (not self.dummied) and ((not test) or self._checkpoint(self)):
             self._previous_checkpoint = self.step_num
             self.log_print("Checkpointing simulation", verbosity=self.LOG_STEPS)
             # self.snapshot("checkpoint.pickle")

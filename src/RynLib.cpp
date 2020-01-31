@@ -13,601 +13,21 @@ PyMODINIT_FUNC initRynLib(void)
 
 #else
 
-#if PY_MAJOR_VERSION == 3
-const char *_GetPyString( PyObject* s, const char *enc, const char *err, PyObject *pyStr) {
-    pyStr = PyUnicode_AsEncodedString(s, enc, err);
-    if (pyStr == NULL) return NULL;
-    const char *strExcType =  PyBytes_AsString(pyStr);
-//    Py_XDECREF(pyStr);
-    return strExcType;
-}
-const char *_GetPyString( PyObject* s, PyObject *pyStr) {
-    // unfortunately we need to pass the second pyStr so we can XDECREF it later
-    return _GetPyString( s, "utf-8", "strict", pyStr); // utf-8 is safe since it contains ASCII fully
-    }
+#include "Potators.hpp"
+#include "PyAllUp.hpp"
+#include "Flargs.hpp"
+#include <stdexcept>
 
-Py_ssize_t _FromInt( PyObject* int_obj ) {
-    return PyLong_AsSsize_t(int_obj);
-}
-#else
-const char *_GetPyString( PyObject* s ) {
-    return PyString_AsString(s);
-}
-const char *_GetPyString( PyObject* s, PyObject *pyStr ) {
-    // just to unify the 2/3 interface
-    return _GetPyString( s );
-    }
-Py_ssize_t _FromInt( PyObject* int_obj ) {
-    return PyInt_AsSsize_t(int_obj);
-}
-#endif
+#ifdef I_HAVE_PIE
 
-Names _getAtomTypes( PyObject* atoms, Py_ssize_t num_atoms ) {
-
-    Names mattsAtoms(num_atoms);
-    for (int i = 0; i<num_atoms; i++) {
-        PyObject* atom = PyList_GetItem(atoms, i);
-        PyObject* pyStr = NULL;
-        const char* atomStr = _GetPyString(atom, pyStr);
-        Name atomString = atomStr;
-        mattsAtoms[i] = atomString;
-//        Py_XDECREF(atom);
-        Py_XDECREF(pyStr);
-    }
-
-    return mattsAtoms;
-}
-
-Py_buffer _GetDataBuffer(PyObject *data) {
-    Py_buffer view;
-    PyObject_GetBuffer(data, &view, PyBUF_CONTIG_RO);
-    return view;
-}
-
-double *_GetDoubleDataBufferArray(Py_buffer *view) {
-    double *c_data;
-    if ( view == NULL ) return NULL;
-    c_data = (double *) view->buf;
-    if (c_data == NULL) {
-        PyBuffer_Release(view);
-    }
-    return c_data;
-}
-
-double *_GetDoubleDataArray(PyObject *data) {
-    Py_buffer view = _GetDataBuffer(data);
-    double *array = _GetDoubleDataBufferArray(&view);
-//    CHECKNULL(array);
-    return array;
-}
-
-inline int ind2d(int i, int j, int n, int m) {
-    return m * i + j;
-}
-// here I ignore `n` because... well I originally wrote it like that
-inline int int3d(int i, int j, int k, int m, int l) {
-    return (m*l) * i + (l*j) + k;
-}
-
-Coordinates _getWalkerCoords(const double* raw_data, int i, Py_ssize_t num_atoms) {
-    Coordinates walker_coords(num_atoms, Point(3));
-    for (int j = 0; j<num_atoms; j++) {
-        for (int k = 0; k<3; k++) {
-            walker_coords[j][k] = raw_data[int3d(i, j, k, num_atoms, 3)];
-        }
-    };
-    return walker_coords;
-}
-
-#ifdef IM_A_REAL_BOY
-
-void _printOutWalkerStuff( Coordinates walker_coords ) {
-    FILE * err = fopen("bad_walkers.txt", "a");
-    fprintf(err, "This walker was bad: ( ");
-    for ( size_t i = 0; i < walker_coords.size(); i++) {
-        fprintf(err, "(%f, %f, %f)", walker_coords[i][0], walker_coords[i][1], walker_coords[i][2]);
-        if ( i < walker_coords.size()-1 ) {
-            fprintf(err, ", ");
-        }
-    }
-    fprintf(err, " )\n");
-    fclose(err);
-}
-#else
-void _printOutWalkerStuff( Coordinates walker_coords ) {
-    printf("This walker was bad: ( ");
-    for ( size_t i = 0; i < walker_coords.size(); i++) {
-        printf("(%f, %f, %f)", walker_coords[i][0], walker_coords[i][1], walker_coords[i][2]);
-        if ( i < walker_coords.size()-1 ) {
-            printf(", ");
-        }
-    }
-    printf(" )\n");
-}
-#endif
-
-// Basic method for computing a potential via MillerGroup_entosPotential
-double _doopAPot(const Coordinates &walker_coords, const Names &atoms) {
-    double pot;
-
-    try {
-        // pot = MillerGroup_entosPotential(walker_coords, atoms, true); // use only hf
-        pot = MillerGroup_entosPotential(walker_coords, atoms); // use ml as well
-    } catch (std::exception &e) {
-        PyErr_SetString(PyExc_ValueError, e.what());
-//        _printOutWalkerStuff(walker_coords);
-        pot = 1.0e9;
-    }
-
-    return pot;
-};
-
-
-PyObject *_getNumPyZerosMethod() {
-    PyObject *array_module = PyImport_ImportModule("numpy");
-    if (array_module == NULL) return NULL;
-    PyObject *builder = PyObject_GetAttrString(array_module, "zeros");
-    Py_XDECREF(array_module);
-    if (builder == NULL) return NULL;
-    return builder;
-};
-
-PyObject *_getNumPyArray(
-        int n,
-        int m,
-        const char *dtype
-        ) {
-    // Initialize NumPy array of correct size and dtype
-    PyObject *builder = _getNumPyZerosMethod();
-    if (builder == NULL) return NULL;
-    PyObject *dims = Py_BuildValue("((ii))", n, m);
-    Py_XDECREF(builder);
-    if (dims == NULL) return NULL;
-    PyObject *kw = Py_BuildValue("{s:s}", "dtype", dtype);
-    if (kw == NULL) return NULL;
-    PyObject *pot = PyObject_Call(builder, dims, kw);
-    Py_XDECREF(kw);
-    Py_XDECREF(dims);
-    return pot;
-}
-
-// NumPy Communication Methods
-PyObject *_fillNumPyArray(
-        const PotentialArray &pot_vals,
-        const int ncalls,
-        const int num_walkers
-        ) {
-
-    // Initialize NumPy array of correct size and dtype
-    PyObject *pot = _getNumPyArray(ncalls, num_walkers, "float");
-    if (pot == NULL) return NULL;
-    double *data = _GetDoubleDataArray(pot);
-    for (int i = 0; i < ncalls; i++) {
-        memcpy(
-                // where in the data array memory to start copying to
-                data + num_walkers * i,
-                // where in the potential array to start copying from
-                pot_vals[i].data(),
-                // what
-                sizeof(double) * num_walkers
-                );
-    };
-    return pot;
-}
-
-#ifdef IM_A_REAL_BOY
-
-void _mpiInit(int* world_size, int* world_rank) {
-    // Initialize MPI state
-    int did_i_do_good_pops = 0;
-    MPI_Initialized(&did_i_do_good_pops);
-    if (!did_i_do_good_pops){
-        MPI_Init(NULL, NULL);
-       };
-    MPI_Comm_size(MPI_COMM_WORLD, world_size);
-    MPI_Comm_rank(MPI_COMM_WORLD, world_rank);
-    // printf("This many things %d and I am here %d\n", *world_size, *world_rank);
-}
-
-void _mpiFinalize() {
-    int did_i_do_bad_pops = 0;
-    MPI_Finalized(&did_i_do_bad_pops); // need to check if we called Init once already
-    if (!did_i_do_bad_pops){
-        MPI_Finalize();
-       };
-}
-
-void _mpiBarrier() {
-    MPI_Barrier(MPI_COMM_WORLD);
-}
-
-
-// This is the first of a set of methods written so as to _directly_ communicate with the potential and things
-// based off of a set of current geometries and the atom names.
-// We're gonna move to a system where we do barely any communication and instead ask each core to basically propagate
-// its own walker(s) directly and compute energies and all that without needing to be directed to by the main core
-// it'll propagate and compute on its own and only take updates from the parent when it needs to
-
-PotentialArray _mpiGetPot(
-        RawWalkerBuffer raw_data,
-        const Names &atoms,
-        int ncalls,
-        Py_ssize_t num_walkers,
-        Py_ssize_t num_atoms,
-        int world_size,
-        int world_rank
-        ) {
-
-    //
-    // The way this works is that we start with an array of data that looks like (ncalls, num_walkers, *walker_shape)
-    // Then we have m cores such that num_walkers_per_core = num_walkers / m
-    //
-    // We pass these in to MPI and allow them to get distributed out as blocks of ncalls * num_walkers_per_core walkers
-    // to a given core, which calculates the potential over all of them and then returns that
-    //
-    // At the end we have a potential array that is m * (ncalls * num_walkers_per_core) walkers and we need to make this
-    // back into the clean (ncalls, num_walkers) array we expect in the end
-
-    // we're gonna assume the former is divisible by the latter on world_rank == 0
-    // and that it's just plain `num_walkers` on every other world_rank
-    int num_walkers_per_core = (num_walkers / world_size);
-    if (world_rank > 0) {
-        // means we're only feeding in num_walkers because we're not on world_rank == 0
-        num_walkers_per_core = num_walkers;
-    }
-
-    // create a buffer for the walkers to be fed into MPI
-    int walker_cnum = num_atoms*3;
-    int walkers_to_core = ncalls * num_walkers_per_core;
-
-    auto walker_buf = (RawWalkerBuffer) malloc(walkers_to_core * walker_cnum * sizeof(Real_t));
-    // Scatter data buffer to processors
-    MPI_Scatter(
-            raw_data,  // raw data buffer to chunk up
-            walkers_to_core * walker_cnum, // three coordinates per atom per num_atoms per walker
-            MPI_DOUBLE, // coordinates stored as doubles
-            walker_buf, // raw array to write into
-            walkers_to_core * walker_cnum, // three coordinates per atom per num_atoms per walker
-            MPI_DOUBLE, // coordinates stored as doubles
-            0, // root caller
-            MPI_COMM_WORLD // communicator handle
-    );
-
-    // Allocate a coordinate array to pull data into
-    Coordinates walker_coords (num_atoms, Point(3));
-
-    // Do the same with the potentials
-    // walkers_to_core is the number of calls * the number of walkers per core
-    // We initialize a _single_ potential vector to handle all of this junk because the data is coming out of python
-    // as a single vector
-
-    // The annoying thing is that the buffer is oriented like:
-    //   [
-    //      walker_0(t=0), walker_0(t=1), ... walker_0(t=n),
-    //      walker_1(t=0), walker_1(t=1), ... walker_1(t=n),
-    //      ...,
-    //      walker_m(t=0), walker_m(t=1), ... walker_m(t=n)
-    //   ]
-    // Each chunk looks like:
-    //   [
-    //      walker_i(t=0), walker_i(t=1), ... walker_i(t=n),
-    //      ...,
-    //      walker_(i+k)(t=0), walker_(i+k)(t=1), ... walker_(i+k)(t=n)
-    //   ]
-
-    PotentialVector pots(walkers_to_core, 0);
-    for (int i = 0; i < walkers_to_core; i++) {
-        // Some amount of wasteful copying but ah well
-        walker_coords = _getWalkerCoords(walker_buf, i, num_atoms);
-        pots[i] = _doopAPot(walker_coords, atoms);
-    }
-    //   [
-    //      pot_i(t=0), pot_i(t=1), ... pot_i(t=n),
-    //      ...,
-    //      pot_(i+k)(t=0), pot_(i+k)(t=1), ... pot_(i+k)(t=n)
-    //   ]
-
-    // we don't work with the walker data anymore?
-    free(walker_buf);
-
-    // receive buffer -- needs to be the number of walkers total in the system,
-    // so we take the number of walkers and multiply it into the number of calls we make
-    RawPotentialBuffer pot_buf;
-    if ( world_rank == 0) {
-        pot_buf = (RawPotentialBuffer) malloc(ncalls * num_walkers * sizeof(Real_t));
-    }
-    MPI_Gather(
-            pots.data(),
-            walkers_to_core, // number of walkers fed in
-            MPI_DOUBLE, // coordinates stored as doubles
-            pot_buf, // buffer to get the potential values back
-            walkers_to_core, // number of walkers fed in
-            MPI_DOUBLE, // coordinates stored as doubles
-            0, // where they should go
-            MPI_COMM_WORLD // communicator handle
-            );
-
-    // convert double* to std::vector<double>
-    // We currently have:
-    //   [
-    //      pot_0(t=0), walker_0(t=1), ... walker_0(t=n),
-    //      pot_1(t=0), walker_1(t=1), ... walker_1(t=n),
-    //      ...,
-    //      pot_m(t=0), walker_m(t=1), ... walker_m(t=n)
-    //   ]
-    // And so we'll just directly copy it in?
-    PotentialArray potVals(num_walkers, PotentialVector(ncalls, 0));
-    if( world_rank == 0 ) {
-        // at this point we have (num_walkers, ncalls) shaped potVals array, too, so I'm just gonna copy it
-        // I think I _also_ copy it again downstream but, to be honest, I don't care???
-        for (size_t call = 0; call < ncalls; call++) {
-            for (size_t walker = 0; walker < num_walkers; walker++) {
-                potVals[walker][call] = pot_buf[ind2d(walker, call, num_walkers, ncalls)];
-            }
-        }
-        free(pot_buf);
-    }
-
-    return potVals;
-}
-
-
-///*
-// * Targeted, asynchronous MPI methods for walker broadcasting and whatnot
-// *
-// * We'll make use of a core-specific CORE_PROPAGATOR which will keep track of which walkers are on that given node
-// *
-// * On each loop we'll ask for the next n potential values, do the branching on the python side, send out a flag to all
-// * the nodes telling them whether or not they need to (a) send their walker (b) update their walker or (c) do nothing
-// * the ones that need to send will send at then these will be sent out to the ones that need to recieve
-// *
-// */
-//
-//WalkerPropagator CORE_PROPAGATOR; // This is the specific WalkerPropagator we're gonna be using for a given core
-//void _mpiSetUpSimulation(
-//        RawWalkerBuffer raw_data,
-//        const Names &atoms,
-//        const Weights &sigmas,
-//        int ncalls,
-//        Py_ssize_t num_walkers,
-//        Py_ssize_t num_atoms,
-//        int world_size,
-//        int world_rank
-//        ) {
-//
-//    int num_walkers_per_core = (num_walkers / world_size); // we're gonna assume the former is divisible by the latter
-//
-//    // create a buffer for the walkers to be fed into MPI
-//    int walker_size = num_atoms*3*sizeof(Real_t);
-//    auto walker_buf = (RawWalkerBuffer) malloc(num_walkers_per_core*walker_size);
-//
-//    // Scatter data buffer to processors
-//    MPI_Scatter(
-//            raw_data,  // raw data buffer to chunk up
-//            num_walkers_per_core*walker_size, // three coordinates per atom per num_atoms per walker
-//            MPI_DOUBLE, // coordinates stored as doubles
-//            walker_buf, // raw array to write into
-//            num_walkers_per_core*walker_size, // single energy
-//            MPI_DOUBLE, // energy returned as doubles
-//            0, // root caller
-//            MPI_COMM_WORLD // communicator handle
-//    );
-//
-//    // I might be using too much memory here? But ah well
-//    Configurations walkers (num_walkers_per_core, Coordinates(num_atoms, Point(3)));
-//    for (int n = 0; n < num_walkers_per_core; n++){
-//        walkers[n] = _getWalkerCoords(walker_buf, n, num_atoms);
-//    }
-//    free(walker_buf);
-//
-//    // On each core parse these back out, allocate them into a Configurations array, init the CORE_PROPAGATOR
-//    CORE_PROPAGATOR.init(
-//            atoms,
-//            walkers,
-//            sigmas,
-//            ncalls,
-//            world_size
-//            );
-//
-//    // https://stackoverflow.com/a/48168458/5720002
-//    // If MPI_Scatter couldn't promise us a specific type of ordering we'd need to do some work here to get the
-//    // appropriate ordering out. Instead we can just make use of that fact to compute the initial ordering once on the
-//    // python size
-//
-//}
-//
-//RawWalkerBuffer _mpiGetWalkersFromCores(
-//        Py_ssize_t num_walkers,
-//        Py_ssize_t num_atoms,
-//        int world_size,
-//        int world_rank
-//) {
-//
-//    // We'll use this as a way to get _all_ of the walker data out of the simulation
-//    // it won't be used much, I imagine, but as long as it gets called on all of the cores it should work...
-//    // maybe every like 100th timestep or something we'll get back all of our walker data, you know?
-//
-//    int walker_size = num_atoms*3*sizeof(Real_t);
-//    int num_walkers_per_core = num_walkers / world_size;
-//    RawWalkerBuffer walker_buf;
-//    if (world_rank == 0) {
-//        // allocate buffer for getting the walkers back out of the simulation
-//        walker_buf = (RawWalkerBuffer) malloc(num_walkers*walker_size);
-//    }
-//
-//    MPI_Gather(
-//            CORE_PROPAGATOR.walkers.data(),
-//            num_walkers_per_core*walker_size, // number of walkers fed in
-//            MPI_DOUBLE,
-//            walker_buf, // buffer to get the potential values back
-//            num_walkers_per_core*walker_size, // number of walkers fed in
-//            MPI_DOUBLE,
-//            0,
-//            MPI_COMM_WORLD
-//    );
-//
-//    return walker_buf;
-//
-//}
-//
-//RawPotentialBuffer _mpiGetPotFromCores(
-//        Py_ssize_t num_walkers,
-//        int world_size,
-//        int world_rank
-//) {
-//    // this'll have to be called by every core so that the Gather actually works
-//
-//    int num_walkers_per_core = num_walkers / world_size;
-//    RawPotentialBuffer pot_buf;
-//    if (world_rank == 0) {
-//        // allocate buffer for getting the potential values back out of the simulation
-//        auto pot_buf = (RawPotentialBuffer) malloc(num_walkers);
-//    }
-//
-//    MPI_Gather(
-//            CORE_PROPAGATOR.get_pots(),
-//            CORE_PROPAGATOR.prop_steps * num_walkers_per_core, // number of steps calculated
-//            MPI_DOUBLE,
-//            pot_buf, // buffer to get the potential values back
-//            CORE_PROPAGATOR.prop_steps * num_walkers_per_core, // number of walkers fed in
-//            MPI_DOUBLE,
-//            0,
-//            MPI_COMM_WORLD
-//    );
-//
-//    return pot_buf;
-//
-//}
-//
-//Configurations _mpiRemapWalkersToCores(
-//        std::vector<WalkerIDs> reborn_from_the_ashes,
-//        int world_size,
-//        int world_rank
-//        ) {
-//
-//    // New thought:
-//    //  we send async broadcast a message that encodes how many walkers to expect to get and how many to expect to send
-//    //  this will allow ones that get 00 to continue forward and HF away
-//    //
-//    //  those that are told they need to get walkers will then get a message encoding which walkers they can expect to update and from where
-//    //  that will be implicit in the second digit in the first message and thus will allow them to set up the appropriate Irecv calls
-//    //
-//    //  after that message goes out the ones that will need to send will be sent basically the same message, but telling them which
-//    //  to send and to where and they'll push out the appropriate Isend calls
-//    //
-//    //  I think this maximizes asynchronicity since only the cores that need to chat will ever be frozen while they wait for their messages to go through
-//    //  (and actually only the ones that need to _recieve_ will ever have to wait)
-//
-//
-//    // here I'm making use of the fact that CoreID and WalkerID have to be the same type (int) but it does feel icky -_-
-//    std::vector<WalkerIDs> messages(CORE_PROPAGATOR.world_size, WalkerIDs(2, 0));
-//    std::vector<WalkerIDs> birthing(CORE_PROPAGATOR.world_size);
-//    std::vector<WalkerIDs> dying(CORE_PROPAGATOR.world_size);
-//    if (world_rank == 0) {
-//        CoreID from_core;
-//        CoreID to_core;
-//        for (auto walkers : reborn_from_the_ashes) {
-//            from_core = CORE_PROPAGATOR.walker_map[walkers[0]];
-//            messages[from_core][0]++;
-//            birthing[from_core].push_back(walkers[0]);
-//            to_core = CORE_PROPAGATOR.walker_map[walkers[1]];
-//            messages[to_core][1]++;
-//            dying[from_core].push_back(walkers[1]);
-//        }
-//    }
-//
-//    // send out the messages and capture them in message
-//    WalkerIDs message(2, 0);
-//    MPI_Scatter( // I might want this to be Iscatter ?
-//            messages.data(),
-//            2,
-//            MPI_INT,
-//            message.data(),
-//            2,
-//            MPI_INT,
-//            0,
-//            MPI_COMM_WORLD
-//            );
-//
-//    // now if we're recieving children set up a Recv to get them
-//    std::vector<MPI_Request> reqs;
-//    Configurations my_kidz;
-//    CoreIDs the_mothers_of_my_children;
-//    if (message[1] > 0) {
-//        int child_support = message[1];
-//        the_mothers_of_my_children.reserve(child_support);
-//        MPI_Status status;
-//        MPI_Recv(
-//                the_mothers_of_my_children.data(),
-//                child_support,
-//                MPI_INT,
-//                0,
-//                0,
-//                MPI_COMM_WORLD,
-//                &status
-//                );
-//
-//        reqs.reserve(child_support);
-//        int num_atoms = CORE_PROPAGATOR.atoms.size();
-//        my_kidz.resize(
-//                child_support,
-//                Coordinates (num_atoms, Point(3))
-//                );
-//
-//        // set up the requests to get walkers from cores
-//        for ( int i = 0; i<child_support; i++ ) {
-//            MPI_Irecv(
-//                my_kidz[i].data(),
-//                num_atoms * 3,
-//                MPI_DOUBLE,
-//                the_mothers_of_my_children[i],
-//                0,
-//                MPI_COMM_WORLD,
-//                &reqs[i]
-//                );
-//        }
-//
-//    }
-//
-//    // if we're sending children set up a Send to get them
-//
-//
-//
-//
-//}
+#include "MyPieIsHere.hpp"
 
 #else
 
-void _mpiInit(int* world_size, int* world_rank) {
-    *world_size = 1;
-    *world_rank = 0;
-}
-
-void _mpiFinalize() {
-    // boop
-}
-
-void _mpiBarrier() {
-    // boop
-}
-
-PotentialArray _mpiGetPot(
-        double* raw_data,
-        Names atoms,
-        int ncalls,
-        Py_ssize_t num_walkers,
-        Py_ssize_t num_atoms,
-        int world_size,
-        int world_rank
-        ) {
-
-//        printf("this is not for real boys");
-        PotentialArray potVals(ncalls, PotentialVector(num_walkers, 52.0));
-        return potVals;
-
-        }
+#include "MyPieIsGone.hpp"
 
 #endif
+
 
 PyObject *RynLib_callPot(PyObject* self, PyObject* args ) {
 
@@ -646,7 +66,6 @@ PyObject *RynLib_callPotVec( PyObject* self, PyObject* args ) {
     Py_ssize_t num_atoms = PyObject_Length(atoms);
     if (PyErr_Occurred()) return NULL;
     Names mattsAtoms = _getAtomTypes(atoms, num_atoms);
-
 
     // we'll assume we have number of walkers X ncalls X number of atoms X 3
     PyObject *shape = PyObject_GetAttrString(coords, "shape");
@@ -696,39 +115,6 @@ PyObject *RynLib_testPot( PyObject* self, PyObject* args ) {
 
 }
 
-// New design that will make use of the WalkerPropagator object I'm setting up
-/*
-PyObject *RynLib_getWalkers( PyObject* self, PyObject* args ) {
-
-    PyObject* cores;
-    if ( !PyArg_ParseTuple(args, "O", &cores) ) return NULL;
-
-    Coordinates walker_positions = _mpiGetWalkersFromNodes(
-
-    );
-
-}
- */
-
-RawPotentialBuffer WalkerPropagator::get_pots() {
-
-    auto pots = (RawPotentialBuffer) malloc(prop_steps*walkers.size());
-
-    for (int j = 0; j < walkers.size(); j++) { // number of walkers we're holding onto
-        for (int i = 0; i < prop_steps; i++) { // number of steps per walker
-            // propagate the j-th walker forward
-            for (int n = 0; n < atoms.size(); n++ ) {
-                for (int m = 0; m < 3; m++ ) {
-                    walkers[j][n][m] += distributions[m](engine);
-                }
-            }
-            // call potential on newly moved walker and stick this in pots
-            pots[j*prop_steps + i] = _doopAPot(walkers[j], atoms);
-        }
-    }
-
-    return pots;
-}
 
 // MPI COMMUNICATION METHODS
 PyObject *RynLib_initializeMPI(PyObject *self, PyObject *args) {
@@ -755,16 +141,90 @@ PyObject *RynLib_holdMyPI( PyObject* self, PyObject* args ) {
 
 }
 
+#ifdef AGE_OF_AQUARIUS
+
+#include "WalkerPropagator.h"
+
+// New design that will make use of the WalkerPropagator object I'm setting up
+PyObject *RynLib_getWalkers( PyObject* self, PyObject* args ) {
+
+    PyObject* cores;
+    if ( !PyArg_ParseTuple(args, "O", &cores) ) return NULL;
+
+    Coordinates walker_positions = _mpiGetWalkersFromNodes(
+
+    );
+
+}
+
+#else
+
+PyObject *RynLib_getWalkers( PyObject* self, PyObject* args ) {
+    Py_RETURN_NOTIMPLEMENTED;
+}
+
+#endif
+
+
+PyObject *RynLib_setBadWalkerFile( PyObject* self, PyObject* args ) {
+
+    PyObject* out;
+    if ( !PyArg_ParseTuple(args, "O", &out) ) return NULL;
+    PyObject* pyStr = NULL;
+    const char* fileFlarg = _GetPyString(out, pyStr);
+    Py_XDECREF(pyStr);
+
+    BAD_WALKERS_WHATCHA_GONNA_DO = fileFlarg;
+
+    Py_RETURN_NONE;
+
+}
+
+PyObject *RynLib_setOnlyHF( PyObject* self, PyObject* args ) {
+
+    bool* useHF;
+    if ( !PyArg_ParseTuple(args, "b", &useHF) ) return NULL;
+
+    MACHINE_LERNING_IS_A_SCAM = useHF;
+
+    Py_RETURN_NONE;
+
+}
+
+PyObject *RynLib_setPotential( PyObject* self, PyObject* args ) {
+
+    PyObject* potCap;
+    PyObject* capName;
+    if ( !PyArg_ParseTuple(args, "OO", &potCap, &capName) ) return NULL;
+
+    PotentialFunction pot_pointer;
+    if ( capName == Py_None ) {
+        pot_pointer = (PotentialFunction) PyCapsule_GetPointer(potCap, NULL);
+    } else {
+        PyObject* pyStr = NULL;
+        const char* capNameStr = _GetPyString(capName, pyStr);
+        pot_pointer = (PotentialFunction) PyCapsule_GetPointer(potCap, capNameStr);
+        Py_XDECREF(pyStr);
+    }
+
+    POOTY_PATOOTY = pot_pointer;
+
+    Py_RETURN_NONE;
+
+}
 
 // PYTHON WRAPPER EXPORT
 
 static PyMethodDef RynLibMethods[] = {
     {"rynaLovesDMC", RynLib_callPot, METH_VARARGS, "calls entos on a single walker"},
-    {"rynaLovesDMCLots", RynLib_callPotVec, METH_VARARGS, "will someday call entos on a vector of walkers"},
+    {"rynaLovesDMCLots", RynLib_callPotVec, METH_VARARGS, "calls entos on a vector of walkers"},
     {"rynaSaysYo", RynLib_testPot, METH_VARARGS, "a test flat potential for debugging"},
     {"giveMePI", RynLib_initializeMPI, METH_VARARGS, "calls Init and returns the processor rank"},
     {"noMorePI", RynLib_finalizeMPI, METH_VARARGS, "calls Finalize in a safe fashion (can be done more than once)"},
     {"holdMyPI", RynLib_holdMyPI, METH_VARARGS, "calls Barrier"},
+    {"doITrustThemachines", RynLib_setBadWalkerFile, METH_VARARGS, "sets the flag to use HF only or not"},
+    {"whatToDoWithAProblemLikeRyna", RynLib_setBadWalkerFile, METH_VARARGS, "sets the bad walker dump file"},
+    {"walkyTalky", RynLib_getWalkers, METH_VARARGS, "gets Walkers in a WalkerPropagator env"},
     {NULL, NULL, 0, NULL}
 };
 
