@@ -4,8 +4,8 @@ cmake_minimum_required(VERSION 3.14)
 project (RynLib)
 set(
         SOURCE_FILES
-            RynLib.h
-            RynLib.cpp
+        RynLib.h
+        RynLib.cpp
             RynTypes.hpp
             Flargs.hpp
             MyPieIsGone.hpp

@@ -1,106 +1,6 @@
 from __future__ import print_function
-import sys, os, numpy as np, time, argparse
+import sys, os, numpy as np, time
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-
-from RynLib import *
-
-########################################################################################################
-#
-#
-#                                      PARSE PARAMETERS
-#
-#
-########################################################################################################
-
-parser = argparse.ArgumentParser()
-parser.add_argument(
-    "--walkers_per_core",
-    default = 2,
-    type = int,
-    dest = 'walkers_per_core'
-)
-parser.add_argument(
-    "--steps_per_call",
-    default = 10,
-    type = int,
-    dest = 'steps_per_call'
-)
-parser.add_argument(
-    "--name",
-    default = "mpi_dmc",
-    type = str,
-    dest = 'name'
-)
-parser.add_argument(
-    "--equilibration",
-    default = 1000,
-    type = int,
-    dest = 'equilibration'
-)
-parser.add_argument(
-    "--total_time",
-    default = 10000,
-    type = int,
-    dest = 'total_time'
-)
-parser.add_argument(
-    "--descendent_weighting_delay",
-    default = 500,
-    type = int,
-    dest = 'descendent_weighting_delay'
-)
-parser.add_argument(
-    "--descendent_weighting_steps",
-    default = 50,
-    type = int,
-    dest = 'descendent_weighting_steps'
-)
-parser.add_argument(
-    "--delta_tau",
-    default = 5.0,
-    type = float,
-    dest = 'delta_tau'
-)
-parser.add_argument(
-    "--checkpoint_every",
-    default = 100,
-    type = int,
-    dest = 'checkpoint_every'
-)
-params = parser.parse_args()
-
-########################################################################################################
-#
-#
-#                                      PARAMETERS WOWWWWWWWWWW
-#
-#
-########################################################################################################
-
-
-#
-# Number of walkers
-#
-# Sets up the MPI part of the thing. We use _24601 processors and thus _24601 * num_walkers_per_core walkers.
-who_am_i, _24601 = giveMePI()
-num_walkers_per_core = params.walkers_per_core
-if who_am_i == 0:
-    num_walkers = _24601 * num_walkers_per_core
-else:
-    # we're just a single core, after all
-    # THIS IS IMPORTANT BECAUSE I USE THIS ASSUMPTION ON THE MPI SIDE BECAUSE I WAS TOO LAZY TO ADD A PARAMETER TO THE CALL
-    num_walkers = num_walkers_per_core
-
-#
-# Actual run parameters
-#
-dwDelay = params.descendent_weighting_delay
-nDw = params.descendent_weighting_steps
-deltaT = params.delta_tau
-alpha = 1.0 / (2.0 * deltaT)
-equil = params.equilibration
-ntimeSteps = params.total_time
-ntimeSteps += nDw
 
 ########################################################################################################
 #
@@ -177,30 +77,7 @@ def potential(atoms, walkers, sim=None):
 #
 #   Initialize simulation
 #
-sim = Simulation(
-    params.name,
-    """ A simple water scan using Entos and MPI to get the potential (and including ML later)""",
-    walker_set = walkers,
 
-    time_step = deltaT,
-    D = 1/2.0,
-    alpha = alpha,
-
-    potential = potential,
-
-    num_time_steps = ntimeSteps,
-    steps_per_propagation = params.steps_per_call,
-    equilibration = equil,
-
-    checkpoint_at = params.checkpoint_every,
-
-    descendent_weighting = (dwDelay, nDw),
-    write_wavefunctions = True,
-
-    world_rank = who_am_i,
-    verbosity=Simulation.LOG_DEBUG
-
-)
 
 #
 #   Run simulation

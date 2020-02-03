@@ -7,10 +7,11 @@
 #include "RynLib.h"
 
 std::string BAD_WALKERS_WHATCHA_GONNA_DO = "bad_walkers.txt";
-bool MACHINE_LERNING_IS_A_SCAM = false;
+bool PRIMITIVE_STYLE_POTENTIAL = false;
+bool VICKY_VECTORY_POTENTIAL = false;
 
-Real_t entos_pot(const Coordinates coords, const Names atoms) {
-    return MillerGroup_entosPotential(coords, atoms, MACHINE_LERNING_IS_A_SCAM);
+Real_t zero_pot(const Coordinates coords, const Names atoms) {
+    return 0;
 }
 PotentialFunction POOTY_PATOOTY = entos_pot;
 

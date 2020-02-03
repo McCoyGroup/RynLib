@@ -11,24 +11,8 @@
 #else
 
 #ifdef IM_A_REAL_BOY
+
 #define I_HAVE_PIE
-#define I_AM_A_TREE_PERSON
-#endif
-
-#ifdef I_AM_A_TREE_PERSON
-
-#include "dmc_interface.h"
-// MillerGroup_entosPotential is really in libentos but this predeclares it
-
-#else
-
-#include <vector>
-#include <string>
-// for testing we roll our own which always spits out 52
-double MillerGroup_entosPotential
-        (const std::vector< std::vector<double> > , const std::vector<std::string>, bool hf_only = false) {
-    return 52.0;
-}
 
 #endif
 
@@ -39,7 +23,6 @@ double MillerGroup_entosPotential
 #endif
 
 // We'll do a bunch of typedefs and includes and stuff to make it easier to work with/debug this stuff
-
 
 #include "RynTypes.hpp"
 

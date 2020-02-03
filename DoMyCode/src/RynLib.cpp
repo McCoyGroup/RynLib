@@ -175,7 +175,6 @@ PyObject *RynLib_setBadWalkerFile( PyObject* self, PyObject* args ) {
     Py_XDECREF(pyStr);
 
     BAD_WALKERS_WHATCHA_GONNA_DO = fileFlarg;
-
     Py_RETURN_NONE;
 
 }
@@ -186,7 +185,26 @@ PyObject *RynLib_setOnlyHF( PyObject* self, PyObject* args ) {
     if ( !PyArg_ParseTuple(args, "b", &useHF) ) return NULL;
 
     MACHINE_LERNING_IS_A_SCAM = useHF;
+    Py_RETURN_NONE;
 
+}
+
+PyObject *RynLib_setOldStylePotential( PyObject* self, PyObject* args ) {
+
+    bool* boop;
+    if ( !PyArg_ParseTuple(args, "b", &boop) ) return NULL;
+
+    PRIMITIVE_STYLE_POTENTIAL = boop;
+    Py_RETURN_NONE;
+
+}
+
+PyObject *RynLib_setVectoryPotential( PyObject* self, PyObject* args ) {
+
+    bool* boop;
+    if ( !PyArg_ParseTuple(args, "b", &boop) ) return NULL;
+
+    VICKY_VECTORY_POTENTIAL = boop;
     Py_RETURN_NONE;
 
 }
@@ -208,7 +226,6 @@ PyObject *RynLib_setPotential( PyObject* self, PyObject* args ) {
     }
 
     POOTY_PATOOTY = pot_pointer;
-
     Py_RETURN_NONE;
 
 }
@@ -222,8 +239,10 @@ static PyMethodDef RynLibMethods[] = {
     {"giveMePI", RynLib_initializeMPI, METH_VARARGS, "calls Init and returns the processor rank"},
     {"noMorePI", RynLib_finalizeMPI, METH_VARARGS, "calls Finalize in a safe fashion (can be done more than once)"},
     {"holdMyPI", RynLib_holdMyPI, METH_VARARGS, "calls Barrier"},
-    {"doITrustThemachines", RynLib_setBadWalkerFile, METH_VARARGS, "sets the flag to use HF only or not"},
+    {"useMyPoot", RynLib_setPotential, METH_VARARGS, "sets the function to use"},
     {"whatToDoWithAProblemLikeRyna", RynLib_setBadWalkerFile, METH_VARARGS, "sets the bad walker dump file"},
+    {"myPotIsAnOldFogey", RynLib_setOldStylePotential, METH_VARARGS, "sets the flag to use a potential that works with a raw array"},
+    {"myPotIsForManyPeeps", RynLib_setVectoryPotential, METH_VARARGS, "sets the flag to use a vector potential"},
     {"walkyTalky", RynLib_getWalkers, METH_VARARGS, "gets Walkers in a WalkerPropagator env"},
     {NULL, NULL, 0, NULL}
 };
