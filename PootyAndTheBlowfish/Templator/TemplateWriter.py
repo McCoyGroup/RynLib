@@ -25,7 +25,7 @@ class TemplateWriter:
     @property
     def replacements(self):
         if self._reps is None:
-            self._reps =  tuple(("`"+k+"`", v) for k,v in self._rep_dict.items())
+            self._reps =  tuple(("`"+k+"`", str(v)) for k,v in self._rep_dict.items())
         return self._reps
 
     def apply_replacements(self, string):
