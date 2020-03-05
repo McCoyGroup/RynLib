@@ -88,9 +88,21 @@ class WalkerSet:
         return coords, psi1
 
     def drift(self, coords, trial_wvfn, dx=1e-3):
-        psi = trial_wvfn(coords)
+        psi = self.psi_calc(coords, trial_wvfn)
         der = (psi[:, 2] - psi[:, 0]) / dx / psi[:, 1]
         return der, psi
+
+    @staticmethod
+    def psi_calc(coords, trial_wvfn, dx = 1e-3):
+        much_psi = np.zeros(coords.shape[0] + (3,) + coords.shape[1:])
+        for atom_label in range(len(coords[0, :, 0])):
+            for xyz in range(3):
+                coords[:, atom_label, xyz] -= dx
+                much_psi[:, 0, atom_label, xyz] = trial_wvfn(coords)
+                coords[:, atom_label, xyz] += 2. * dx
+                much_psi[:, 2, atom_label, xyz] = trial_wvfn(coords)
+                coords[:, atom_label, xyz] -= dx
+        return much_psi
 
     def metropolis(self, Fqx, Fqy, x, y, psi1, psi2):
         psi_1 = psi1[:, 1, 0, 0]
@@ -103,7 +115,7 @@ class WalkerSet:
 
     def displace(self, n=1, trial_wvfn = None):
         if trial_wvfn is not None:
-            coords, psi = self.get_displaced_coords(n, imp_samp)
+            coords, psi = self.get_displaced_coords(n, trial_wvfn)
         else:
             coords = self.get_displaced_coords(n)
         self.coords = coords[-1]
