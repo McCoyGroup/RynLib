@@ -53,29 +53,70 @@ class WalkerSet:
             disps = Constants.convert(disps, "angstroms", in_AU = False)
 
         return disps
-    def get_displaced_coords(self, n=1):
+
+    def get_displaced_coords(self, n=1, trial_wvfn = None):
         # accum_disp = np.cumsum(self.get_displacements(n), axis=1)
         # return np.broadcast_to(self.coords, (n,) + self.coords.shape) + accum_disp # hoping the broadcasting makes this work...
 
         # this is a kinda crummy way to get this, but it allows us to get our n sets of displacements
         crds = np.zeros((n,) + self.coords.shape, dtype='float')
+        if trial_wvfn is not None:
+            psi = np.zeros(crds.shape[0] + (3,) + crds.shape[1:])
         bloop = self.coords
         disps = self.get_displacements(n)
-        for i, d in enumerate(disps): # loop over atoms
+        for i, d in enumerate(disps): # loop over steps
             bloop = bloop + d
+            if trial_wvfn is not None:
+                bloop, psi[i] = self.accept(crds[i], bloop, trial_wvfn)
             crds[i] = bloop
+        if trial_wvfn is not None:
+            return crds, psi
+        else:
+            return crds
 
-        return crds
+    def accept(self, coords, disp, trial_wvfn):
+        fx, psi1 = self.drift(coords, trial_wvfn)
+        sigma = np.broadcast_to(self.sigmas, self.sigmas.shape + (3,))
+        d = sigma**2/2.*fx
+        new = disp + d
+        fy, psi2 = self.drift(new, trial_wvfn)
+        a = self.metropolis(fx, fy, coords, new, psi1, psi2)
+        check = np.random.random(size=len(coords))
+        accept = np.argwhere(a > check)
+        coords[accept] = new[accept]
+        psi1[accept] = psi2[accept]
+        return coords, psi1
 
-    def displace(self, n=1):
-        coords = self.get_displaced_coords(n)
+    def drift(self, coords, trial_wvfn, dx=1e-3):
+        psi = trial_wvfn(coords)
+        der = (psi[:, 2] - psi[:, 0]) / dx / psi[:, 1]
+        return der, psi
+
+    def metropolis(self, Fqx, Fqy, x, y, psi1, psi2):
+        psi_1 = psi1[:, 1, 0, 0]
+        psi_2 = psi2[:, 1, 0, 0]
+        psi_ratio = (psi_2 / psi_1) ** 2
+        sigma = np.broadcast_to(self.sigmas, self.sigmas.shape + (3,))
+        a = np.exp(1. / 2. * (Fqx + Fqy) * (sigma ** 2 / 4. * (Fqx - Fqy) - (y - x)))
+        a = np.prod(np.prod(a, axis=1), axis=1) * psi_ratio
+        return a
+
+    def displace(self, n=1, trial_wvfn = None):
+        if trial_wvfn is not None:
+            coords, psi = self.get_displaced_coords(n, imp_samp)
+        else:
+            coords = self.get_displaced_coords(n)
         self.coords = coords[-1]
-        return coords
+        if trial_wvfn is not None:
+            return coords, psi
+        else:
+            return coords
 
     def _setup_dw(self):
         self.parents = np.arange(self.num_walkers)
         self._parents = self.coords.copy()
         self._parent_weights = self.weights.copy()
+
     def descendent_weight(self):
         """Handles the descendent weighting in the system
 

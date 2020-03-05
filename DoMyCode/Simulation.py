@@ -296,7 +296,7 @@ class Simulation:
         "name", "description",
         "walker_set", "time_step", "alpha",
         "potential", "steps_per_propagation",
-        "dummied", "world_rank"
+        "dummied", "world_rank", "trial_wvfn"
     ]
     def __init__(self, params):
         """Initializes the simulation from the simulation parameters
@@ -321,7 +321,8 @@ class Simulation:
             potential = None,
             steps_per_propagation = None,
             dummied = None,
-            world_rank = None
+            world_rank = None,
+            trial_wvfn = None
             ):
         """
 
@@ -343,6 +344,8 @@ class Simulation:
         :type dummied: bool
         :param world_rank:
         :type world_rank: int
+        :param trial_wvfn:
+        :type trial_wvfn: function
         :return:
         :rtype:
         """
@@ -369,6 +372,9 @@ class Simulation:
             dummied = world_rank != 0
         self.dummied = dummied
         self.world_rank = world_rank
+
+        self.trial_wvfn = trial_wvfn
+        self.imp_samp = trial_wvfn is not None
 
     def checkpoint(self, test = True):
         if (not self.dummied) and ((not test) or self.counter.checkpoint):
@@ -448,10 +454,15 @@ class Simulation:
         if not self.dummied:
             self.log_print("Starting step {}", self.counter.step_num, verbosity=self.logger.LOG_STATUS)
             self.log_print("Moving coordinates {} steps", nsteps, verbosity=self.logger.LOG_STEPS)
-            coord_sets = self.walkers.displace(nsteps)
+            if self.imp_samp:
+                coord_sets, psi = self.walkers.displace(nsteps, self.trial_wvfn)
+            else:
+                coord_sets = self.walkers.displace(nsteps)
             self.log_print("Computing potential energy", verbosity=self.logger.LOG_STATUS)
             start = time.time()
             energies = self.potential(self.walkers.atoms, coord_sets, sim=self)
+            if self.imp_samp:
+                energies += self.local_kin(coord_sets, psi, self.walkers.sigmas)
             end = time.time()
             self.log_print("    took {}s", end-start, verbosity=self.logger.LOG_STATUS)
             self.counter.step_num += nsteps
@@ -501,6 +512,15 @@ class Simulation:
         correction=np.sum(weights-np.ones(num_walkers), axis = 0)/num_walkers
         vref = Vbar - (self.alpha * correction)
         return vref
+
+    def local_kin(self, psi, sigmas, dx=1e-3):
+        sigma = np.broadcast_to(sigmas, sigmas.shape + (3,))
+        d2psidx2 = ((psi[:, :, 0] - 2. * psi[:, :, 1] + psi[:, :, 2]) / dx ** 2) / psi[:, :, 1]
+        kin = -1. / 2. * np.sum(np.sum(sigma ** 2 / self.time_step * d2psidx2, axis=2), axis=2)
+        return kin
+
+
+
     def update_weights(self, energies, weights):
         """Iteratively updates the weights over a set of vectors of energies
 
