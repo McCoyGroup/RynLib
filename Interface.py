@@ -1,9 +1,9 @@
 """
-The overall interface to the Entos CLI
+The overall interface to the RynLib CLI
 """
 
 import os, shutil
-from .RynUtils import Config
+from .RynUtils import Config, ConfigSerializer
 
 __all__ = [
     "SimulationInterface",
@@ -15,13 +15,33 @@ class SimulationInterface:
     """
     Defines all of the CLI options for working with simulations
     """
-    ...
+    def list_simulations(self):
+        ...
+    def add_simulation(self):
+        ...
+    def remove_simulation(self):
+        ...
+    def set_simulation_config(self):
+        ...
+    def restart_simulation(self):
+        ...
 
 class PotentialInterface:
     """
     Defines all of the CLI options for working with potentials
     """
-    ...
+
+    def list_potentials(self):
+        ...
+
+    def add_potential(self):
+        ...
+
+    def compile_potential(self):
+        ...
+
+    def set_potential_config(self):
+        ...
 
 class GeneralConfig:
     """
@@ -33,16 +53,20 @@ class GeneralConfig:
     def get_conf(cls):
         conf_path = os.path.join(cls.root, cls.config_file)
         new_conf = not os.path.exists(conf_path)
-        cfig = Config(conf_path)
         if new_conf:
-            cfig.update(
-                containerizer = "singularity",
-                simulation_directory = "./simulations",
-                potential_directory = "./potentials",
-                entos_binary = "...",
-                mpi_version = "3.1.4",
-                mpi_dir = "/opt/ompi"
+            ConfigSerializer.serialize(
+                conf_path,
+                dict(
+                    containerizer="singularity",
+                    simulation_directory="./simulations",
+                    potential_directory="./potentials",
+                    entos_binary="...",
+                    mpi_version="3.1.4",
+                    mpi_dir="/opt/ompi"
+                ),
+                attribute="config"
             )
+        cfig = Config(conf_path)
         return cfig
     @classmethod
     def edit_config(cls, **opts):

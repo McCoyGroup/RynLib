@@ -7,7 +7,7 @@ __all__ = [
 ]
 
 class SimulationManager:
-    def __init__(self, config_dir = os.path.expanduser("~/RynLib/simulations")):
+    def __init__(self, config_dir = os.path.expanduser("~/Desktop/simulations")):
         self.manager = ConfigManager(config_dir)
 
     def list_simulations(self):

@@ -5,7 +5,7 @@
 import os, shutil
 from .ModuleLoader import ModuleLoader # copied from McUtils since I don't want a dependency here (yet)
 
-__all__ = ["Config", "ConfigManager"]
+__all__ = ["Config", "ConfigManager", "ConfigSerializer"]
 
 
 class ConfigSerializer:
@@ -152,6 +152,8 @@ class Config:
         if not self._loaded:
             if isinstance(self.conf, str):
                 if ConfigSerializer.get_serialization_mode(self.conf) == "dict":
+                    if self.loader is None:
+                        self.loader = ModuleLoader(rootpkg="Configs")
                     self._conf_mod = self.loader.load(self.conf) # why lose the reference?
                     try:
                         self._conf_obj = self._conf_mod.config

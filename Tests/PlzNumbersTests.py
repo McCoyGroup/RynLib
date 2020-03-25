@@ -1,6 +1,7 @@
 from Peeves.TestUtils import *
 from unittest import TestCase
 from RynLib.PlzNumbers import *
+from RynLib.Interface import GeneralConfig
 import os, shutil
 
 
@@ -10,7 +11,7 @@ class PotentialTests(TestCase):
         self.dumb_pot = TestManager.test_data("DumbPot")
         self.ho_pot = TestManager.test_data("HarmonicOscillator")
         self.lib_dumb_pot = TestManager.test_data("libdumbpot.so")
-        self.pots_dir = os.path.expanduser("~/Desktop/potentials")
+        self.pots_dir = GeneralConfig.get_conf().potential_directory#os.path.expanduser("~/Desktop/potentials")
 
     def clear_cache(self):
         shutil.rmtree(self.pots_dir)
@@ -39,7 +40,7 @@ class PotentialTests(TestCase):
             71.5
         )
 
-    @validationTest
+    @inactiveTest
     def test_LoadLibDumbPot(self):
 
         pot = Potential(
@@ -57,12 +58,9 @@ class PotentialTests(TestCase):
             71.5
         )
 
-    @debugTest
+    @validationTest
     def test_HarmonicOscillator(self):
         import numpy as np
-
-        # self.reset_lib()
-        # shutil.rmtree(os.path.join(self.pots_dir, "HarmonicOscillator"))
 
         pot = Potential(
             "HarmonicOscillator",
