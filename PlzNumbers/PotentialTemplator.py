@@ -127,7 +127,7 @@ class PotentialTemplate(TemplateWriter):
         call=[]
         for arg in self.arguments:
             if arg.dtype is dtype:
-                call.append("{name} = extra_{dtype}s[{n}];".format(
+                call.append("{dtype} {name} = extra_{dtype}s[{n}];".format(
                     name = arg.name,
                     dtype = dtype.__name__,
                     n = n
@@ -163,11 +163,13 @@ class PotentialTemplate(TemplateWriter):
         self.iterate_write(out_dir)
         src = self.potential_source
         if isinstance(src, str):
-            dest = os.path.join(out_dir, self.name, "libs", os.path.basename(src))
+            dest_dir = os.path.join(out_dir, self.name, "libs")
+            dest = os.path.join(dest_dir, os.path.basename(src))
             if os.path.isdir(src):
                 if not os.path.isdir(dest): # should I raise an error if it already exists....???/
                     shutil.copytree(src, dest)
             else:
+                os.makedirs(dest_dir)
                 shutil.copy(src, dest)
 
 

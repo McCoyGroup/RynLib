@@ -63,6 +63,12 @@ PyObject *PlzNumbers_callPot(PyObject* self, PyObject* args ) {
     Py_ssize_t num_atoms = PyObject_Length(atoms);
     Names mattsAtoms = _getAtomTypes(atoms, num_atoms);
 
+//    PyObject *coordString = PyObject_Repr(coords);
+//    PyObject *str;
+//    printf("%s", _GetPyString(coordString, str));
+//    Py_XDECREF(coordString);
+//    Py_XDECREF(str);
+
     // Assumes number of walkers X number of atoms X 3
     double* raw_data = _GetDoubleDataArray(coords);
     if (raw_data == NULL) return NULL;

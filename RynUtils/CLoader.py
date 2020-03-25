@@ -153,6 +153,55 @@ class CLoader:
                 make_cmd = ["bash", make_file]
             else:
                 make_cmd = ["make", "-f", make_file]
+        elif isinstance(make_file, dict):
+            # little way to call the make process without a build.sh file
+
+            python_dir = make_file["python_dir"]
+            compiler = make_file["compiler"]
+            sources = make_file["sources"] if 'sources' in make_file else self.source_files
+            compiler_flags = make_file["compiler_flags"] if 'compiler_flags' in make_file else self.extra_compile_args
+            include_dirs = make_file["include_directories"] if 'include_directories' in make_file else self.include_dirs
+
+            linker = make_file["linker"]
+            link_flags = make_file["link_flags"] if 'link_flags' in make_file else self.extra_link_args
+            linked_libs = make_file["linked_libs"] if 'linked_libs' in make_file else self.linked_libs
+            macros = make_file["macros"] if 'macros' in make_file else self.macros
+
+            shared_lib = make_file["library_name"] if 'library_name' in make_file else self.lib_name
+
+            if 'build_dir' not in make_file:
+                source_dir = os.path.dirname(sources[0])
+                build_dir = os.path.join(source_dir, "build")
+            else:
+                build_dir = make_file['build_dir']
+            os.makedirs(build_dir)
+
+            objects = [os.path.join(build_dir, os.path.splitext(s)[0]+".o") for s in sources]
+
+            compiler_flags = ["-f"+flag for flag in compiler_flags]
+            include_dirs = ["-I"+i for i in include_dirs]
+
+            if compiler == "CC":
+                rpath = "-Wl,-R,"
+            else:
+                rpath = "-Wl,-rpath,"
+            link_flags = ["-Wl,"+f for f in link_flags]
+            if len(include_dirs) > 0:
+                runtime_dirs = [rpath+":".join(include_dirs)]
+            else:
+                runtime_dirs = []
+            linked_libs = ["-l"+l for l in linked_libs]
+            link_dirs = ["-L"+i for i in include_dirs]
+            "$link_flags $ryn_lib_src/build/RynLib.o $link_libs -o $ryn_lib_src/RynLib.so"
+
+            shared_lib = shared_lib + (".pydll" if sys.platform() == "win32" else ".so")
+
+            make_cmd = [
+               [compiler] + compiler_flags + macros + include_dirs + ["-c", src] + ["-o", obj] for src,obj in zip(sources, objects)
+            ] + [
+                [linker] + link_flags + runtime_dirs + objects + link_dirs + linked_libs + ["-o", shared_lib]
+            ]
+
         else:
 
             if os.path.exists(os.path.join(make_dir, "Makefile")):
@@ -168,7 +217,18 @@ class CLoader:
 
         try:
             os.chdir(make_dir)
-            subprocess.call(make_cmd)
+            if isinstance(make_cmd[0], str):
+                out = subprocess.check_output(make_cmd)
+                if len(out) > 0:
+                    print(out)
+            else:
+                for cmd in make_cmd:
+                    out = subprocess.check_output(cmd)
+                    if len(out) > 0:
+                        print(out)
+        except subprocess.CalledProcessError as e:
+            print(e.output)
+            raise
         finally:
             os.chdir(curdir)
 

@@ -53,7 +53,7 @@ class PotentialCaller:
 
         return self.lib.rynaLovesPoots(
             atoms,
-            walker,
+            np.ascontiguousarray(walker).astype(float),
             self.potential,
             self.bad_walkers_file,
             self.error_value,
@@ -77,7 +77,7 @@ class PotentialCaller:
         if smol_guy:
             walker = np.reshape(walker, walker.shape[:1] + (1,) + walker.shape[1:])
         poots = self.lib.rynaLovesPootsLots(atoms,
-                                            np.ascontiguousarray(walker),
+                                            np.ascontiguousarray(walker).astype(float),
                                             self.potential,
                                             self.bad_walkers_file,
                                             self.error_value,

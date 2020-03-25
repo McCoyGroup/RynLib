@@ -19,6 +19,9 @@ Since this is happening inside a container, we provide a command-line interface 
 where we have these groups and commands
 
 ```none
+config -- anything involved in configuring the overall package
+    set-config CONFIG: sets the config file or options for RynLib
+
 dmc -- anything involved in running the DMC itself, not in making the potential work
     list: lists the set of known DMC simulations
     status NAME: returns the status of the DMC simulation (timestep, number of walkers/wavefunctions, etc.)

@@ -24,7 +24,9 @@ class MPIManager:
     @property
     def lib(self):
         if self._lib is None:
-            loader = CLoader("Dumpi", os.path.dirname(os.path.abspath(__file__)))
+            loader = CLoader("Dumpi", os.path.dirname(os.path.abspath(__file__)),
+                             linked_libs=["mpi"]
+                             )
             self._lib = loader.load()
         return self._lib
 
@@ -65,8 +67,5 @@ class MPIManagerError(Exception):
     @classmethod
     def raise_uninitialized(cls):
         raise cls("MPI must be initialized first")
-
-
-
 
 

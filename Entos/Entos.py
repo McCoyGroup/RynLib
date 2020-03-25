@@ -4,7 +4,8 @@ I'll make this whole interface more flexible in the future, but for now we want 
 This will just do that.
 """
 
-from ..PlzNumbers import PotentialCaller, PotentialLoader
+from ..Interface import GeneralConfig
+from ..PlzNumbers import Potential
 import numpy as np
 
 class Entos:
@@ -14,13 +15,19 @@ class Entos:
         [0.0000000, 0.0000000, 0.0000000]
     ])
     testAtoms = ["H", "H", "O"]
+    entos_binary = GeneralConfig.get_conf().entos_binary
 
     def __init__(self):
-        from .lib import potential
-        self.caller = PotentialCaller(potential)
+        self.pot = Potential(
+            "Entos",
+            self.entos_binary,
+            wrap_potential=True,
+            function_name="MillerGroup_entosPotential",
+            arguments=(("only_hf", bool),)
+        )
 
     def __call__(self, *args, **kwargs):
-        self.caller(*args, **kwargs)
+        self.pot(*args, **kwargs)
 
     def test_MPI(cls,
                  walkers_per_core=3,
@@ -29,6 +36,8 @@ class Entos:
                  no_print=False,
                  displacement_radius=.5
                  ):
+
+        from ..Dumpi import MPIManager
 
         pass
 
