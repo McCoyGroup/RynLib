@@ -1,6 +1,6 @@
 # RynLib
 
-This started out as a uick layer between python and entos for running DMC
+This started out as a quick layer between python and entos for running DMC
 
 It's grown a bit...
 

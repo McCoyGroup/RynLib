@@ -3,14 +3,14 @@
 """
 
 import os, shutil
-from .ExtensionLoader import ExtensionLoader # copied from McUtils since I don't want a dependency here (yet)
+from .ModuleLoader import ModuleLoader # copied from McUtils since I don't want a dependency here (yet)
 
 __all__ = ["Config", "ConfigManager"]
 
 
 class ConfigSerializer:
 
-    loader = ExtensionLoader(rootpkg="Configs")
+    loader = ModuleLoader(rootpkg="Configs")
 
     @classmethod
     def get_serialization_mode(cls, file):
@@ -26,12 +26,11 @@ class ConfigSerializer:
     @classmethod
     def serialize_dict(cls, file, ops):
         with open(file, "w+") as f:
-            print(ops, f)
+            print(ops, file=f)
     @classmethod
     def serialize_module(cls, file, ops, attribute = "config"):
         with open(file, "w+") as f:
-            f.write(attribute +" = ")
-            print(ops, f)
+            print(attribute, " = ", ops, file=f)
     @classmethod
     def serialize_json(cls, file, ops):
         import json
@@ -97,12 +96,11 @@ class ConfigSerializer:
             ))
 
 class Config:
-
     def __init__(self, config, root = None, loader = None):
         """Loads the config from a file
 
         :param loader:
-        :type loader: ExtensionLoader | None
+        :type loader: ModuleLoader | None
         :param config_file:
         :type config_file: str | dict | module
         """
@@ -132,29 +130,49 @@ class Config:
 
     @property
     def opt_dict(self):
+        self.load_opts()
         if self._conf_type is dict:
             return self._conf_obj
         else:
             return vars(self._conf_obj)
 
+    def update(self, **kw):
+        opts = self.opt_dict
+        opts.update(**kw)
+        self._conf_type = dict
+        self._conf_obj = opts
+
+    def save(self, file=None, mode=None, attribute="config"):
+        if file is None:
+            file = self.conf
+        if isinstance(file, str):
+            ConfigSerializer.serialize(file, self.opt_dict, mode=mode, attribute=attribute)
+
     def load_opts(self):
-        if isinstance(self.conf, str):
-            if ConfigSerializer.get_serialization_mode(str) == "dict":
-                self._conf_mod = self.loader.load(self.conf) # why lose the reference?
-                try:
-                    self._conf_obj = self._conf_mod.config
+        if not self._loaded:
+            if isinstance(self.conf, str):
+                if ConfigSerializer.get_serialization_mode(self.conf) == "dict":
+                    self._conf_mod = self.loader.load(self.conf) # why lose the reference?
+                    try:
+                        self._conf_obj = self._conf_mod.config
+                        self._conf_type = dict
+                    except AttributeError:
+                        self._conf_obj = self._conf_mod
+                else:
+                    self._conf_obj = ConfigSerializer.deserialize(str)
                     self._conf_type = dict
-                except AttributeError:
-                    self._conf_obj = self._conf_mod
-            else:
-                self._conf_obj = ConfigSerializer.deserialize(str)
+            elif isinstance(self.conf, dict):
                 self._conf_type = dict
-        elif isinstance(self.conf, dict):
-            self._conf_type = dict
-            self._conf_obj = self.conf
-        else:
-            self._conf_obj = self.conf
-        self._loaded = True
+                self._conf_obj = self.conf
+            else:
+                self._conf_obj = self.conf
+            self._loaded = True
+
+    def get_file(self, name, conf_attr = "root"):
+        root = self.root
+        if root is None:
+            root = self.get_conf_attr(conf_attr)
+        return os.path.join(root, name)
 
     def get_conf_attr(self, item):
         if not self._loaded:
@@ -166,12 +184,8 @@ class Config:
 
     def __getattr__(self, item):
         return self.get_conf_attr(item)
-
-    def get_file(self, name, conf_attr = "root"):
-        root = self.root
-        if root is None:
-            root = self.get_conf_attr("root")
-        return os.path.join(root, name)
+    # def __setattr__(self, key, value):
+    #     self.update(**{key:value})
 
 class ConfigManager:
     """
@@ -181,7 +195,7 @@ class ConfigManager:
     def __init__(self, conf_dir, conf_file = "config.py", config_package = "Configs"):
         self.conf_dir = conf_dir
         self.conf_name = conf_file
-        self.loader = ExtensionLoader(rootdir = self.conf_dir, rootpkg = config_package)
+        self.loader = ModuleLoader(rootdir = self.conf_dir, rootpkg = config_package)
         if not os.path.isdir(conf_dir):
             os.mkdir(conf_dir)
 
@@ -238,6 +252,31 @@ class ConfigManager:
                 opts,
                 attribute="config"
             )
+
+    def remove_config(self, name):
+        """
+        Removes a config from the known list. Requires a name.
+
+        :param name:
+        :type name:
+        :return:
+        :rtype:
+        """
+        shutil.rmtree(self.config_loc(name))
+
+    def edit_config(self, name, **opts):
+        """
+        Updates a config from the known list. Requires a name.
+
+        :param name:
+        :type name:
+        :return:
+        :rtype:
+        """
+
+        conf = self.load_config(name)
+        conf.update(**opts)
+        conf.save()
 
 class ConfigManagerError(Exception):
     pass

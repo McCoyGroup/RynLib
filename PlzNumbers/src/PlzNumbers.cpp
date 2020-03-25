@@ -1,19 +1,63 @@
-#include "PlzNumbers.h"
+#include "PlzNumbers.hpp"
 
 #include "Potators.hpp"
 #include "PyAllUp.hpp"
-#include "Flargs.hpp"
 #include <stdexcept>
+
+int _LoadExtraArgs(
+        ExtraBools &extra_bools, ExtraInts &extra_ints, ExtraFloats &extra_floats,
+        PyObject* ext_bool, PyObject* ext_int, PyObject* ext_float
+) {
+    PyObject *iterator, *item;
+
+    iterator = PyObject_GetIter(ext_bool);
+    if (iterator == NULL) return 0;
+    while ((item = PyIter_Next(iterator))) {
+        extra_bools.push_back(_FromBool(item));
+        Py_DECREF(item);
+    }
+    Py_DECREF(iterator);
+    if (PyErr_Occurred()) return 0;
+
+    iterator = PyObject_GetIter(ext_int);
+    if (iterator == NULL) return 0;
+    while ((item = PyIter_Next(iterator))) {
+        extra_ints.push_back(_FromInt(item));
+        Py_DECREF(item);
+    }
+    Py_DECREF(iterator);
+    if (PyErr_Occurred()) return 0;
+
+
+    iterator = PyObject_GetIter(ext_float);
+    if (iterator == NULL) return 0;
+    while ((item = PyIter_Next(iterator))) {
+        extra_floats.push_back(_FromFloat(item));
+        Py_DECREF(item);
+    }
+    Py_DECREF(iterator);
+    if (PyErr_Occurred()) return 0;
+
+    return 1;
+
+}
 
 PyObject *PlzNumbers_callPot(PyObject* self, PyObject* args ) {
 
     PyObject* atoms;
     PyObject* coords;
     PyObject* pot_function;
-    const char* bad_walkers_file;
+    PyObject* ext_bool, *ext_int, *ext_float;
+    const char* bad_walkers_str;
     double err_val;
     bool raw_array_pot;
-    if ( !PyArg_ParseTuple(args, "OOOOdp", &atoms, &coords, &pot_function, &bad_walkers_file, &err_val, &raw_array_pot) ) return NULL;
+
+    if (
+         !PyArg_ParseTuple(args, "OOOOdpOOO",
+           &atoms, &coords, &pot_function, &bad_walkers_str, &err_val, &raw_array_pot,
+           &ext_bool, &ext_int, &ext_float
+           )
+        ) return NULL;
 
     // Assumes we get n atom type names
     Py_ssize_t num_atoms = PyObject_Length(atoms);
@@ -24,19 +68,31 @@ PyObject *PlzNumbers_callPot(PyObject* self, PyObject* args ) {
     if (raw_data == NULL) return NULL;
     Coordinates walker_coords = _getWalkerCoords(raw_data, 0, num_atoms);
 
-    PotentialFunction PyCapsule_
+    ExtraBools extra_bools; ExtraInts extra_ints; ExtraFloats extra_floats;
+    if (!_LoadExtraArgs(
+        extra_bools, extra_ints, extra_floats,
+        ext_bool, ext_int, ext_float
+        )) { return NULL; }
 
-    double pot;
-    pot = _doopAPot(
+    PotentialFunction pot_f = (PotentialFunction) PyCapsule_GetPointer(pot_function, "_potential");
+
+    std::string bad_walkers_file = bad_walkers_str;
+
+    Real_t pot = _doopAPot(
             walker_coords,
             mattsAtoms,
-            pot_function,
+            pot_f,
             bad_walkers_file,
             err_val,
-            false
-            );
+            extra_bools,
+            extra_ints,
+            extra_floats
+    );
 
     PyObject *potVal = Py_BuildValue("f", pot);
+
+    if (potVal == NULL) return NULL;
+
     return potVal;
 
 }
@@ -48,10 +104,11 @@ PyObject *PlzNumbers_callPotVec( PyObject* self, PyObject* args ) {
     PyObject* coords;
     PyObject* pot_function;
     PyObject* bad_walkers_file;
+    PyObject* ext_bool, *ext_int, *ext_float;
     double err_val;
     bool raw_array_pot, vectorized_potential;
     PyObject* manager;
-    if ( !PyArg_ParseTuple(args, "OOOOdppO",
+    if ( !PyArg_ParseTuple(args, "OOOOdppOOOO",
             &atoms,
             &coords,
             &pot_function,
@@ -59,7 +116,10 @@ PyObject *PlzNumbers_callPotVec( PyObject* self, PyObject* args ) {
             &err_val,
             &raw_array_pot,
             &vectorized_potential,
-            &manager
+            &manager,
+            &ext_bool,
+            &ext_int,
+            &ext_float
             ) ) return NULL;
 
     // Assumes we get n atom type names
@@ -86,32 +146,49 @@ PyObject *PlzNumbers_callPotVec( PyObject* self, PyObject* args ) {
     double* raw_data = _GetDoubleDataArray(coords);
     if (raw_data == NULL) return NULL;
 
+
+     // we load in the extra arguments that the potential can pass -- this bit of flexibility makes every
+     // call a tiny bit slower, but allows us to not have to change this code constantly and recompile
+
+    ExtraBools extra_bools; ExtraInts extra_ints; ExtraFloats extra_floats;
+    if (!_LoadExtraArgs(
+        extra_bools, extra_ints, extra_floats,
+        ext_bool, ext_int, ext_float
+        )) { return NULL; }
+
     // We can tell if MPI is active or not by whether COMM is None or not
+    PotentialFunction pot = (PotentialFunction) PyCapsule_GetPointer(pot_function, "_potential");
     PotentialArray pot_vals;
     if (manager == Py_None) {
         pot_vals = _noMPIGetPot(
+                pot,
                 raw_data,
                 mattsAtoms,
                 ncalls,
                 num_walkers,
                 num_atoms,
-                pot_function,
                 bad_walkers_file,
                 err_val,
-                vectorized_potential
-                )
+                vectorized_potential,
+                extra_bools,
+                extra_ints,
+                extra_floats
+                );
     } else {
         pot_vals = _mpiGetPot(
                 manager,
+                pot,
                 raw_data,
                 mattsAtoms,
                 ncalls,
                 num_walkers,
                 num_atoms,
-                pot_function,
                 bad_walkers_file,
                 err_val,
-                vectorized_potential
+                vectorized_potential,
+                extra_bools,
+                extra_ints,
+                extra_floats
         );
     }
 
@@ -119,8 +196,8 @@ PyObject *PlzNumbers_callPotVec( PyObject* self, PyObject* args ) {
     if ( manager != Py_None ){
         PyObject *rank = PyObject_GetAttrString(manager, "world_rank");
         if (rank == NULL) { return NULL; }
-        int rank = _FromInt(rank);
-        Py_XDECREF(rank)
+        main_core = (_FromInt(rank) == 0);
+        Py_XDECREF(rank);
     }
     if ( main_core ){
         return _fillNumPyArray(pot_vals, num_walkers, ncalls);

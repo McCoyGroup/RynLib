@@ -2,7 +2,7 @@
 Defines classes to take a potential .so file an create a python extension that can wrap it and call into the potential
 """
 
-from .Templator import TemplateWriter
+from ..RynUtils.TemplateWriter import TemplateWriter
 import os, shutil
 
 __all__ = [
@@ -44,6 +44,15 @@ class PotentialTemplateError(ValueError):
                 spec
             ))
 
+class PotentialArgument:
+    def __init__(self, name, dtype):
+        self.name = name
+        self.dtype = dtype
+    def __iter__(self):
+        for a in (self.name, self.dtype):
+            yield a
+    def __str__(self):
+        return self.name
 
 class PotentialTemplate(TemplateWriter):
     """
@@ -55,15 +64,25 @@ class PotentialTemplate(TemplateWriter):
                  lib_name = None,
                  function_name = None,
                  potential_source = None,
-                 linked_libs = None,
-                 library_dirs = None,
-                 macros = (),
-                 requires_make = False,
-                 custom_build = False,
                  raw_array_potential = False,
-                 compile_on_build = True,
-                 version = "1.0"
+                 arguments = (),
+                 linked_libs = None
                  ):
+        """
+
+        :param lib_name:
+        :type lib_name: str
+        :param function_name:
+        :type function_name:
+        :param potential_source:
+        :type potential_source:
+        :param raw_array_potential:
+        :type raw_array_potential:
+        :param arguments:
+        :type arguments:
+        :param linked_libs:
+        :type linked_libs:
+        """
 
         if len(ignored) > 0:
             raise PotentialTemplateError("{} requires all arguments to be passed as keywords".format(
@@ -77,45 +96,68 @@ class PotentialTemplate(TemplateWriter):
                 "the name of the function used to get the potential value"
             )
 
-        if linked_libs is None:
-            linked_libs = [ lib_name ]
-        if library_dirs is None:
-            library_dirs = [ "." ]
-
         self.name = lib_name
         self.potential_source = potential_source
         self.function_name = function_name
         self.old_style_potential = raw_array_potential
-        self.requires_make = requires_make
-        self.custom_build = custom_build
+        self.arguments = [PotentialArgument(*x) for x in arguments]
         self.libs = linked_libs
-        self.lib_dirs = library_dirs
-        self.compile_on_build = compile_on_build
 
         super().__init__(
             os.path.join(os.path.dirname(__file__), "Templates", "PotentialTemplate"),
             LibName = lib_name,
-            LibNameOfPotential = function_name,
-            LinkedLibs = ", ".join("'{}'".format(x) for x in self.lib_names),
-            LibDirs = ", ".join("'{}'".format(x) for x in library_dirs),
-            LibMacros = ", ".join("'{}'".format(x) for x in macros),
-            LibRequiresMake = requires_make,
-            LibCustomBuild = custom_build,
-            LibVersion = version,
-            OldStylePotential = raw_array_potential
+            LIBNAME = lib_name.upper(),
+            PotentialCall = self.get_potential_call(),
+            PotentialCallDeclaration = self.get_potential_declaration(),
+            OldStylePotential = "true" if self.old_style_potential else "false",
+            PotentialLoadExtraBools=self.get_extra_args_call(bool),
+            PotentialLoadExtraInts=self.get_extra_args_call(int),
+            PotentialLoadExtraFloats=self.get_extra_args_call(float)
         )
 
-    @property
-    def lib_names(self):
-        lib_names = []
-        for l in self.libs:
-            lib_name = l  # type: str
-            if lib_name.endswith(".so") or lib_name.endswith("dll"):
-                lib_name = os.path.splitext(os.path.basename(l))[0]
-            lib_name = lib_name.split("lib")[-1]
-            lib_names.append(lib_name)
+    def get_extra_args_call(self, dtype):
+        """
 
-        return lib_names
+        :param dtype:
+        :type dtype: type
+        :return:
+        :rtype:
+        """
+        n=0
+        call=[]
+        for arg in self.arguments:
+            if arg.dtype is dtype:
+                call.append("{name} = extra_{dtype}s[{n}];".format(
+                    name = arg.name,
+                    dtype = dtype.__name__,
+                    n = n
+                ))
+                n+=1
+        return "\n".join(call)
+
+    def get_potential_call(self):
+        main_args = ["coords", "atoms"] if not self.old_style_potential else ["raw_coords", "raw_atoms"]
+        return self.function_name + "(" + ",".join(
+            main_args + [str(arg) for arg in self.arguments]
+        ) + ")"
+
+    def get_potential_declaration(self):
+        main_args = ["Coordinates", "Names"] if not self.old_style_potential else ["RawWalkerBuffer", "const char*"]
+        return self.function_name + "(" + ",".join(
+            main_args + [arg.dtype.__name__ for arg in self.arguments]
+        ) + ")"
+
+    # @property
+    # def lib_names(self):
+    #     lib_names = []
+    #     for l in self.libs:
+    #         lib_name = l  # type: str
+    #         if lib_name.endswith(".so") or lib_name.endswith("dll"):
+    #             lib_name = os.path.splitext(os.path.basename(l))[0]
+    #         lib_name = lib_name.split("lib")[-1]
+    #         lib_names.append(lib_name)
+    #
+    #     return lib_names
 
     def apply(self, out_dir):
         self.iterate_write(out_dir)
@@ -127,21 +169,5 @@ class PotentialTemplate(TemplateWriter):
                     shutil.copytree(src, dest)
             else:
                 shutil.copy(src, dest)
-
-        if self.compile_on_build:
-            import sys
-            try:
-                sys.path.insert(0, out_dir)
-                env = {}
-                exec("from {} import Potential".format(self.name), env, env)
-            except ImportError:
-                pass
-            else:
-                env["Potential"].load_potential()
-            finally:
-                try:
-                    sys.path.remove(out_dir)
-                except ValueError:
-                    pass
 
 

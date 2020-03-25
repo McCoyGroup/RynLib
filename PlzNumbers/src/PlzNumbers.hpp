@@ -21,12 +21,10 @@
  * nothing else will be visible directly, so we need to make sure that this set is sufficient for out purposes
  *
  */
-static PyObject *RynLib_callPot
+static PyObject *PlzNumbers_callPot
         ( PyObject *, PyObject * );
 
-static PyObject *RynLib_callPotVec
+static PyObject *PlzNumbers_callPotVec
         ( PyObject *, PyObject * );
-
-#endif
 
 #endif

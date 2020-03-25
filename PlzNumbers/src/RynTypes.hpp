@@ -1,11 +1,9 @@
-//
-// Created by Mark Boyer on 1/30/20.
-//
 
 #ifndef RYNLIB_RYNTYPES_HPP
 
 #include <vector>
 #include <string>
+#include "Python.h"
 
 typedef double Real_t; // easy hook in case we wanted to use a different precision object or something in the future
 typedef Real_t* RawWalkerBuffer;
@@ -19,7 +17,19 @@ typedef std::vector< Coordinates > Configurations;
 typedef std::string Name;
 typedef std::vector<std::string> Names;
 
-typedef Real_t (*PotentialFunction)(const Coordinates , const Names);
+typedef std::vector<bool> ExtraBools;
+typedef std::vector<int> ExtraInts;
+typedef std::vector<Real_t> ExtraFloats;
+
+typedef Real_t (*PotentialFunction)(
+    const Coordinates, const Names,
+    const ExtraBools,
+    const ExtraInts,
+    const ExtraFloats
+    );
+
+typedef int (*ScatterFunction)(PyObject*, RawWalkerBuffer, int, int, RawWalkerBuffer);
+typedef int (*GatherFunction)(PyObject*, PotentialVector, int, RawPotentialBuffer);
 
 #define RYNLIB_RYNTYPES_HPP
 

@@ -286,6 +286,74 @@ class SimulationAnalyzer:
             vrefs = self.sim.reference_potentials
         # return Constants.convert(np.average(np.array(vrefs)), "wavenumbers", in_AU=False)
 
+    class Plotter:
+        _mpl_loaded = False
+
+        @classmethod
+        def load_mpl(cls):
+            if not cls._mpl_loaded:
+                import matplotlib as mpl
+                # mpl.use('Agg')
+                cls._mpl_loaded = True
+
+        @classmethod
+        def plot_vref(cls, sim):
+            """
+
+            :param sim:
+            :type sim: Simulation
+            :return:
+            :rtype:
+            """
+            import matplotlib.pyplot as plt
+            e = np.array(sim.reference_potentials)
+            n = np.arange(len(e))
+            fig, axes = plt.subplots()
+            e = Constants.convert(e, 'wavenumbers', in_AU=False)
+            axes.plot(n, e)
+            # axes.set_ylim([-3000,3000])
+            plt.show()
+
+        @classmethod
+        def plot_psi(cls, sim):
+            """
+
+            :param sim:
+            :type sim: Simulation
+            :return:
+            :rtype:
+            """
+            # assumes 1D psi...
+            import matplotlib.pyplot as plt
+            w = sim.walkers
+            fig, axes = plt.subplots()
+
+            hist, bins = np.histogram(w.coords.flatten(), weights=(w.weights), bins=20, density=True)
+            bins -= (bins[1] - bins[0]) / 2
+            axes.plot(bins[:-1], hist)
+            plt.show()
+
+        @classmethod
+        def plot_psi2(cls, sim):
+            """
+
+            :param sim:
+            :type sim: Simulation
+            :return:
+            :rtype:
+            """
+            # assumes 1D psi...
+            import matplotlib.pyplot as plt
+            w = sim.walkers
+            fig, axes = plt.subplots()
+            coord, dw, ow = sim.wavefunctions[-1]
+            coord = coord.flatten()
+
+            hist, bins = np.histogram(coord, weights=dw, bins=20, density=True)
+            bins -= (bins[1] - bins[0]) / 2
+            axes.plot(bins[:-1], hist)
+            plt.show()
+
 
 class Simulation:
     """
@@ -296,7 +364,7 @@ class Simulation:
         "name", "description",
         "walker_set", "time_step", "alpha",
         "potential", "steps_per_propagation",
-        "dummied", "world_rank", "trial_wvfn"
+        "mpi_manager", "trial_wvfn"
     ]
     def __init__(self, params):
         """Initializes the simulation from the simulation parameters
@@ -320,8 +388,7 @@ class Simulation:
             alpha = None,
             potential = None,
             steps_per_propagation = None,
-            dummied = None,
-            world_rank = None,
+            mpi_manager = None,
             trial_wvfn = None
             ):
         """
@@ -338,12 +405,10 @@ class Simulation:
         :type alpha: float
         :param potential:
         :type potential: function
+        :param mpi_manager:
+        :type mpi_manager: MPIManager
         :param steps_per_propagation:
         :type steps_per_propagation: int
-        :param dummied:
-        :type dummied: bool
-        :param world_rank:
-        :type world_rank: int
         :param trial_wvfn:
         :type trial_wvfn: function
         :return:
@@ -368,10 +433,8 @@ class Simulation:
         self.wavefunctions = deque()
         self._num_wavefunctions = 0 # here so we can do things with save_wavefunction <- mattered in the past when I sometimes had deque(maxlength=1)
 
-        if dummied is None:
-            dummied = world_rank != 0
-        self.dummied = dummied
-        self.world_rank = world_rank
+        self.mpi_manager = mpi_manager
+        self.dummied = mpi_manager.world_rank != 0
 
         self.trial_wvfn = trial_wvfn
         self.imp_samp = trial_wvfn is not None
@@ -481,7 +544,7 @@ class Simulation:
         else:
             self.log_print(
                 "    computing potential energy on core {}",
-                self.world_rank,
+                self.mpi_manager.world_rank,
                 verbosity=self.logger.LOG_MPI
             )
             try:

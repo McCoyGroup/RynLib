@@ -1,50 +1,13 @@
 """
-Utilities for running DMCs with this potential
+The SimulationLoader that I have here is basically entirely _legacy_ code.
+The SimulationManager interface should be used in its place, but I'm keeping it here until that interface is solidified
 """
+
+
 
 import numpy as np
 from .DoMyCode import *
 import argparse
-
-class Constants:
-    '''
-    A dumb little class that handles basic unit conversions and stuff.
-    It's gotten popular in the group, though, since it's so simple
-    '''
-    atomic_units = {
-        "wavenumbers" : 4.55634e-6,
-        "angstroms" : 1/0.529177,
-        "amu" : 1.000000000000000000/6.02213670000e23/9.10938970000e-28   #1822.88839  g/mol -> a.u.
-    }
-
-    masses = {
-        "H" : ( 1.00782503223, "amu"),
-        "O" : (15.99491561957, "amu")
-    }
-
-    @classmethod
-    def convert(cls, val, unit, in_AU = True):
-        vv = cls.atomic_units[unit]
-        return (val * vv) if in_AU else (val / vv)
-
-    @classmethod
-    def mass(cls, atom, in_AU = True):
-        m = cls.masses[atom]
-        if in_AU:
-            m = cls.convert(*m)
-        return m
-
-    # this really shouldn't be here........... but oh well
-    water_structure = (
-        ["O", "H", "H"],
-        np.array(
-            [
-                [0.0000000,0.0000000,0.0000000],
-                [0.9578400,0.0000000,0.0000000],
-                [-0.2399535,0.9272970,0.0000000]
-            ]
-        )
-    )
 
 class SimulationLoader:
     """A little class that takes arguments off the command line and uses them to initialize a DMC"""
@@ -210,67 +173,3 @@ class SimulationLoader:
             verbosity = debug_level,
             **opts
         )
-
-class Plotter:
-    _mpl_loaded = False
-    @classmethod
-    def load_mpl(cls):
-        if not cls._mpl_loaded:
-            import matplotlib as mpl
-            # mpl.use('Agg')
-            cls._mpl_loaded = True
-    @classmethod
-    def plot_vref(cls, sim):
-        """
-
-        :param sim:
-        :type sim: Simulation
-        :return:
-        :rtype:
-        """
-        import matplotlib.pyplot as plt
-        e = np.array(sim.reference_potentials)
-        n = np.arange(len(e))
-        fig, axes = plt.subplots()
-        e=Constants.convert(e,'wavenumbers',in_AU=False)
-        axes.plot(n, e)
-        # axes.set_ylim([-3000,3000])
-        plt.show()
-    @classmethod
-    def plot_psi(cls, sim):
-        """
-
-        :param sim:
-        :type sim: Simulation
-        :return:
-        :rtype:
-        """
-        # assumes 1D psi...
-        import matplotlib.pyplot as plt
-        w = sim.walkers
-        fig, axes = plt.subplots()
-
-        hist, bins = np.histogram(w.coords.flatten(), weights=(w.weights), bins = 20, density = True)
-        bins -= (bins[1] - bins[0]) / 2
-        axes.plot(bins[:-1], hist)
-        plt.show()
-    @classmethod
-    def plot_psi2(cls, sim):
-        """
-
-        :param sim:
-        :type sim: Simulation
-        :return:
-        :rtype:
-        """
-        # assumes 1D psi...
-        import matplotlib.pyplot as plt
-        w = sim.walkers
-        fig, axes = plt.subplots()
-        coord, dw, ow = sim.wavefunctions[-1]
-        coord = coord.flatten()
-
-        hist, bins = np.histogram(coord, weights=dw, bins = 20, density = True)
-        bins -= (bins[1] - bins[0]) / 2
-        axes.plot(bins[:-1], hist)
-        plt.show()

@@ -1,6 +1,15 @@
 """
-MPIManager provides a single object-oriented interface to the stuff to initialized MPI and finialize it and all that
+MPIManager provides a single object-oriented interface to the stuff to initialize MPI and finalize it and all that
+Binds the Scatter and Gather methods to itself so that it can be passed through the C++ code instead of every bit of code
+needing to know about MPI.
+Allows for easier separation of components.
 """
+from ..RynUtils import CLoader
+import os
+
+__all__ = [
+    "MPIManager"
+]
 
 class MPIManager:
     _initted = False
@@ -9,11 +18,19 @@ class MPIManager:
     _world_size = None
     _world_rank = None
     def __init__(self):
+        self._lib = None
         self.init_MPI()
+
+    @property
+    def lib(self):
+        if self._lib is None:
+            loader = CLoader("Dumpi", os.path.dirname(os.path.abspath(__file__)))
+            self._lib = loader.load()
+        return self._lib
 
     def init_MPI(self):
         if not self._initted:
-            from .lib import *
+            giveMePI = self.lib.giveMePI
             cls = type(self)
             world_size, world_rank = giveMePI(cls) # as written
             cls._world_size = world_size
@@ -22,8 +39,9 @@ class MPIManager:
 
     def finalize_MPI(self):
         if not self._final:
-            from .lib import *
-
+            noMorePI = self.lib.noMorePI
+            noMorePI()
+            self._final = True
 
     @property
     def world_size(self):

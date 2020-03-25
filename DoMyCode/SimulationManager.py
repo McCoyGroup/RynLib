@@ -2,11 +2,16 @@ from ..RynUtils import ConfigManager
 from .Simulation import Simulation, SimulationParameters
 import os, shutil
 
-__all__ = [ "SimulationManager" ]
+__all__ = [
+    "SimulationManager"
+]
 
 class SimulationManager:
-    def __init__(self, config_dir = os.path.expanduser("~/RynLib/simulations") ):
+    def __init__(self, config_dir = os.path.expanduser("~/RynLib/simulations")):
         self.manager = ConfigManager(config_dir)
+
+    def list_simulations(self):
+        return self.manager.list_configs()
 
     def remove_simulation(self, name):
         self.manager.remove_config(name)
@@ -38,6 +43,7 @@ class SimulationManager:
 
     def run_simulation(self, name):
         sim = self.load_simulation(name)
+
         sim.run()
 
     def simulation_data(self, name, key):

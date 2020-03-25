@@ -1,6 +1,3 @@
-//
-// Created by Mark Boyer on 1/30/20.
-//
 
 #ifndef RYNLIB_RYNTYPES_HPP
 
@@ -19,7 +16,16 @@ typedef std::vector< Coordinates > Configurations;
 typedef std::string Name;
 typedef std::vector<std::string> Names;
 
-typedef Real_t (*PotentialFunction)(const Coordinates , const Names);
+typedef std::vector<bool> ExtraBools;
+typedef std::vector<int> ExtraInts;
+typedef std::vector<Real_t> ExtraFloats;
+
+typedef Real_t (*PotentialFunction)(
+    const Coordinates, const Names,
+    const ExtraBools,
+    const ExtraInts,
+    const ExtraFloats
+    );
 
 #define RYNLIB_RYNTYPES_HPP
 

@@ -1,10 +1,10 @@
 import importlib.abc, os, importlib.util
 
 __all__ = [
-    "ExtensionLoader"
+    "ModuleLoader"
 ]
 
-class ExtensionLoader(importlib.abc.SourceLoader):
+class ModuleLoader(importlib.abc.SourceLoader):
     """An ExtensionLoader creates a Loader object that can load a python module from a file path
 
     """
@@ -26,10 +26,13 @@ class ExtensionLoader(importlib.abc.SourceLoader):
 
     def get_filename(self, fullname):
         if not os.path.exists(fullname):
-            basename = os.path.splitext(fullname.split(".")[-1])[0]
-            fullname = os.path.join(self._dir, basename+".py")
-            if not os.path.exists(fullname):
-                fullname = os.path.join(self._dir, basename)
+            basename, ext = os.path.splitext(fullname.split(".")[-1])
+            if ext != "":
+                fullname = os.path.join(self._dir, basename+ext)
+            else:
+                fullname = os.path.join(self._dir, basename+".py")
+                if not os.path.exists(fullname):
+                    fullname = os.path.join(self._dir, basename)
         if os.path.isdir(fullname):
             fullname = os.path.join(fullname, "__init__.py")
         return fullname
@@ -63,6 +66,7 @@ class ExtensionLoader(importlib.abc.SourceLoader):
         try:
             if os.path.exists(file):
                 self._dir = os.path.dirname(file)
+            print(file, self._dir)
             spec = self.get_spec(file, pkg)
             module = importlib.util.module_from_spec(spec)
             if module is None:

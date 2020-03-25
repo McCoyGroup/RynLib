@@ -1,11 +1,8 @@
-//
-// Created by Mark Boyer on 1/30/20.
-//
 
 #include "RynTypes.hpp"
-#include "PyAllUp.cpp"
+#include "PyAllUp.hpp"
 
-void _printOutWalkerStuff( Coordinates walker_coords, std::string bad_walkers ) {
+void _printOutWalkerStuff( Coordinates walker_coords, const std::string &bad_walkers ) {
     if (!bad_walkers.empty()) {
         const char* fout = bad_walkers.c_str();
         FILE *err = fopen(fout, "a");
@@ -33,20 +30,32 @@ void _printOutWalkerStuff( Coordinates walker_coords, std::string bad_walkers ) 
 
 // Basic method for computing a potential via the global potential bound in POOTY_PATOOTY
 double _doopAPot(
-        const Coordinates &walker_coords,
-        const Names &atoms,
-        const PotentialFunction pot_func,
-        const std::string bad_walkers_file,
-        const double err_val
+        Coordinates &walker_coords,
+        Names &atoms,
+        PotentialFunction pot_func,
+        std::string &bad_walkers_file,
+        double err_val,
+        ExtraBools &extra_bools,
+        ExtraInts &extra_ints,
+        ExtraFloats &extra_floats,
+        int retries = 3
         ) {
     double pot;
 
     try {
-        pot = pot_func(walker_coords, atoms);
+        pot = pot_func(walker_coords, atoms, extra_bools, extra_ints, extra_floats);
     } catch (std::exception &e) {
-        PyErr_SetString(PyExc_ValueError, e.what());
-        _printOutWalkerStuff(walker_coords, bad_walkers_file);
-        pot = err_val;
+        if (retries > 0){
+            return _doopAPot(
+                    walker_coords, atoms, pot_func, bad_walkers_file, err_val,
+                    extra_bools, extra_ints, extra_floats,
+                    retries-1
+                    );
+        } else {
+            PyErr_SetString(PyExc_ValueError, e.what());
+            _printOutWalkerStuff(walker_coords, bad_walkers_file);
+            pot = err_val;
+        }
     }
 
     return pot;
@@ -96,15 +105,18 @@ Coordinates _getWalkerCoords2(const double* raw_data, int n, int i, int ncalls, 
 
 PotentialArray _mpiGetPot(
         PyObject* manager,
+        PotentialFunction pot,
         RawWalkerBuffer raw_data,
-        const Names &atoms,
+        Names &atoms,
         int ncalls,
         Py_ssize_t num_walkers,
         Py_ssize_t num_atoms,
-        PotentialFunction pot_function,
         PyObject* bad_walkers_file,
         double err_val,
-        bool vectorized_potential
+        bool vectorized_potential,
+        ExtraBools &extra_bools,
+        ExtraInts &extra_ints,
+        ExtraFloats &extra_floats
 ) {
 
     //
@@ -135,17 +147,17 @@ PotentialArray _mpiGetPot(
     int walker_cnum = num_atoms*3;
     int walkers_to_core = ncalls * num_walkers_per_core;
 
-    auto walker_buf = (RawWalkerBuffer) malloc(walkers_to_core * walker_cnum * sizeof(Real_t));
+    RawWalkerBuffer walker_buf = (RawWalkerBuffer) malloc(walkers_to_core * walker_cnum * sizeof(Real_t));
 
     // Scatter data buffer to processors
     PyObject* scatter = PyObject_GetAttrString(manager, "_scatter_walkers");
-    auto scatter_walkers = int (*)(PyObject*, RawWalkerBuffer , int, int, RawWalkerBuffer) PyCapsule_GetPointer(scatter, "_Scatter_Walkers");
+    ScatterFunction scatter_walkers = (ScatterFunction) PyCapsule_GetPointer(scatter, "_Scatter_Walkers");
     scatter_walkers(
             manager,
             raw_data,  // raw data buffer to chunk up
             walkers_to_core,
             walker_cnum, // three coordinates per atom per num_atoms per walker
-            walker_buf, // raw array to write into
+            walker_buf // raw array to write into
     );
     Py_XDECREF(scatter);
 
@@ -179,11 +191,14 @@ PotentialArray _mpiGetPot(
         // Some amount of wasteful copying but ah well
         walker_coords = _getWalkerCoords(walker_buf, i, num_atoms);
         pots[i] = _doopAPot(
-                pot,
                 walker_coords,
                 atoms,
+                pot,
                 bad_file,
-                err_val
+                err_val,
+                extra_bools,
+                extra_ints,
+                extra_floats
                 );
     }
     //   [
@@ -197,12 +212,12 @@ PotentialArray _mpiGetPot(
 
     // receive buffer -- needs to be the number of walkers total in the system,
     // so we take the number of walkers and multiply it into the number of calls we make
-    RawPotentialBuffer pot_buf;
+    RawPotentialBuffer pot_buf = NULL;
     if ( world_rank == 0) {
         pot_buf = (RawPotentialBuffer) malloc(ncalls * num_walkers * sizeof(Real_t));
     }
     PyObject* gather = PyObject_GetAttrString(manager, "_gather_walkers");
-    auto gather_walkers = int (*)(PyObject*, PotentialVector, int, RawPotentialBuffer) PyCapsule_GetPointer(scatter, "_Gather_Walkers");
+    GatherFunction gather_walkers = (GatherFunction) PyCapsule_GetPointer(gather, "_Gather_Walkers");
     gather_walkers(
             manager,
             pots,
@@ -211,11 +226,6 @@ PotentialArray _mpiGetPot(
     );
     Py_XDECREF(gather);
 
-    PyObject *manager,
-    PotentialVector pots,
-    int walkers_to_core,
-    int walker_cnum,
-    RawWalkerBuffer walker_buf
 
     // convert double* to std::vector<double>
     // We currently have:
@@ -230,8 +240,8 @@ PotentialArray _mpiGetPot(
     if( world_rank == 0 ) {
         // at this point we have (num_walkers, ncalls) shaped potVals array, too, so I'm just gonna copy it
         // I think I _also_ copy it again downstream but, to be honest, I don't care???
-        for (size_t call = 0; call < ncalls; call++) {
-            for (size_t walker = 0; walker < num_walkers; walker++) {
+        for (int call = 0; call < ncalls; call++) {
+            for (int walker = 0; walker < num_walkers; walker++) {
                 potVals[walker][call] = pot_buf[ind2d(walker, call, num_walkers, ncalls)];
             }
         }
@@ -244,28 +254,35 @@ PotentialArray _mpiGetPot(
 PotentialArray _noMPIGetPot(
         PotentialFunction pot,
         double* raw_data,
-        Names atoms,
+        Names &atoms,
         int ncalls,
         Py_ssize_t num_walkers,
         Py_ssize_t num_atoms,
-        int world_size,
-        int world_rank,
-        PotentialFunction pot_function,
         PyObject* bad_walkers_file,
         double err_val,
-        bool vectorized_potential
+        bool vectorized_potential,
+        ExtraBools &extra_bools,
+        ExtraInts &extra_ints,
+        ExtraFloats &extra_floats
 ) {
     // currently I have nothing to manage an independently vectorized potential but maybe someday I will
     PotentialArray potVals(num_walkers, PotentialVector(ncalls, 0));
     PyObject* pyStr = NULL;
     std::string bad_file = _GetPyString(bad_walkers_file, pyStr);
     Py_XDECREF(pyStr);
+    Coordinates walker_coords;
     for (int n = 0; n < ncalls; n++) {
         for (int i = 0; i < num_walkers; i++) {
+            walker_coords = _getWalkerCoords2(raw_data, n, i, ncalls, num_walkers, num_atoms);
             potVals[i][n] = _doopAPot(
-                    pot, _getWalkerCoords2(raw_data, n, i, ncalls, num_walkers, num_atoms), atoms,
+                    walker_coords,
+                    atoms,
+                    pot,
                     bad_file,
-                    err_val
+                    err_val,
+                    extra_bools,
+                    extra_ints,
+                    extra_floats
             );
         }
     }

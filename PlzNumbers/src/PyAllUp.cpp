@@ -23,6 +23,14 @@ Py_ssize_t _FromInt( PyObject* int_obj ) {
     return PyLong_AsSsize_t(int_obj);
 }
 
+bool _FromBool( PyObject* bool_obj ) {
+    return PyObject_IsTrue(bool_obj);
+}
+
+Real_t _FromFloat(PyObject* float_obj) {
+    return PyFloat_AsDouble(float_obj);
+}
+
 #else
 const char *_GetPyString( PyObject* s ) {
     return PyString_AsString(s);
@@ -33,6 +41,14 @@ const char *_GetPyString( PyObject* s, PyObject *pyStr ) {
 }
 Py_ssize_t _FromInt( PyObject* int_obj ) {
     return PyInt_AsSsize_t(int_obj);
+}
+
+bool _FromBool( PyObject* bool_obj ) {
+    return PyObject_IsTrue(bool_obj);
+}
+
+Real_t _FromFloat(PyObject* float_obj) {
+    return PyFloat_AsDouble(float_obj);
 }
 
 #endif

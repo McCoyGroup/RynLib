@@ -4,6 +4,8 @@ Peeves
 
 .idea
 *.iml
+cmake-build-debug
+CMakeLists.txt
 */CMakeLists.txt
 */cmake-build-debug
 */*/CMakeLists.txt

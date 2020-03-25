@@ -1,6 +1,8 @@
 from Peeves.TestUtils import *
 from unittest import TestCase
-import sys
 
 class EntosTests(TestCase):
-    pass
+
+    @inactiveTest
+    def test_RunEntos(self):
+        raise NotImplementedError("Haven't done anything yet")
