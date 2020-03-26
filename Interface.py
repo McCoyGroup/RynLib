@@ -98,9 +98,9 @@ class RynLib:
         if 'hyak' in node:
             env = dict(
                 containerizer="singularity",
-                root_directory=".",
-                simulation_directory="./simulations",
-                potential_directory="./potentials",
+                root_directory="",
+                simulation_directory="simulations",
+                potential_directory="potentials",
                 mpi_version="3.1.4",
                 mpi_implementation="ompi",
                 mpi_dir="/proc/mpi"
@@ -108,22 +108,22 @@ class RynLib:
         elif 'cori' in node:
             env = dict(
                 containerizer="shifter",
-                root_directory="config",
-                simulation_directory="config/simulations",
-                potential_directory="config/potentials",
+                root_directory="/config",
+                simulation_directory="/config/simulations",
+                potential_directory="/config/potentials",
                 mpi_version="3.2",
                 mpi_implementation="mpich",
-                mpi_dir="lib/mpi"
+                mpi_dir="/config/mpi"
             )
         else:
             env = dict(
                 containerizer="docker",
-                root_directory="config",
-                simulation_directory="config/simulations",
-                potential_directory="config/potentials",
+                root_directory="/config",
+                simulation_directory="/config/simulations",
+                potential_directory="/config/potentials",
                 mpi_version="3.1.4",
                 mpi_implementation="ompi",
-                mpi_dir="lib/mpi"
+                mpi_dir="/config/mpi"
             )
         return env
     @classmethod
@@ -257,40 +257,6 @@ class RynLib:
                 os.chdir(curdir)
 
         conf.update(mpi_dir=MPI_DIR)
-
-    @classmethod
-    def create_volumes(cls):
-        """
-        Binds the appropriate volumes for read/write
-            -> currently this just checks to see if the read/write mounts will work...
-
-        :return:
-        :rtype:
-        """
-        config = cls.get_conf()
-        sim_dir = config.simulation_directory
-        pot_dir = config.potential_directory
-        containerizer = config.containerizer.lower()
-        if containerizer == "singularity":
-            known_paths = ["~", ".", "/proc", "/tmp"]
-            sim_root = os.path.dirname(sim_dir)
-            if sim_root not in known_paths:
-                raise ContainerException("Haven't implemented handling bind paths for singularity")
-            pot_root = os.path.dirname(pot_dir)
-            if pot_root not in known_paths:
-                raise ContainerException("Haven't implemented handling bind paths for singularity")
-        elif containerizer == "docker":
-            # this might not work in general...
-            known_paths = ["~", ".", "/proc", "/tmp"]
-            sim_root = os.path.dirname(sim_dir)
-            if sim_root not in known_paths:
-                raise ContainerException("Haven't implemented handling bind paths for docker")
-            pot_root = os.path.dirname(pot_dir)
-            if pot_root not in known_paths:
-                raise ContainerException("Haven't implemented handling bind paths for docker")
-        else:
-            # we assume this is local
-            pass
 
     @classmethod
     def test_entos_mpi(cls,
