@@ -5,7 +5,8 @@ from ..Dumpi import *
 from ..PlzNumbers import PotentialManager
 
 __all__ = [
-    "Simulation"
+    "Simulation",
+    "SimulationParameters"
 ]
 
 ##############################################################################################################

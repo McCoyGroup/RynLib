@@ -63,7 +63,7 @@ class PotentialInterface:
         print("\n".join(PotentialManager().list_potentials()))
 
     @classmethod
-    def add_potential(self, name=None, src=src, config_file=config_file):
+    def add_potential(self, name=None, src=None, config_file=None):
         PotentialManager().add_potential(name, config_file, src)
         print("Added potential {}".format(name))
 
@@ -93,7 +93,7 @@ class GeneralConfig:
                     containerizer="singularity",
                     simulation_directory="./simulations",
                     potential_directory="./potentials",
-                    entos_binary="...",
+                    entos_binary="/entos/lib/libentos.so",
                     mpi_version="3.1.4",
                     mpi_dir="/opt/ompi"
                 ),

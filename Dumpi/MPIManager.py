@@ -5,7 +5,6 @@ needing to know about MPI.
 Allows for easier separation of components.
 """
 from ..RynUtils import CLoader
-from ..Interface import GeneralConfig
 import os
 
 __all__ = [
@@ -27,6 +26,7 @@ class MPIManagerObject:
     @property
     def lib(self):
         if self._lib is None:
+            from ..Interface import GeneralConfig
             loader = CLoader("Dumpi", os.path.dirname(os.path.abspath(__file__)),
                              linked_libs=["mpi"],
                              include_dirs=[GeneralConfig.get_conf().mpi_dir]
