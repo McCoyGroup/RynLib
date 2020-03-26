@@ -66,7 +66,7 @@ class ModuleLoader(importlib.abc.SourceLoader):
         try:
             if os.path.exists(file):
                 self._dir = os.path.dirname(file)
-            print(file, self._dir)
+            # print(file, self._dir)
             spec = self.get_spec(file, pkg)
             module = importlib.util.module_from_spec(spec)
             if module is None:
