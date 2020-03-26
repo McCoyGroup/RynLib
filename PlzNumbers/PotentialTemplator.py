@@ -73,7 +73,8 @@ class PotentialTemplate(TemplateWriter):
                  potential_source = None,
                  raw_array_potential = False,
                  arguments = (),
-                 linked_libs = None
+                 linked_libs = None,
+                 static_source = False
                  ):
         """
 
@@ -110,6 +111,8 @@ class PotentialTemplate(TemplateWriter):
         self.arguments = [PotentialArgument(*x) for x in arguments]
         self.libs = linked_libs
 
+        self.static_source = static_source
+
         super().__init__(
             os.path.join(os.path.dirname(__file__), "Templates", "PotentialTemplate"),
             LibName = lib_name,
@@ -133,7 +136,7 @@ class PotentialTemplate(TemplateWriter):
         n=0
         call=[]
         for arg in self.arguments:
-            if arg.dtype is dtype:
+            if arg.dtype is dtype or (isinstance(arg.dtype, str) and arg.dtype == dtype.__name__):
                 call.append("{dtype} {name} = extra_{dtype}s[{n}];".format(
                     name = arg.name,
                     dtype = dtype.__name__,
@@ -151,7 +154,7 @@ class PotentialTemplate(TemplateWriter):
     def get_potential_declaration(self):
         main_args = ["Coordinates", "Names"] if not self.old_style_potential else ["RawWalkerBuffer", "const char*"]
         return self.function_name + "(" + ",".join(
-            main_args + [arg.dtype.__name__ for arg in self.arguments]
+            main_args + [arg.dtype if isinstance(arg.dtype, str) else arg.dtype.__name__ for arg in self.arguments]
         ) + ")"
 
     # @property
@@ -168,15 +171,16 @@ class PotentialTemplate(TemplateWriter):
 
     def apply(self, out_dir):
         self.iterate_write(out_dir)
-        src = self.potential_source
-        if isinstance(src, str):
-            dest_dir = os.path.join(out_dir, self.name, "libs")
-            dest = os.path.join(dest_dir, os.path.basename(src))
-            if os.path.isdir(src):
-                if not os.path.isdir(dest): # should I raise an error if it already exists....???/
-                    shutil.copytree(src, dest)
-            else:
-                os.makedirs(dest_dir)
-                shutil.copy(src, dest)
+        if not self.static_source:
+            src = self.potential_source
+            if isinstance(src, str):
+                dest_dir = os.path.join(out_dir, self.name, "libs")
+                dest = os.path.join(dest_dir, os.path.basename(src))
+                if os.path.isdir(src):
+                    if not os.path.isdir(dest): # should I raise an error if it already exists....???/
+                        shutil.copytree(src, dest)
+                else:
+                    os.makedirs(dest_dir)
+                    shutil.copy(src, dest)
 
 

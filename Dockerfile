@@ -13,6 +13,11 @@ RUN \
   git clone https://github.com/McCoyGroup/RynLib /home/RynLib &&\
   git clone https://github.com/McCoyGroup/Peeves /home/Peeves
 
+#ADD . /home/RynLib
+#RUN git clone https://github.com/McCoyGroup/Peeves /home/Peeves
+
+RUN python3 /home/RynLib/CLI.py config build_libs
+
 WORKDIR /home
 
 ENTRYPOINT ["python3", "/home/RynLib/CLI.py"]

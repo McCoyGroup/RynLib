@@ -21,6 +21,7 @@ class SimulationManager:
 
     def add_simulation(self, name, config_file = None, **opts):
         self.manager.add_config(name, config_file = config_file, **opts)
+        self.manager.edit_config(name, name=name)
 
     def edit_simulation(self, name, **opts):
         self.manager.edit_config(name, **opts)

@@ -18,52 +18,72 @@ class MPIManagerObject:
     _comm = None
     _world_size = None
     _world_rank = None
+    _lib = None
 
     def __init__(self):
-        self._lib = None
         self.init_MPI()
+
+    @classmethod
+    def _load_lib(cls):
+        from ..Interface import RynLib
+        import shutil
+        mpi_dir = RynLib.get_conf().mpi_dir
+        if not os.path.exists(os.path.join(mpi_dir, "Dumpi")):
+            shutil.copytree(
+                os.path.dirname(__file__),
+                os.path.join(mpi_dir, "Dumpi")
+                )
+        loader = CLoader("Dumpi",
+                         os.path.join(mpi_dir, "Dumpi"),
+                         linked_libs=["mpi"],
+                         include_dirs=[
+                             os.path.join(mpi_dir, "lib"),
+                             os.path.join(mpi_dir, "include")
+                            ]
+                         )
+        return loader.load()
 
     @property
     def lib(self):
         if self._lib is None:
-            from ..Interface import RynLib
-            loader = CLoader("Dumpi", os.path.dirname(os.path.abspath(__file__)),
-                             linked_libs=["mpi"],
-                             include_dirs=[RynLib.get_conf().mpi_dir]
-                             )
-            self._lib = loader.load()
+            cls = type(self)
+            cls._lib = cls._load_lib()
         return self._lib
 
     def init_MPI(self):
-        if not self._initted:
+        cls = type(self)
+        if not cls._initted:
             giveMePI = self.lib.giveMePI
-            cls = type(self)
-            world_size, world_rank = giveMePI(cls) # as written
+            world_rank, world_size = giveMePI(cls) # as written
             cls._world_size = world_size
             cls._world_rank = world_rank
             cls._initted = True
 
     def finalize_MPI(self):
-        if not self._final:
+        cls = type(self)
+        if not cls._final:
             noMorePI = self.lib.noMorePI
             noMorePI()
-            self._final = True
+            cls._final = True
 
     @property
     def world_size(self):
-        if not self._initted is None:
+        self.init_MPI()
+        if self._initted is None:
             MPIManagerError.raise_uninitialized()
         return self._world_size
 
     @property
     def world_rank(self):
-        if not self._initted is None:
+        self.init_MPI()
+        if self._initted is None:
             MPIManagerError.raise_uninitialized()
         return self._world_rank
 
     @property
     def comm(self):
-        if not self._initted is None:
+        self.init_MPI()
+        if self._initted is None:
             MPIManagerError.raise_uninitialized()
         return self._comm
 

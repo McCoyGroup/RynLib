@@ -25,7 +25,7 @@ class CLI:
             if len(arg) > 1:
                 arg_name, arg_dict = arg
             else:
-                arg_name = arg
+                arg_name = arg[0]
                 arg_dict = {}
             if 'dest' in arg_dict:
                 keys.append(arg_dict['dest'])
@@ -34,6 +34,9 @@ class CLI:
             parser.add_argument(arg_name, **arg_dict)
         args = parser.parse_args()
         return {k: getattr(args, k) for k in keys}
+
+    def config_build_libs(self):
+        RynLib.build_libs()
 
     def config_run_tests(self):
         RynLib.run_tests()
@@ -51,8 +54,17 @@ class CLI:
         )
         RynLib.edit_config(**parse_dict)
 
+    def config_reset(self):
+        RynLib.reset_config()
+
     def config_install_mpi(self):
         RynLib.install_MPI()
+
+    def config_configure_mpi(self):
+        RynLib.configure_mpi()
+
+    def config_test_mpi(self):
+        RynLib.test_mpi()
 
     def config_update_lib(self):
         RynLib.update_lib()
@@ -60,13 +72,37 @@ class CLI:
     def config_update_testing_framework(self):
         RynLib.update_testing_framework()
 
+    def config_test_entos(self):
+        RynLib.test_entos()
+
+    def config_test_HO(self):
+        RynLib.test_HO()
+
+    def config_test_entos_mpi(self):
+        parse_dict = self.get_parse_dict(
+            ("--per_core", dict(default=5, type=int, dest="walkers_per_core")),
+            ("--disp", dict(default=.5, type=int, dest="displacement_radius")),
+            ("--its", dict(default=5, type=int, dest="iterations")),
+            ("--steps", dict(default=5, type=int, dest="steps_per_call"))
+        )
+        RynLib.test_entos_mpi(**parse_dict)
+
+    def config_test_ho_mpi(self):
+        parse_dict = self.get_parse_dict(
+            ("--per_core", dict(default=5, type=int, dest="walkers_per_core")),
+            ("--disp", dict(default=.5, type=int, dest="displacement_radius")),
+            ("--its", dict(default=5, type=int, dest="iterations")),
+            ("--steps", dict(default=5, type=int, dest="steps_per_call"))
+        )
+        RynLib.test_ho_mpi(**parse_dict)
+
     def sim_list(self):
         SimulationInterface.list_simulations()
 
     def sim_add(self):
         parse_dict = self.get_parse_dict(
             ("name",),
-            ("--config", dict(default="", type=str, dest='config'))
+            ("--config", dict(default="", type=str, dest='config_file'))
         )
         SimulationInterface.add_simulation(**parse_dict)
 
@@ -82,6 +118,12 @@ class CLI:
         )
         SimulationInterface.run_simulation(**parse_dict)
 
+    def sim_status(self):
+        parse_dict = self.get_parse_dict(
+            ("name",)
+        )
+        SimulationInterface.simulation_status(**parse_dict)
+
     def pot_list(self):
         PotentialInterface.list_potentials()
 
@@ -89,7 +131,7 @@ class CLI:
         parse_dict = self.get_parse_dict(
             ("name",),
             ("--source", dict(default="", type=str, dest='src')),
-            ("--config", dict(default="", type=str, dest='config'))
+            ("--config", dict(default="", type=str, dest='config_file'))
         )
         PotentialInterface.add_potential(**parse_dict)
 
@@ -105,8 +147,17 @@ class CLI:
         )
         PotentialInterface.compile_potential(**parse_dict)
 
+    def pot_status(self):
+        parse_dict = self.get_parse_dict(
+            ("name",)
+        )
+        PotentialInterface.potential_status(**parse_dict)
+
+    def pot_configure_entos(self):
+        PotentialInterface.configure_entos()
+
     def run(self):
-        getattr(self, self.group + "_" + self.cmd)()
+        getattr(self, self.group + "_" + self.cmd.replace("-", "_"))()
 
 if __name__ == "__main__":
     if sys.argv[1] == "interact":

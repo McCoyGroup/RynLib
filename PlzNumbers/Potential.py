@@ -19,9 +19,8 @@ class Potential:
     Provides a hook into PotentialCaller once the data has been loaded to directly call the potential like a function
     """
     def __init__(self,
-                 name,
-                 src,
-                 *ignore,
+                 name = None,
+                 potential_source = None,
 
                  #Template Options
                  wrap_potential = None,
@@ -29,6 +28,7 @@ class Potential:
                  raw_array_potential=False,
                  arguments=(),
                  potential_directory = None,
+                 static_source = False,
 
                  #Loader Options
                  src_ext='src',
@@ -49,22 +49,27 @@ class Potential:
                  vectorized_potential=False,
                  error_value=10.e9
                  ):
+        src = potential_source
         self.name = name
+
+        self._atoms = None
 
         if wrap_potential:
             if potential_directory is None:
-                potential_directory = os.path.expanduser("~/RynLib/potentials")
+                from ..Interface import RynLib
+                potential_directory = RynLib.get_conf().potential_directory
             if not os.path.exists(potential_directory):
                 os.makedirs(potential_directory)
             pot_src = src
             src = os.path.join(potential_directory, name)
-            if not os.path.exists(src):
+            if not os.path.exists(os.path.join(src, "src")):
                 PotentialTemplate(
                     lib_name=name,
                     potential_source=pot_src,
                     function_name=function_name,
                     raw_array_potential=raw_array_potential,
-                    arguments=arguments
+                    arguments=arguments,
+                    static_source=static_source
                 ).apply(potential_directory)
 
         self.src = src
@@ -74,7 +79,7 @@ class Potential:
             src,
             src_ext=src_ext,
             description=description,
-            verion=verion,
+            version=verion,
             include_dirs=include_dirs,
             linked_libs=linked_libs if linked_libs is not None else [name],
             macros=macros,
@@ -103,5 +108,12 @@ class Potential:
             )
         return self._caller
 
-    def __call__(self, coordinates, atoms, *extra_args):
+    def bind_atoms(self, atoms):
+        self._atoms = atoms
+    def __call__(self, coordinates, *extra_args):
+        if self._atoms is not None:
+            atoms = self._atoms
+        else:
+            atoms = extra_args[0]
+            extra_args = extra_args[1:]
         return self.caller(coordinates, atoms, *extra_args)

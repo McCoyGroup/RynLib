@@ -19,19 +19,26 @@ class PotentialManager:
     def remove_potential(self, name):
         self.manager.remove_config(name)
 
-    def add_potential(self, name, src, config_file = None, **opts):
+    def add_potential(self, name, src, config_file = None, static_source = False, **opts):
         self.manager.add_config(name, config_file = config_file, **opts)
-        new_src = os.path.join(self.manager.config_loc(name), os.path.basename(src))
-        if os.path.isdir(src):
-            shutil.copy(src, new_src)
+        if not static_source:
+            new_src = os.path.join(self.manager.config_loc(name), "raw_source", os.path.basename(src))
+            os.makedirs(os.path.join(self.manager.config_loc(name), "raw_source"))
+            if os.path.isdir(src):
+                shutil.copytree(src, new_src)
+            else:
+                shutil.copyfile(src, new_src)
+            self.manager.edit_config(name, name=name, potential_source=new_src, static_source=False)
         else:
-            shutil.copyfile(src, new_src)
-        self.manager.edit_config(name, potential_source=new_src)
+            self.manager.edit_config(name, name=name, potential_source=src, static_source=True)
 
     def potential_config(self, name):
         return self.manager.load_config(name)
 
     def load_potential(self, name):
+        if name == "entos" and "entos" not in self.list_potentials():
+            from ..Interface import PotentialInterface
+            PotentialInterface.configure_entos()
         conf = self.manager.load_config(name)
         params = conf.opt_dict
         out_dir = self.manager.config_loc(name)
@@ -41,3 +48,8 @@ class PotentialManager:
     def compile_potential(self, name):
         pot = self.load_potential(name)
         pot.caller # causes the potential to compile what needs to be compiled
+
+    def potential_compiled(self, name):
+        import glob
+
+        return len(glob.glob(os.path.join(self.manager.config_loc(name), "*.so")))>0

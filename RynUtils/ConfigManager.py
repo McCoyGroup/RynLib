@@ -230,7 +230,7 @@ class ConfigManager:
             conf_file = self.conf_name
         return Config( conf_file,  root=os.path.join(self.conf_dir, name), loader=self.loader )
 
-    def add_config(self, name, config_file = None, **opts):
+    def add_config(self, config_tag, config_file = None, **opts):
         """Adds a config to the known list. Requires a name. Takes either a config file or a bunch of options.
 
         :param name:
@@ -240,17 +240,17 @@ class ConfigManager:
         :return:
         :rtype:
         """
-        if os.path.isdir(os.path.join(self.conf_dir, name)):
+        if os.path.isdir(os.path.join(self.conf_dir, config_tag)):
             raise ConfigManagerError("A config with the name {} already exists in {}".format(
-                name,
+                config_tag,
                 self.conf_dir
             ))
-        os.mkdir(os.path.join(self.conf_dir, name))
+        os.mkdir(os.path.join(self.conf_dir, config_tag))
         if config_file is not None:
-            shutil.copy(config_file, os.path.join(self.conf_dir, name, self.conf_name))
+            shutil.copy(config_file, os.path.join(self.conf_dir, config_tag, self.conf_name))
         else:
             ConfigSerializer.serialize(
-                os.path.join(self.conf_dir, name, self.conf_name),
+                os.path.join(self.conf_dir, config_tag, self.conf_name),
                 opts,
                 attribute="config"
             )
@@ -266,7 +266,7 @@ class ConfigManager:
         """
         shutil.rmtree(self.config_loc(name))
 
-    def edit_config(self, name, **opts):
+    def edit_config(self, config_tag, **opts):
         """
         Updates a config from the known list. Requires a name.
 
@@ -276,7 +276,7 @@ class ConfigManager:
         :rtype:
         """
 
-        conf = self.load_config(name)
+        conf = self.load_config(config_tag)
         conf.update(**opts)
         conf.save()
 

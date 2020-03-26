@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <string>
+#include "Python.h"
 
 typedef double Real_t; // easy hook in case we wanted to use a different precision object or something in the future
 typedef Real_t* RawWalkerBuffer;
@@ -21,15 +22,14 @@ typedef std::vector<int> ExtraInts;
 typedef std::vector<Real_t> ExtraFloats;
 
 typedef Real_t (*PotentialFunction)(
-    const Coordinates, const Names,
-    const ExtraBools,
-    const ExtraInts,
-    const ExtraFloats
-    );
+        const Coordinates, const Names,
+        const ExtraBools,
+        const ExtraInts,
+        const ExtraFloats
+);
 
-typedef  int (*ScatterFunction)(PyObject*, RawWalkerBuffer, int, int, RawWalkerBuffer);
-typedef  int (*GatherFunction)(PyObject*, PotentialVector, int, RawPotentialBuffer);
-
+typedef int (*ScatterFunction)(PyObject*, RawWalkerBuffer, int, int, RawWalkerBuffer);
+typedef int (*GatherFunction)(PyObject*, PotentialVector, int, RawPotentialBuffer);
 
 #define RYNLIB_RYNTYPES_HPP
 

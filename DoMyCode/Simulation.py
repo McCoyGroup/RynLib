@@ -422,12 +422,14 @@ class Simulation:
         self.name = name
         self.description = description
         if isinstance(walker_set, str):
-            walker_set = WalkerSet.from_file(walker_set)
+            walker_set = WalkerSet.from_file(walker_set, mpi_manager=mpi_manager)
         elif isinstance(walker_set, dict):
+            walker_set['mpi_manager']=mpi_manager
             walker_set = WalkerSet(**walker_set)
 
         self.walkers = walker_set if isinstance(walker_set, WalkerSet) else WalkerSet(walker_set)
         self.potential = PotentialManager().load_potential(potential) if isinstance(potential, str) else potential
+        self.potential.bind_atoms(walker_set.atoms)
         self.alpha = alpha
         self.steps_per_propagation = steps_per_propagation
 

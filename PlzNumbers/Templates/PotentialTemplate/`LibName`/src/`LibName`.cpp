@@ -6,11 +6,11 @@
 #include "RynTypes.hpp"
 
 Real_t `LibName`_Potential(
-    const Coordinates coords,
-    const Names atoms,
-    const ExtraBools extra_bools,
-    const ExtraInts extra_ints,
-    const ExtraFloats extra_floats
+    Coordinates coords,
+    Names atoms,
+    ExtraBools extra_bools,
+    ExtraInts extra_ints,
+    ExtraFloats extra_floats
     ) {
 
     // Load extra args (if necessary)
@@ -37,6 +37,14 @@ Real_t `LibName`_Potential(
         }
         const char* raw_atoms = long_atoms.data();
     }
+
+//    printf("%lu %lu %lu \n", extra_bools.size(), extra_ints.size(), extra_floats.size());
+    for (int i=0; i < coords.size(); i++) {
+        printf("Atom %d: %s Coord: %f %f %f\n", i, atoms[i].c_str(), coords[i][0], coords[i][1], coords[i][2]);
+        }
+    if (extra_bools.size() > 0) {
+        printf("HF Only?: %s\n", extra_bools[0] ? "true" : "false");
+        }
 
     return `PotentialCall`;
 }

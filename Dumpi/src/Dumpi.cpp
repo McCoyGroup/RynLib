@@ -2,26 +2,28 @@
 #include "RynTypes.hpp"
 
 void _mpiInit(int* world_size, int* world_rank) {
-    *world_size = 1;
-    *world_rank = 0;
+    // Initialize MPI state
+    int did_i_do_good_pops = 0;
+    MPI_Initialized(&did_i_do_good_pops);
+    if (!did_i_do_good_pops){
+        MPI_Init(NULL, NULL);
+    };
+    MPI_Comm_size(MPI_COMM_WORLD, world_size);
+    MPI_Comm_rank(MPI_COMM_WORLD, world_rank);
+    // printf("This many things %d and I am here %d\n", *world_size, *world_rank);
 }
 
 void _mpiFinalize() {
-    // boop
+    int did_i_do_bad_pops = 0;
+    MPI_Finalized(&did_i_do_bad_pops); // need to check if we called Init once already
+    if (!did_i_do_bad_pops){
+        MPI_Finalize();
+    };
 }
 
 void _mpiBarrier() {
-    // boop
+    MPI_Barrier(MPI_COMM_WORLD);
 }
-
-void _mpiBindComm(PyObject *cls) {
-    PyObject_SetAttrString(cls, "_comm",
-            PyCapsule_New((void *)MPI_COMM_WORLD, "_COMM_WORLD", NULL);)
-    PyObject_SetAttrString(cls, "_scatter_walkers",
-            PyCapsule_New((void *)Scatter_walkers, "_SCATTER_WALKERS", NULL););
-    PyObject_SetAttrString(cls, "_gather_walkers",
-            PyCapsule_New((void *)Gather_walkers, "_GATHER_WALKERS", NULL););
-};
 
 int Scatter_Walkers(
         PyObject *manager,
@@ -64,6 +66,15 @@ int Gather_Walkers(
 }
 
 
+void _mpiBindComm(PyObject *cls) {
+    PyObject_SetAttrString(cls, "_comm",
+                           PyCapsule_New((void *)MPI_COMM_WORLD, "_COMM_WORLD", NULL));
+    PyObject_SetAttrString(cls, "_scatter_walkers",
+                           PyCapsule_New((void *)Scatter_Walkers, "_SCATTER_WALKERS", NULL));
+    PyObject_SetAttrString(cls, "_gather_walkers",
+                           PyCapsule_New((void *)Gather_Walkers, "_GATHER_WALKERS", NULL));
+};
+
 // MPI COMMUNICATION METHODS
 PyObject *Dumpi_initializeMPI(PyObject *self, PyObject *args) {
 
@@ -81,7 +92,7 @@ PyObject *Dumpi_finalizeMPI(PyObject *self, PyObject *args) {
     Py_RETURN_NONE;
 }
 
-PyObject *Dumpi_holdMyPI( PyObject* self, PyObject* args ) {
+PyObject *Dumpi_syncMPI( PyObject* self, PyObject* args ) {
     _mpiBarrier();
     Py_RETURN_NONE;
 }
@@ -91,7 +102,7 @@ PyObject *Dumpi_holdMyPI( PyObject* self, PyObject* args ) {
 static PyMethodDef DumpiMethods[] = {
     {"giveMePI", Dumpi_initializeMPI, METH_VARARGS, "calls Init and returns the processor rank"},
     {"noMorePI", Dumpi_finalizeMPI, METH_VARARGS, "calls Finalize in a safe fashion (can be done more than once)"},
-    {"holdMyPI", Dumpi_holdMyPI, METH_VARARGS, "calls Barrier"},
+    {"holdMyPI", Dumpi_syncMPI, METH_VARARGS, "calls Barrier"},
     {NULL, NULL, 0, NULL}
 };
 
@@ -118,7 +129,5 @@ PyMODINIT_FUNC initDumpi(void)
 {
     (void) Py_InitModule("Dumpi", DumpiMethods);
 }
-
-#endif
 
 #endif

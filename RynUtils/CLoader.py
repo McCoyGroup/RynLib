@@ -122,6 +122,7 @@ class CLoader:
             sources=list(sources),
             library_dirs=list(lib_dirs),
             runtime_library_dirs=list(lib_dirs),
+            include_dirs=list(self.include_dirs),
             libraries=list(libbies),
             define_macros=list(mroos),
             extra_objects=list(self.extra_objects),

@@ -7,8 +7,22 @@ import numpy as np
 __all__ = [ "WalkerSet" ]
 
 class WalkerSet:
-    def __init__(self, atoms = None, masses = None, initial_walker = None, num_walkers = None):
+    def __init__(self,
+                 atoms=None,
+                 masses=None,
+                 initial_walker=None,
+                 num_walkers=None,
+                 mpi_manager=None,
+                 walkers_per_core=None
+                 ):
+
         self.n = len(atoms)
+
+        if num_walkers is None:
+            if mpi_manager is None:
+                raise TypeError("MPIManager is None (meaning MPI isn't configured) but 'num_walkers' not passed")
+            num_walkers = walkers_per_core*mpi_manager.world_size
+
         self.num_walkers = num_walkers
 
         self.atoms = atoms
@@ -28,9 +42,9 @@ class WalkerSet:
         self._parent_weights = self.weights.copy()
 
     @classmethod
-    def from_file(cls, file):
+    def from_file(cls, file, **opts):
         npz = np.load(file)
-        return cls(atoms=npz["atoms"], masses=npz["masses"], initial_walker=npz["walkers"])
+        return cls(atoms=npz["atoms"], masses=npz["masses"], initial_walker=npz["walkers"], **opts)
 
     def initialize(self, deltaT, D):
         """Sets up necessary parameters for use in calculating displacements and stuff

@@ -78,12 +78,44 @@ class PotentialInterface:
 
     @classmethod
     def configure_entos(cls):
-        PotentialManager().add_potential(
+        pm = PotentialManager()
+        entos = RynLib.get_conf().entos_binary
+        pm.add_potential(
             "entos",
-            src=RynLib.get_conf().entos_binary,
+            src=entos,
             wrap_potential=True,
             function_name="MillerGroup_entosPotential",
-            arguments=(("only_hf", bool),)
+            arguments=(("only_hf", 'bool'),),
+            linked_libs=["entos"],
+            include_dirs=[os.path.dirname(entos)],
+            static_source = True
+        )
+        # writes to /config/potentials/entos/src/entos.cpp
+        pm.compile_potential('entos')
+
+    @classmethod
+    def configure_HO(cls):
+        pm = PotentialManager()
+        pm.add_potential(
+            "HarmonicOscillator",
+            src=os.path.join(os.path.dirname(__file__), "Tests", "TestData", "HarmonicOscillator"),
+            wrap_potential=True,
+            function_name='HarmonicOscillator',
+            arguments=(('re', 'float'), ('k', 'float')),
+            requires_make=True,
+            linked_libs=['HarmonicOscillator']
+        )
+        pm.compile_potential('HarmonicOscillator')
+
+    @classmethod
+    def potential_status(self, name=None):
+        pm = PotentialManager()
+        status = pm.potential_compiled(name)
+        config = pm.potential_config(name)
+        print(
+            "Compiled: {}".format(status),
+            *("  {}: {}".format(k, v) for k, v in config.opt_dict.items()),
+            sep="\n"
         )
 
 class RynLib:
@@ -98,6 +130,7 @@ class RynLib:
         if 'hyak' in node:
             env = dict(
                 containerizer="singularity",
+                entos_binary="/entos/lib/libentos.so",
                 root_directory="",
                 simulation_directory="simulations",
                 potential_directory="potentials",
@@ -108,6 +141,7 @@ class RynLib:
         elif 'cori' in node:
             env = dict(
                 containerizer="shifter",
+                entos_binary="/entos/lib/libentos.so",
                 root_directory="/config",
                 simulation_directory="/config/simulations",
                 potential_directory="/config/potentials",
@@ -118,6 +152,7 @@ class RynLib:
         else:
             env = dict(
                 containerizer="docker",
+                entos_binary="/entos/lib/libentos.so",
                 root_directory="/config",
                 simulation_directory="/config/simulations",
                 potential_directory="/config/potentials",
@@ -140,12 +175,26 @@ class RynLib:
         cfig = Config(conf_path)
         return cfig
     @classmethod
+    def reset_config(cls):
+        default_env = cls.get_default_env()
+        conf_path = os.path.join(default_env["root_directory"], cls.config_file)
+        ConfigSerializer.serialize(
+            conf_path,
+            default_env,
+            attribute="config"
+        )
+    @classmethod
     def edit_config(cls, **opts):
         op2 = {k:v for k,v in opts.items() if (v is not None and not (isinstance(v, str) and v==""))}
         cls.get_conf().update(**op2)
     @classmethod
     def get_container_env(cls):
         return cls.get_conf().containerizer
+
+    @classmethod
+    def build_libs(cls):
+        from .PlzNumbers import PotentialCaller
+        PotentialCaller._load_lib()
 
     @classmethod
     def run_tests(cls):
@@ -228,46 +277,64 @@ class RynLib:
             elif MPI_IMP == "mpich":
                 mpi_ext = "mpich-{MPI_VERSION}".format(MPI_VERSION=MPI_VERSION)
                 mpi_src = os.path.join(build_dir, mpi_ext + ".tar.gz")
+
+            print("Downloading MPI from {}".format(MPI_URL))
+
             wget.download(MPI_URL, mpi_src)
             with tarfile.open(mpi_src) as tar:
                 tar.extractall(build_dir)
 
             curdir = os.getcwd()
             try:
-                os.chdir(os.path.join(mpi_ext))
-                print(subprocess.check_output([
+                os.chdir(os.path.join(build_dir, mpi_ext))
+                print("\nCompiling MPI")
+                subprocess.check_output([
                     "./configure",
                     "--prefix={MPI_DIR}".format(MPI_DIR=MPI_DIR),
                     "--disable-oshmem",
                     "--enable-branch-probabilities"
-                ]))
-                print(subprocess.check_output([
+                ])
+                subprocess.check_output([
                     "make",
                     "-j4",
                     "install"
-                ]))
-                print(subprocess.check_output([
+                ])
+                subprocess.check_output([
                     "make",
                     "clean"
-                ]))
+                ])
             except subprocess.CalledProcessError as e:
                 print(e.output)
                 raise
             finally:
                 os.chdir(curdir)
 
+        print("\nInstalling MPI to {}",format(MPI_DIR))
+
         conf.update(mpi_dir=MPI_DIR)
 
     @classmethod
-    def test_entos_mpi(cls,
-                       walkers_per_core=5,
-                       displacement_radius=.5,
-                       iterations=5,
-                       steps_per_call=5,
-                       print_walkers=False
-                       ):
-        import numpy as np, time
-        from .Dumpi import MPIManager, MPIManagerObject
+    def configure_mpi(cls):
+        mpi_dir = cls.get_conf().mpi_dir
+        if not os.path.isdir(mpi_dir):
+            cls.install_MPI()
+
+        from .Dumpi import MPIManagerObject
+        MPIManagerObject._load_lib()
+
+    @classmethod
+    def test_mpi(cls):
+        mpi_dir = cls.get_conf().mpi_dir
+        if not os.path.isdir(mpi_dir):
+            cls.install_MPI()
+
+        from .Dumpi import MPIManagerObject
+        manager = MPIManagerObject()
+        print("World Size: {} World Rank: {}".format(manager.world_size, manager.world_rank))
+
+    @classmethod
+    def test_entos(cls):
+        import numpy as np
 
         testWalker = np.array([
             [0.9578400, 0.0000000, 0.0000000],
@@ -275,6 +342,43 @@ class RynLib:
             [0.0000000, 0.0000000, 0.0000000]
         ])
         testAtoms = ["H", "H", "O"]
+
+        potential_manager = PotentialManager()
+        if 'entos' not in potential_manager.list_potentials():
+            PotentialInterface.configure_entos()
+
+        entos = PotentialManager().load_potential("entos")
+
+        print("Testing Entos:")
+
+        print("Energy w/ MOBML: {}".format(entos(testWalker, testAtoms, False)))
+        print("Energy w/o MOBML: {}".format(entos(testWalker, testAtoms, True)))
+
+    @classmethod
+    def test_HO(cls):
+
+        potential_manager = PotentialManager()
+        if 'HarmonicOscillator' not in potential_manager.list_potentials():
+            PotentialInterface.configure_HO()
+        HO = PotentialManager().load_potential("HarmonicOscillator")
+
+        print("Testing Harmonic Oscillator:")
+        print("Energy of HO: {}".format(HO([[1, 2, 3], [1, 1, 1]], ["H", "H"], .9, 1.)))
+
+    @classmethod
+    def test_potential_mpi(cls,
+                           potential,
+                           testWalker,
+                           testAtoms,
+                           *extra_args,
+                           walkers_per_core=5,
+                           displacement_radius=.5,
+                           iterations=5,
+                           steps_per_call=5,
+                           print_walkers=False
+                           ):
+        import numpy as np, time
+        from .Dumpi import MPIManager, MPIManagerObject
 
         mpi_manager = MPIManager()
 
@@ -310,11 +414,7 @@ class RynLib:
         # we compute the same walker for each of the nsteps, but that's okay -- gives a nice clean test that everything went right
         testWalkersss = np.broadcast_to(testWalkersss, (nsteps,) + testWalkersss.shape)
 
-        potential_manager = PotentialManager()
-        if 'entos' not in potential_manager.list_potentials():
-            PotentialInterface.configure_entos()
 
-        entos = PotentialManager().load_potential("entos")
 
         #
         # run tests
@@ -325,10 +425,10 @@ class RynLib:
             # this gets the correct memory layout
             test_walkers_reshaped = np.ascontiguousarray(testWalkersss.transpose(1, 0, 2, 3))
             # call the potential
-            test_result = entos(
+            test_result = potential(
                 testAtoms,
                 test_walkers_reshaped,
-                True# hf_only argument is necessary with current setup
+                *extra_args
             )
             # then we gotta transpose back to the input layout
             if who_am_i == 0:
@@ -360,6 +460,76 @@ class RynLib:
             print("Total time: {}s (over {} iterations)".format(gotta_go_fast, test_iterations))
             print("Average total: {}s Average time per walker: {}s".format(np.average(test_results), np.average(
                 test_results) / num_walkers / nsteps))
+
+    @classmethod
+    def test_entos_mpi(cls,
+                       walkers_per_core=5,
+                       displacement_radius=.5,
+                       iterations=5,
+                       steps_per_call=5,
+                       print_walkers=False
+                       ):
+        import numpy as np, time
+        from .Dumpi import MPIManager, MPIManagerObject
+
+        potential_manager = PotentialManager()
+        if 'entos' not in potential_manager.list_potentials():
+            PotentialInterface.configure_entos()
+
+        entos = PotentialManager().load_potential("entos")
+
+        testWalker = np.array([
+            [0.9578400, 0.0000000, 0.0000000],
+            [-0.2399535, 0.9272970, 0.0000000],
+            [0.0000000, 0.0000000, 0.0000000]
+        ])
+        testAtoms = ["H", "H", "O"]
+
+        cls.test_potential_mpi(
+            entos,
+            testWalker,
+            testAtoms,
+            False,
+            walkers_per_core=walkers_per_core,
+            displacement_radius=displacement_radius,
+            iterations=iterations,
+            steps_per_call=steps_per_call,
+            print_walkers=print_walkers
+        )
+
+    @classmethod
+    def test_ho_mpi(cls,
+                       walkers_per_core=5,
+                       displacement_radius=.5,
+                       iterations=5,
+                       steps_per_call=5,
+                       print_walkers=False
+                       ):
+        import numpy as np
+
+        potential_manager = PotentialManager()
+        if 'HarmonicOscillator' not in potential_manager.list_potentials():
+            PotentialInterface.configure_HO()
+
+        ho = PotentialManager().load_potential("HarmonicOscillator")
+
+        testWalker = np.array([
+            [0.000000, 0.0000000, 0.0000000],
+            [1.000000, 0.0000000, 0.0000000],
+        ])
+        testAtoms = ["H", "H"]
+
+        cls.test_potential_mpi(
+            ho,
+            testWalker,
+            testAtoms,
+            False,
+            walkers_per_core=walkers_per_core,
+            displacement_radius=displacement_radius,
+            iterations=iterations,
+            steps_per_call=steps_per_call,
+            print_walkers=print_walkers
+        )
 
 class ContainerException(IOError):
     ...

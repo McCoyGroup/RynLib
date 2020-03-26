@@ -3,12 +3,7 @@
 #define DUMPI_H
 
 #include "Python.h"
-
-#ifdef I_HAVE_PIE
-
 #include "mpi.h"
-
-#endif
 
 // We'll do a bunch of typedefs and includes and stuff to make it easier to work with/debug this stuff
 
@@ -26,7 +21,7 @@ static PyObject *Dumpi_initializeMPI
 static PyObject *Dumpi_finalizeMPI
     ( PyObject *, PyObject * );
 
-static PyObject *Dump_holdMPI
+static PyObject *Dumpi_syncMPI
         ( PyObject *, PyObject * );
 
 #endif

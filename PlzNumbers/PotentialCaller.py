@@ -33,6 +33,12 @@ class PotentialCaller:
         self.error_value = error_value
         self._lib = None
 
+    @classmethod
+    def _load_lib(cls):
+        loader = CLoader("PlzNumbers", os.path.dirname(os.path.abspath(__file__)),
+                source_files=["PlzNumbers.cpp", "Potators.cpp", "PyAllUp.cpp"]
+                )
+        return loader.load()
     @property
     def lib(self):
         """
@@ -41,10 +47,7 @@ class PotentialCaller:
         :rtype: module
         """
         if self._lib is None:
-            loader = CLoader("PlzNumbers", os.path.dirname(os.path.abspath(__file__)),
-                             source_files=["PlzNumbers.cpp", "Potators.cpp", "PyAllUp.cpp"]
-                             )
-            self._lib = loader.load()
+            self._lib = self._load_lib()
         return self._lib
 
     def call_single(self, walker, atoms, extra_bools=(), extra_ints=(), extra_floats=()):
@@ -112,10 +115,10 @@ class PotentialCaller:
         extra_ints = []
         extra_floats = []
         for a in extra_args:
-            if isinstance(a, int):
-                extra_ints.append(a)
-            elif isinstance(a, bool):
+            if a is True or a is False:
                 extra_bools.append(a)
+            elif isinstance(a, int):
+                extra_ints.append(a)
             elif isinstance(a, float):
                 extra_floats.append(a)
 

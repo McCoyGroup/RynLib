@@ -83,7 +83,14 @@ After building RynLib using the scripts in `build_img.sh`, we can think about ru
 Here's the way you might alias RynLib for use with Docker:
 
 ```ignorelang
-rynlib="docker run --mount source=simdata,target=/config -it rynimg"
+rynlib="docker run --rm --mount source=simdata,target=/config -it rynimg"
+```
+
+one thing to note is that if we want to get data into Docker, say for `rynlib sim add` we'll need to temporarily mount that as a volume, using the `-v` flag, e.g.
+
+```ignorelang
+ryndock="docker run --rm --mount source=simdata,target=/config -it"
+$ryndock -v /cf:config_dir:rw rynimg sim add test /cf/config.py 
 ```
 
 ### Singularity

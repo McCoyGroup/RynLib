@@ -1,6 +1,7 @@
 
 #include "RynTypes.hpp"
 #include "PyAllUp.hpp"
+#include <csignal>
 
 void _printOutWalkerStuff( Coordinates walker_coords, const std::string &bad_walkers ) {
     if (!bad_walkers.empty()) {
@@ -27,6 +28,15 @@ void _printOutWalkerStuff( Coordinates walker_coords, const std::string &bad_wal
     }
 }
 
+void _sigillHandler( int signum ) {
+    printf("Illegal instruction signal (%d) received.\n", signum );
+    abort();
+//    exit(signum);
+}
+void _sigsevHandler( int signum ) {
+    printf("Segfault signal (%d) received.\n", signum );
+    abort();
+}
 
 // Basic method for computing a potential via the global potential bound in POOTY_PATOOTY
 double _doopAPot(
@@ -42,8 +52,12 @@ double _doopAPot(
         ) {
     double pot;
 
+
     try {
+        signal(SIGSEGV, _sigsevHandler);
+        signal(SIGILL, _sigillHandler);
         pot = pot_func(walker_coords, atoms, extra_bools, extra_ints, extra_floats);
+
     } catch (std::exception &e) {
         if (retries > 0){
             return _doopAPot(
