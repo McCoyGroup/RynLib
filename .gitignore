@@ -2,7 +2,11 @@
 
 Peeves
 DockerfileEntos
+SingularityEntos.def
 config.py
+
+*.tar
+*.tar.gz
 
 .idea
 *.iml

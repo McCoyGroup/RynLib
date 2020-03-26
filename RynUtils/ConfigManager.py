@@ -106,11 +106,16 @@ class Config:
         """
         self.loader = loader
         self.root = root
-        if isinstance(config, str) and not os.path.exists(os.path.abspath(config)):
-            if isinstance(root, str):
-                config = os.path.join(root, config)
-            else:
-                raise ConfigManagerError("Config file {} doesn't exist".format(config))
+        if isinstance(config, str):
+            abs_conf = os.path.abspath(config)
+            rel_conf = os.path.abspath(config) != config
+            if rel_conf:
+                if isinstance(root, str):
+                    config = os.path.join(root, config)
+                elif os.path.exists(abs_conf):
+                    config = abs_conf
+                else:
+                    raise ConfigManagerError("Config file {} doesn't exist".format(config))
         self._conf = config
         self._conf_type = None
         self._conf_obj = None

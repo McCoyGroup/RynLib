@@ -1,0 +1,12 @@
+Bootstrap: localimage
+From: entos.sif
+
+%post
+    git clone https://github.com/McCoyGroup/RynLib /home/RynLib &&\
+     git clone https://github.com/McCoyGroup/Peeves /home/Peeves
+
+    python3 /home/RynLib/CLI.py config build_libs
+
+
+%runscript
+    exec python3 /home/RynLib/CLI.py $@
