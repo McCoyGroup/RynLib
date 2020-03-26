@@ -89,7 +89,7 @@ class GeneralConfig:
         curdir = os.getcwd()
         try:
             os.chdir(os.path.dirname(__file__))
-            print(subprocess.check_call(["git", "fetch"]))
+            print(subprocess.check_call(["git", "pull"]))
         except subprocess.CalledProcessError as e:
             print(e.output)
             raise
