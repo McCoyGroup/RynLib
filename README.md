@@ -20,7 +20,9 @@ where we have these groups and commands
 
 ```none
 config -- anything involved in configuring the overall package
-    set-config CONFIG: sets the config file or options for RynLib
+    set_config CONFIG: sets the config file or options for RynLib
+    update_lib: updates RynLib from GitHub
+    install_mpi: installs the necessary MPI libraries
 
 dmc -- anything involved in running the DMC itself, not in making the potential work
     list: lists the set of known DMC simulations
@@ -33,16 +35,35 @@ dmc -- anything involved in running the DMC itself, not in making the potential 
     
 pot -- anything involved in configuring a potential for use in the DMC
     list: lists the set of known compiled potentials
-    call NAME COORDS: calls the potential NAME on the coordinates file COORDS
     add NAME CONFIG SRC: adds a potential NAME to the set of known potentials using the file CONFIG and the source SRC
     compile NAME: attempts to compile the potential NAME if it had not already been
     remove NAME: removes the potential NAME
 ```
 
-##Data & Optimizations
+##Configuring a Container Environment
 
-Getting data in/out of the container is still a work in progress. The best way to mount a volume and work with this is still TBD.
+One thing to be mindful of is that your _container_ is not the same as your _image_. The _image_ will be built locally from the Dockerfile via, the `build_img.sh` script. 
+This is the overall set of raw utilities the program might use
 
-The MPI hook-in is also still a work in progress, but should be resolvable in the near future.
+The _container_ is a specific instance of the image. A container is editable, so things like `rynlib config update_lib` will work to edit the container.
+This will not work on the image.
 
+You can build get a Docker container from the image by using [`docker create`](https://docs.docker.com/engine/reference/commandline/create/). 
+Do all your work starting from a container.
 
+##Data & MPI
+
+We're focused, initially, on the [Singularity](https://sylabs.io/docs/) use case, but we're also going to think about [Shifter](https://www.nersc.gov/research-and-development/user-defined-images/) and we'll make it possible to use directly with Docker.
+
+In the Singularity world, the container can only contact the host environment through a small number of endpoints. Happily one of those is `$PWD`. 
+This means that we're writing/reading all simulation data to/from `./simulations` and potential data to/from `./potentials`.
+
+The MPI question is also a little subtle and requires that you have first gotten a container built.
+
+In this case, there are two variables you can set on the config, `mpi_version` and `mpi_implementation`. These both have to be aligned with the environment you're working on.
+For instance, on Hyak the default is to use OpenMPI v3.1.4 and so you need to set `mpi_version=3.1.4` and `mpi_implementation=ompi`. 
+On NeRSC this is slightly different, as the `mpi_implementation=mpich`.
+
+##Examples
+
+No examples are provided yet, but if we use this enough we'll write some.

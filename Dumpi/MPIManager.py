@@ -26,10 +26,10 @@ class MPIManagerObject:
     @property
     def lib(self):
         if self._lib is None:
-            from ..Interface import GeneralConfig
+            from ..Interface import RynLib
             loader = CLoader("Dumpi", os.path.dirname(os.path.abspath(__file__)),
                              linked_libs=["mpi"],
-                             include_dirs=[GeneralConfig.get_conf().mpi_dir]
+                             include_dirs=[RynLib.get_conf().mpi_dir]
                              )
             self._lib = loader.load()
         return self._lib
@@ -73,9 +73,9 @@ class MPIManagerError(Exception):
         raise cls("MPI must be initialized first")
 
 class MPIManagerLoader:
-    _manager_initialized = False
-    manager = None
-
+    def __init__(self):
+        self._manager_initialized = False
+        self.manager = None
     def load_manager(self):
         if not self._manager_initialized:
             self.manager = MPIManagerObject()
@@ -86,7 +86,6 @@ class MPIManagerLoader:
             self._manager_initialized = True
 
         return self.manager
-
     def __call__(self):
         self.load_manager()
 MPIManager = MPIManagerLoader()

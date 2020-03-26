@@ -9,8 +9,8 @@ __all__ = [
 class SimulationManager:
     def __init__(self, config_dir=None):
         if config_dir is None:
-            from ..Interface import GeneralConfig
-            config_dir = GeneralConfig.get_conf().simulation_directory
+            from ..Interface import RynLib
+            config_dir = RynLib.get_conf().simulation_directory
         self.manager = ConfigManager(config_dir)
 
     def list_simulations(self):

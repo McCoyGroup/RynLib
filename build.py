@@ -6,10 +6,10 @@ import os
 
 os.chdir(os.path.dirname(__file__))
 
-from RynLib.Interface import GeneralConfig
+from RynLib.Interface import RynLib
 
 print("--INSTALLING OPEN MPI--")
-GeneralConfig.install_MPI()
+RynLib.install_MPI()
 
 print("--MOUNTING VOLUMES FOR DATA READ/WRITE--")
-GeneralConfig.bind_volumes()
+RynLib.bind_volumes()

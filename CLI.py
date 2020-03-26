@@ -36,7 +36,7 @@ class CLI:
         return {k: getattr(args, k) for k in keys}
 
     def config_run_tests(self):
-        GeneralConfig.run_tests()
+        RynLib.run_tests()
 
     def config_set_config(self):
         """
@@ -49,16 +49,16 @@ class CLI:
             ("--potdir", dict(default="", type=str, dest='simulation_directory')),
             ("--env", dict(default="singularity", type=str, dest='containerizer'))
         )
-        GeneralConfig.edit_config(**parse_dict)
+        RynLib.edit_config(**parse_dict)
 
     def config_install_mpi(self):
-        GeneralConfig.install_MPI()
+        RynLib.install_MPI()
 
     def config_update_lib(self):
-        GeneralConfig.update_lib()
+        RynLib.update_lib()
 
     def config_update_testing_framework(self):
-        GeneralConfig.update_testing_framework()
+        RynLib.update_testing_framework()
 
     def sim_list(self):
         SimulationInterface.list_simulations()
@@ -107,7 +107,6 @@ class CLI:
 
     def run(self):
         getattr(self, self.group + "_" + self.cmd)()
-
 
 if __name__ == "__main__":
     if sys.argv[1] == "interact":

@@ -8,7 +8,7 @@ import os
 class SimulationTests(TestCase):
 
     def setUp(self):
-        self.cm = SimulationManager(GeneralConfig.get_conf().simulations_directory)
+        self.cm = SimulationManager(RynLib.get_conf().simulations_directory)
 
     @debugTest
     def test_SimpleHO(self):

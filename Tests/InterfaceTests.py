@@ -8,7 +8,7 @@ class InterfaceTests(TestCase):
 
     @debugTest
     def test_LoadConfig(self):
-        self.assertEquals(GeneralConfig.get_conf().mpi_version, "3.1.4")
+        self.assertEquals(RynLib.get_conf().mpi_version, "3.1.4")
 
     @debugTest
     def test_CompileMPI(self):
