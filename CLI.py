@@ -41,6 +41,9 @@ class CLI:
         )
         GeneralConfig.edit_config(**parse_dict)
 
+    def config_update_RynLib(self):
+        GeneralConfig.update_lib()
+
     def sim_add(self):
         """
         Add a simulation to RynLib

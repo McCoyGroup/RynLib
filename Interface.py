@@ -75,6 +75,27 @@ class GeneralConfig:
     @classmethod
     def get_container_env(cls):
         return cls.get_conf().containerizer
+
+    @classmethod
+    def update_lib(cls):
+        """
+        Pulls the updated RynLib from GitHub
+
+        :return:
+        :rtype:
+        """
+        import subprocess
+
+        curdir = os.getcwd()
+        try:
+            os.chdir(os.path.dirname(__file__))
+            print(subprocess.check_call(["git", "fetch"]))
+        except subprocess.CalledProcessError as e:
+            print(e.output)
+            raise
+        finally:
+            os.chdir(curdir)
+
     @classmethod
     def install_MPI(cls):
         """Installs MPI into the containerized environment"""
