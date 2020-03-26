@@ -128,7 +128,7 @@ class RynLib:
         return env
     @classmethod
     def get_conf(cls):
-        default_env = cls.get_container_env()
+        default_env = cls.get_default_env()
         conf_path = os.path.join(default_env["root_directory"], cls.config_file)
         new_conf = not os.path.exists(conf_path)
         if new_conf:

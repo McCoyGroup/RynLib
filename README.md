@@ -83,21 +83,21 @@ After building RynLib using the scripts in `build_img.sh`, we can think about ru
 Here's the way you might alias RynLib for use with Docker:
 
 ```ignorelang
-rynlib="docker run --mount source=simdata,target=/config -it rynlib"
+rynlib="docker run --mount source=simdata,target=/config -it rynimg"
 ```
 
 ### Singularity
 With Singularity we lost the ability to mount our own volume and instead `$PWD` is used
 
 ```ignorelang
-rynlib="singularity run docker://rynlib"
+rynlib="singularity run docker://rynimg"
 ```
 
 ### Shifter
 With Shifter we directly bind directories, so we might have
 
 ```ignorelang
-rynlib="shifter run --volume="/global/cfs/m802/rjdiri/dmc_data:/config" rynlib"
+rynlib="shifter run --volume="/global/cfs/m802/rjdiri/dmc_data:/config" rynimg"
 ```
 
 Keep in mind that with Shifter the `sbatch` process is [slightly different](https://docs.nersc.gov/programming/shifter/how-to-use/#running-jobs-in-shifter-images)
