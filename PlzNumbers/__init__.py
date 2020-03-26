@@ -6,3 +6,4 @@ from .PotentialCaller import *
 from .PotentialTemplator import *
 from .PotentialLoader import *
 from .Potential import *
+from .PotentialManager import *

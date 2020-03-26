@@ -7,6 +7,10 @@ from .PotentialCaller import PotentialCaller
 from .PotentialTemplator import PotentialTemplate
 import os
 
+__all__ = [
+    "Potential"
+]
+
 class Potential:
     """
     A very general wrapper to a potential:

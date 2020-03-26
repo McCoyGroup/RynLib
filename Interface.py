@@ -4,6 +4,8 @@ The overall interface to the RynLib CLI
 
 import os, shutil
 from .RynUtils import Config, ConfigSerializer
+from .PlzNumbers import PotentialManager
+from .DoMyCode import SimulationManager
 
 __all__ = [
     "SimulationInterface",
@@ -15,33 +17,64 @@ class SimulationInterface:
     """
     Defines all of the CLI options for working with simulations
     """
-    def list_simulations(self):
-        ...
-    def add_simulation(self):
-        ...
-    def remove_simulation(self):
-        ...
-    def set_simulation_config(self):
-        ...
-    def restart_simulation(self):
-        ...
+    @classmethod
+    def list_simulations(cls):
+        print("\n".join(SimulationManager().list_simulations()))
+
+    @classmethod
+    def add_simulation(self, name=None, config_file=None):
+        SimulationManager().add_simulation(name, config_file)
+        print("Added simulation {}".format(name))
+
+    @classmethod
+    def remove_simulation(self, name=None):
+        SimulationManager().remove_simulation(name)
+        print("Removed simulation {}".format(name))
+
+    @classmethod
+    def simulation_status(self, name=None):
+        status = SimulationManager().simulation_ran(name)
+        config = SimulationManager().simulation_config(name)
+        print(
+            "Status: {}".format(status),
+            *("  {}: {}".format(k, v) for k, v in config.opt_dict.items()),
+            sep="\n"
+        )
+
+    @classmethod
+    def edit_simulation(self, name=None, **opts):
+        SimulationManager().edit_simulation(name, **opts)
+
+    @classmethod
+    def run_simulation(self, name=None):
+        SimulationManager().run_simulation(name)
+
+    @classmethod
+    def restart_simulation(self, name=None):
+        SimulationManager().restart_simulation(name)
 
 class PotentialInterface:
     """
     Defines all of the CLI options for working with potentials
     """
 
+    @classmethod
     def list_potentials(self):
-        ...
+        print("\n".join(PotentialManager().list_potentials()))
 
-    def add_potential(self):
-        ...
+    @classmethod
+    def add_potential(self, name=None, src=src, config_file=config_file):
+        PotentialManager().add_potential(name, config_file, src)
+        print("Added potential {}".format(name))
 
-    def compile_potential(self):
-        ...
+    @classmethod
+    def remove_potential(self, name=None):
+        PotentialManager().remove_potential(name)
+        print("Removed potential {}".format(name))
 
-    def set_potential_config(self):
-        ...
+    @classmethod
+    def compile_potential(self, name=None):
+        PotentialManager().compile_potential(name)
 
 class GeneralConfig:
     """
@@ -77,6 +110,16 @@ class GeneralConfig:
         return cls.get_conf().containerizer
 
     @classmethod
+    def run_tests(cls):
+
+        curdir = os.getcwd()
+        try:
+            os.chdir(os.path.dirname(os.path.dirname(__file__)))
+            import RynLib.Tests.run_tests
+        finally:
+            os.chdir(curdir)
+
+    @classmethod
     def update_lib(cls):
         """
         Pulls the updated RynLib from GitHub
@@ -89,6 +132,26 @@ class GeneralConfig:
         curdir = os.getcwd()
         try:
             os.chdir(os.path.dirname(__file__))
+            print(subprocess.check_call(["git", "pull"]))
+        except subprocess.CalledProcessError as e:
+            print(e.output)
+            raise
+        finally:
+            os.chdir(curdir)
+
+    @classmethod
+    def update_testing_framework(cls):
+        """
+        Pulls the updated RynLib from GitHub
+
+        :return:
+        :rtype:
+        """
+        import subprocess
+
+        curdir = os.getcwd()
+        try:
+            os.chdir(os.path.join(os.path.dirname(os.path.dirname(__file__)), "Peeves"))
             print(subprocess.check_call(["git", "pull"]))
         except subprocess.CalledProcessError as e:
             print(e.output)

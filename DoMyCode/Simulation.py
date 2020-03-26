@@ -1,7 +1,8 @@
 import os, numpy as np, time
 from .WalkerSet import WalkerSet
 from ..RynUtils import Logger, ParameterManager
-from ..Dumpi import MPIManager
+from ..Dumpi import *
+from ..PlzNumbers import PotentialManager
 
 __all__ = [
     "Simulation"
@@ -406,7 +407,7 @@ class Simulation:
         :param potential:
         :type potential: function
         :param mpi_manager:
-        :type mpi_manager: MPIManager
+        :type mpi_manager: MPIManagerObject
         :param steps_per_propagation:
         :type steps_per_propagation: int
         :param trial_wvfn:
@@ -419,8 +420,13 @@ class Simulation:
 
         self.name = name
         self.description = description
-        self.walkers = walker_set
-        self.potential = potential
+        if isinstance(walker_set, str):
+            walker_set = WalkerSet.from_file(walker_set)
+        elif isinstance(walker_set, dict):
+            walker_set = WalkerSet(**walker_set)
+
+        self.walkers = walker_set if isinstance(walker_set, WalkerSet) else WalkerSet(walker_set)
+        self.potential = PotentialManager().load_potential(potential) if isinstance(potential, str) else potential
         self.alpha = alpha
         self.steps_per_propagation = steps_per_propagation
 
@@ -433,8 +439,10 @@ class Simulation:
         self.wavefunctions = deque()
         self._num_wavefunctions = 0 # here so we can do things with save_wavefunction <- mattered in the past when I sometimes had deque(maxlength=1)
 
+        if mpi_manager is None:
+            mpi_manager = MPIManager()
         self.mpi_manager = mpi_manager
-        self.dummied = mpi_manager.world_rank != 0
+        self.dummied = mpi_manager is None or mpi_manager.world_rank != 0
 
         self.trial_wvfn = trial_wvfn
         self.imp_samp = trial_wvfn is not None

@@ -1,5 +1,5 @@
 import numpy as np, os
-from ..RynUtils import CLoader
+from ..RynUtils import CLoader, ParameterManager
 
 __all__ = [
     "PotentialCaller"
@@ -9,6 +9,13 @@ class PotentialCaller:
     """
     Takes a pointer to a C++ potential calls this potential on a set of geometries / atoms / whatever
     """
+    __props__ = [
+        "bad_walker_file",
+        "mpi_manager",
+        "raw_array_potential",
+        "vectorized_potential",
+        "error_value"
+    ]
     def __init__(self, potential, *ignore,
                  bad_walker_file="bad_walkers.txt",
                  mpi_manager=None,

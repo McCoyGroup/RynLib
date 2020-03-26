@@ -58,7 +58,14 @@ class PotentialTemplate(TemplateWriter):
     """
     A `TemplateWriter` that handles most of the necessary boiler plate to get a C++ potential to play nice with DoMyCode
     """
-
+    __props__ = [
+        "lib_name",
+        "function_name",
+        "potential_source",
+        "raw_array_potential",
+        "arguments",
+        "linked_libs"
+    ]
     def __init__(self,
                  *ignored,
                  lib_name = None,

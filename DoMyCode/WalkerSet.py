@@ -19,13 +19,18 @@ class WalkerSet:
         else:
             self.num_walkers = len(initial_walker)
 
-        self.coords = initial_walker
+        self.coords = np.asarray(initial_walker)
         self.weights = np.ones(num_walkers)
 
         self.parents = np.arange(num_walkers)
         self.sigmas = None
         self._parents = self.coords.copy()
         self._parent_weights = self.weights.copy()
+
+    @classmethod
+    def from_file(cls, file):
+        npz = np.load(file)
+        return cls(atoms=npz["atoms"], masses=npz["masses"], initial_walker=npz["walkers"])
 
     def initialize(self, deltaT, D):
         """Sets up necessary parameters for use in calculating displacements and stuff

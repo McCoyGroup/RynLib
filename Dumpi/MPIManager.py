@@ -5,18 +5,21 @@ needing to know about MPI.
 Allows for easier separation of components.
 """
 from ..RynUtils import CLoader
+from ..Interface import GeneralConfig
 import os
 
 __all__ = [
-    "MPIManager"
+    "MPIManager",
+    "MPIManagerObject"
 ]
 
-class MPIManager:
+class MPIManagerObject:
     _initted = False
     _final = False
     _comm = None
     _world_size = None
     _world_rank = None
+
     def __init__(self):
         self._lib = None
         self.init_MPI()
@@ -25,7 +28,8 @@ class MPIManager:
     def lib(self):
         if self._lib is None:
             loader = CLoader("Dumpi", os.path.dirname(os.path.abspath(__file__)),
-                             linked_libs=["mpi"]
+                             linked_libs=["mpi"],
+                             include_dirs=[GeneralConfig.get_conf().mpi_dir]
                              )
             self._lib = loader.load()
         return self._lib
@@ -67,5 +71,24 @@ class MPIManagerError(Exception):
     @classmethod
     def raise_uninitialized(cls):
         raise cls("MPI must be initialized first")
+
+class MPIManagerLoader:
+    _manager_initialized = False
+    manager = None
+
+    def load_manager(self):
+        if not self._manager_initialized:
+            self.manager = MPIManagerObject()
+            try:
+                self.manager.init_MPI()
+            except ImportError:
+                self.manager = None
+            self._manager_initialized = True
+
+        return self.manager
+
+    def __call__(self):
+        self.load_manager()
+MPIManager = MPIManagerLoader()
 
 

@@ -1,3 +1,4 @@
+from ..Interface import GeneralConfig
 from ..RynUtils import ConfigManager
 from .Simulation import Simulation, SimulationParameters
 import os, shutil
@@ -7,7 +8,9 @@ __all__ = [
 ]
 
 class SimulationManager:
-    def __init__(self, config_dir = os.path.expanduser("~/Desktop/simulations")):
+    def __init__(self, config_dir=None):
+        if config_dir is None:
+            config_dir = GeneralConfig.get_conf().simulation_directory
         self.manager = ConfigManager(config_dir)
 
     def list_simulations(self):
@@ -19,9 +22,15 @@ class SimulationManager:
     def add_simulation(self, name, config_file = None, **opts):
         self.manager.add_config(name, config_file = config_file, **opts)
 
+    def edit_simulation(self, name, **opts):
+        self.manager.edit_config(name, **opts)
+
+    def simulation_config(self, name):
+        return self.manager.load_config(name)
+
     def simulation_output_folder(self, name):
         loc = self.manager.config_loc(name)
-        return os.path.join(loc, "dmc_data")
+        return os.path.join(loc, "data")
 
     def simulation_ran(self, name):
         return os.path.isdir(self.simulation_output_folder(name))

@@ -15,7 +15,7 @@ class CLoader:
                  lib_dir,
                  src_ext = 'src',
                  description = "An extension module",
-                 verion = "1.0.0",
+                 version = "1.0.0",
                  include_dirs = None,
                  linked_libs = None,
                  macros = None,
@@ -31,7 +31,7 @@ class CLoader:
         self.lib_name = lib_name
         self.lib_dir = lib_dir
         self.lib_description = description
-        self.lib_version = verion
+        self.lib_version = version
 
         self.include_dirs = () if include_dirs is None else tuple(include_dirs)
         self.linked_libs = () if linked_libs is None else tuple(linked_libs)

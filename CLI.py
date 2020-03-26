@@ -22,13 +22,21 @@ class CLI:
         parser = argparse.ArgumentParser()
         keys = []
         for arg in spec:
-            if 'dest' in arg[1]:
-                keys.append(arg[1]['dest'])
+            if len(arg) > 1:
+                arg_name, arg_dict = arg
             else:
-                keys.append(arg[0])
-            parser.add_argument(arg[0], **arg[1])
+                arg_name = arg
+                arg_dict = {}
+            if 'dest' in arg_dict:
+                keys.append(arg_dict['dest'])
+            else:
+                keys.append(arg_name)
+            parser.add_argument(arg_name, **arg_dict)
         args = parser.parse_args()
         return {k: getattr(args, k) for k in keys}
+
+    def config_run_tests(self):
+        GeneralConfig.run_tests()
 
     def config_set_config(self):
         """
@@ -43,39 +51,66 @@ class CLI:
         )
         GeneralConfig.edit_config(**parse_dict)
 
+    def config_install_mpi(self):
+        GeneralConfig.install_MPI()
+
     def config_update_lib(self):
         GeneralConfig.update_lib()
 
+    def config_update_testing_framework(self):
+        GeneralConfig.update_testing_framework()
+
+    def sim_list(self):
+        SimulationInterface.list_simulations()
+
     def sim_add(self):
-        """
-        Add a simulation to RynLib
-        :return:
-        :rtype:
-        """
         parse_dict = self.get_parse_dict(
             ("name",),
             ("--config", dict(default="", type=str, dest='config'))
         )
         SimulationInterface.add_simulation(**parse_dict)
 
-    def sim_set_config(self):
-        """
-        Add a simulation to RynLib
-        :return:
-        :rtype:
-        """
+    def sim_remove(self):
+        parse_dict = self.get_parse_dict(
+            ("name",)
+        )
+        SimulationInterface.remove_simulation(**parse_dict)
+
+    def sim_run(self):
+        parse_dict = self.get_parse_dict(
+            ("name",)
+        )
+        SimulationInterface.run_simulation(**parse_dict)
+
+    def pot_list(self):
+        PotentialInterface.list_potentials()
+
+    def pot_add(self):
         parse_dict = self.get_parse_dict(
             ("name",),
+            ("--source", dict(default="", type=str, dest='src')),
             ("--config", dict(default="", type=str, dest='config'))
         )
-        SimulationInterface.set_config(**parse_dict)
+        PotentialInterface.add_potential(**parse_dict)
+
+    def pot_remove(self):
+        parse_dict = self.get_parse_dict(
+            ("name",)
+        )
+        PotentialInterface.remove_potential(**parse_dict)
+
+    def pot_compile(self):
+        parse_dict = self.get_parse_dict(
+            ("name",)
+        )
+        PotentialInterface.compile_potential(**parse_dict)
 
     def run(self):
         getattr(self, self.group + "_" + self.cmd)()
 
 
 if __name__ == "__main__":
-    if sys.argv[1] == "-i":
+    if sys.argv[1] == "interact":
         import code
         code.interact(banner=None, readfunc=None, local=None, exitmsg=None)
     else:
