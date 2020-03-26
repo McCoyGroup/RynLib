@@ -1,4 +1,3 @@
-from ..Interface import GeneralConfig
 from ..RynUtils import ConfigManager
 from .Simulation import Simulation, SimulationParameters
 import os, shutil
@@ -10,6 +9,7 @@ __all__ = [
 class SimulationManager:
     def __init__(self, config_dir=None):
         if config_dir is None:
+            from ..Interface import GeneralConfig
             config_dir = GeneralConfig.get_conf().simulation_directory
         self.manager = ConfigManager(config_dir)
 

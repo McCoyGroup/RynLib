@@ -1,7 +1,6 @@
 *.DS_Store
 
 Peeves
-Dockerfile
 DockerfileEntos
 config.py
 
