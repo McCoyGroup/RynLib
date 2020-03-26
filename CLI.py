@@ -3,7 +3,7 @@ Defines the command-line interface to RynLib
 """
 
 import sys, os, argparse
-sys.path.insert(0, os.path.dirname(__file__))
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from RynLib.Interface import *
 
@@ -75,4 +75,8 @@ class CLI:
 
 
 if __name__ == "__main__":
-    CLI().run()
+    if sys.argv[1] == "-i":
+        from idlelib import idle
+        idle.main()
+    else:
+        CLI().run()
