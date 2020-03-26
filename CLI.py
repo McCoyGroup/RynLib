@@ -2,8 +2,10 @@
 Defines the command-line interface to RynLib
 """
 
-import sys, argparse
-from .Interface import *
+import sys, os, argparse
+sys.path.insert(0, os.path.dirname(__file__))
+
+from RynLib.Interface import *
 
 class CLI:
     def __init__(self):
