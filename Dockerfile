@@ -15,8 +15,6 @@ RUN \
   pip3 install wget
 
 RUN \
-  rm -rf /home/RynLib &&\
-  rm -rf /home/Peeves &&\
   git clone https://github.com/McCoyGroup/RynLib /home/RynLib &&\
   git clone https://github.com/McCoyGroup/Peeves /home/Peeves
 

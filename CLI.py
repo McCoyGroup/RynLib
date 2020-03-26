@@ -110,7 +110,6 @@ class CLI:
 
 
 if __name__ == "__main__":
-    print(sys.argv[1], sys.argv[2])
     if sys.argv[1] == "interact":
         import code
         code.interact(banner=None, readfunc=None, local=None, exitmsg=None)
