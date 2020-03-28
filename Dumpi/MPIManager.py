@@ -5,7 +5,7 @@ needing to know about MPI.
 Allows for easier separation of components.
 """
 from ..RynUtils import CLoader
-import os
+import os, sys
 
 __all__ = [
     "MPIManager",
@@ -43,6 +43,15 @@ class MPIManagerObject:
                          )
         return loader.load()
 
+    @classmethod
+    def _remove_lib(cls):
+        from ..Interface import RynLib
+        import shutil
+        mpi_dir = RynLib.get_conf().mpi_dir
+        dump_lib = os.path.join(mpi_dir, "Dumpi")
+        if os.path.exists(dump_lib):
+            shutil.rmtree(dump_lib)
+
     @property
     def lib(self):
         if self._lib is None:
@@ -54,6 +63,7 @@ class MPIManagerObject:
         cls = type(self)
         if not cls._initted:
             giveMePI = self.lib.giveMePI
+            # giveMePI _must_ be called from the class
             world_rank, world_size = giveMePI(cls) # as written
             cls._world_size = world_size
             cls._world_rank = world_rank
@@ -85,7 +95,22 @@ class MPIManagerObject:
         self.init_MPI()
         if self._initted is None:
             MPIManagerError.raise_uninitialized()
-        return self._comm
+        return self.lib._COMM_WORLD
+
+    @property
+    def gather(self):
+        self.init_MPI()
+        if self._initted is None:
+            MPIManagerError.raise_uninitialized()
+        return self.lib._GATHER_WALKERS
+
+    @property
+    def scatter(self):
+        self.init_MPI()
+        if self._initted is None:
+            MPIManagerError.raise_uninitialized()
+        mod = sys.modules[type(self).__module__]
+        return self.lib._SCATTER_WALKERS
 
 class MPIManagerError(Exception):
     @classmethod
@@ -98,16 +123,15 @@ class MPIManagerLoader:
         self.manager = None
     def load_manager(self):
         if not self._manager_initialized:
+            self._manager_initialized = True
             self.manager = MPIManagerObject()
             try:
                 self.manager.init_MPI()
             except ImportError:
                 self.manager = None
-            self._manager_initialized = True
-
         return self.manager
     def __call__(self):
-        self.load_manager()
+        return self.load_manager()
 MPIManager = MPIManagerLoader()
 
 

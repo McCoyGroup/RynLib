@@ -57,6 +57,17 @@ PotentialArray _noMPIGetPot(
         ExtraFloats &extra_floats
         );
 
+PyObject* _mpiGetPyPot(
+        PyObject* manager,
+        PyObject* pot_func,
+        RawWalkerBuffer raw_data,
+        PyObject* atoms,
+        PyObject* extra,
+        int ncalls,
+        Py_ssize_t num_walkers,
+        Py_ssize_t num_atoms
+);
+
 #define PLZNUMBERS_POTATORS_HPP
 
 #endif //PLZNUMBERS_POTATORS_HPP

@@ -1,4 +1,4 @@
-from ..RynUtils import CLoader
+from ..RynUtils import CLoader, ModuleLoader
 
 __all__ = [
     "PotentialLoader"
@@ -34,9 +34,11 @@ class PotentialLoader:
                  build_script=None,
                  requires_make=False,
                  out_dir=None,
+                 python_potential=False,
                  cleanup_build=True
                  ):
-        self.loader = CLoader(name, src,
+        self.python_potential = python_potential
+        self.c_loader = CLoader(name, src,
                               src_ext=src_ext,
                               description=description,
                               version=version,
@@ -54,7 +56,21 @@ class PotentialLoader:
     @property
     def lib(self):
         if self._lib is None:
-            self._lib = self.loader.load()
+            if self.python_potential:
+                loader = ModuleLoader()
+                remade = False
+                try:
+                    self._lib = loader.load(self.c_loader.lib_dir, self.c_loader.lib_name+"Lib")
+                except ImportError:
+                    if self.c_loader.requires_make:
+                        remade = True
+                        self.c_loader.make_required_libs()
+                    else:
+                        raise
+                if remade:
+                    self._lib = loader.load(self.c_loader.lib_dir, self.c_loader.lib_name + "Lib")
+            else:
+                self._lib = self.c_loader.load()
         return self._lib
     @property
     def pointer(self):

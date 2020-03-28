@@ -4,12 +4,6 @@
 
 #include "Python.h"
 
-#ifdef I_HAVE_PIE
-
-#include "mpi.h"
-
-#endif
-
 // We'll do a bunch of typedefs and includes and stuff to make it easier to work with/debug this stuff
 
 #include "RynTypes.hpp"
@@ -25,6 +19,9 @@ static PyObject *PlzNumbers_callPot
         ( PyObject *, PyObject * );
 
 static PyObject *PlzNumbers_callPotVec
+        ( PyObject *, PyObject * );
+
+static PyObject *PlzNumbers_callPyPotVec
         ( PyObject *, PyObject * );
 
 #endif

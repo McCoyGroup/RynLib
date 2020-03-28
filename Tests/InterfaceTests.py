@@ -12,5 +12,10 @@ class InterfaceTests(TestCase):
 
     @debugTest
     def test_CompileMPI(self):
-        ...
+        RynLib.configure_mpi()
+
+    @debugTest
+    def test_CompileEntos(self):
+        PotentialInterface.configure_entos()
+
 

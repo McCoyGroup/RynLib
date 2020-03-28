@@ -32,6 +32,7 @@ class PotentialCaller:
         self.raw_array_potential = raw_array_potential
         self.error_value = error_value
         self._lib = None
+        self._py_pot = not repr(self.potential).startswith("<capsule object ")  # wow this is a hack...
 
     @classmethod
     def _load_lib(cls):
@@ -61,17 +62,20 @@ class PotentialCaller:
         :rtype:
         """
 
-        return self.lib.rynaLovesPoots(
-            atoms,
-            np.ascontiguousarray(walker).astype(float),
-            self.potential,
-            self.bad_walkers_file,
-            self.error_value,
-            self.raw_array_potential,
-            extra_bools,
-            extra_ints,
-            extra_floats
-        )
+        if self._py_pot:
+            return self.potential(walker, atoms, (extra_bools, extra_ints, extra_floats))
+        else:
+            return self.lib.rynaLovesPoots(
+                atoms,
+                np.ascontiguousarray(walker).astype(float),
+                self.potential,
+                self.bad_walkers_file,
+                self.error_value,
+                self.raw_array_potential,
+                extra_bools,
+                extra_ints,
+                extra_floats
+            )
 
     def call_multiple(self, walker, atoms, extra_bools=(), extra_ints=(), extra_floats=()):
         """
@@ -83,21 +87,41 @@ class PotentialCaller:
         :return:
         :rtype:
         """
+
         smol_guy = walker.ndim == 3
         if smol_guy:
             walker = np.reshape(walker, walker.shape[:1] + (1,) + walker.shape[1:])
-        poots = self.lib.rynaLovesPootsLots(atoms,
-                                            np.ascontiguousarray(walker).astype(float),
-                                            self.potential,
-                                            self.bad_walkers_file,
-                                            self.error_value,
-                                            self.raw_array_potential,
-                                            self.vectorized_potential,
-                                            self.mpi_manager,
-                                            extra_bools,
-                                            extra_ints,
-                                            extra_floats
-                                            )
+
+        if self._py_pot and self.mpi_manager is None:
+            poots = self.potential(walker, atoms, (extra_bools, extra_ints, extra_floats))
+        elif self._py_pot:
+            walker = walker.transpose((1, 0, 2, 3))
+            poots = self.lib.rynaLovesPyPootsLots(
+                atoms,
+                np.ascontiguousarray(walker).astype(float),
+                self.potential,
+                self.mpi_manager,
+                (extra_bools, extra_ints, extra_floats)
+            )
+            if poots is not None:
+                poots = poots.transpose()
+        else:
+            walker = walker.transpose((1, 0, 2, 3))
+            poots = self.lib.rynaLovesPootsLots(
+                atoms,
+                np.ascontiguousarray(walker).astype(float),
+                self.potential,
+                self.bad_walkers_file,
+                self.error_value,
+                self.raw_array_potential,
+                self.vectorized_potential,
+                self.mpi_manager,
+                extra_bools,
+                extra_ints,
+                extra_floats
+            )
+            if poots is not None:
+                poots = poots.transpose()
         return np.squeeze(poots)
 
     def __call__(self, walkers, atoms, *extra_args):
@@ -125,14 +149,17 @@ class PotentialCaller:
         if not isinstance(walkers, np.ndarray):
             walkers = np.array(walkers)
 
-        if walkers.ndim == 2:
+        ndim = walkers.ndim
+
+        if ndim == 2:
             poots = self.call_single(walkers, atoms, extra_bools, extra_ints, extra_floats)
-        elif walkers.ndim == 3 or walkers.ndim == 4:
+        elif ndim == 3 or ndim == 4:
             poots = self.call_multiple(walkers, atoms, extra_bools, extra_ints, extra_floats)
         else:
             raise ValueError(
-                "{}: caller expects either a single configuration, a vector of configurations, or a vector of vector of configurations".format(
-                    type(self).__name__
+                "{}: caller expects data of rank 2, 3, or 4. Got {}.".format(
+                    type(self).__name__,
+                    ndim
                     )
                 )
 

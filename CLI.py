@@ -33,7 +33,8 @@ class CLI:
                 keys.append(arg_name)
             parser.add_argument(arg_name, **arg_dict)
         args = parser.parse_args()
-        return {k: getattr(args, k) for k in keys}
+        opts = {k: getattr(args, k) for k in keys}
+        return {k:o for k,o in opts.items() if not (isinstance(o, str) and o=="")}
 
     def config_build_libs(self):
         RynLib.build_libs()
@@ -59,6 +60,9 @@ class CLI:
 
     def config_install_mpi(self):
         RynLib.install_MPI()
+
+    def config_reload_dumpi(self):
+        RynLib.reload_dumpi()
 
     def config_configure_mpi(self):
         RynLib.configure_mpi()
@@ -124,14 +128,33 @@ class CLI:
         )
         SimulationInterface.simulation_status(**parse_dict)
 
+    def sim_list_samplers(self):
+        SimulationInterface.list_samplers()
+
+    def sim_add_sampler(self):
+        parse_dict = self.get_parse_dict(
+            ("name",),
+            ("--config", dict(default="", type=str, dest='config_file')),
+            ("--src", dict(default="", type=str, dest='source'))
+        )
+        SimulationInterface.add_sampler(**parse_dict)
+
+    def sim_remove_sampler(self):
+        parse_dict = self.get_parse_dict(
+            ("name",)
+        )
+        SimulationInterface.remove_sampler(**parse_dict)
+
     def pot_list(self):
         PotentialInterface.list_potentials()
 
     def pot_add(self):
         parse_dict = self.get_parse_dict(
             ("name",),
-            ("--source", dict(default="", type=str, dest='src')),
-            ("--config", dict(default="", type=str, dest='config_file'))
+            ("src",),
+            ("--config", dict(default="", type=str, dest='config_file')),
+            ("--data", dict(default="", type=str, dest='data')),
+            ("--test", dict(default="", type=str, dest='test_file'))
         )
         PotentialInterface.add_potential(**parse_dict)
 
@@ -152,6 +175,20 @@ class CLI:
             ("name",)
         )
         PotentialInterface.potential_status(**parse_dict)
+
+    def pot_test(self):
+        parse_dict = self.get_parse_dict(
+            ("name",),
+            ("--in", dict(default="", type=str, dest='input_file'))
+        )
+        PotentialInterface.test_potential(**parse_dict)
+
+    def pot_test_mpi(self):
+        parse_dict = self.get_parse_dict(
+            ("name",),
+            ("--in", dict(default="", type=str, dest='input_file'))
+        )
+        PotentialInterface.test_potential_mpi(**parse_dict)
 
     def pot_configure_entos(self):
         PotentialInterface.configure_entos()

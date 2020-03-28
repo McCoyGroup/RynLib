@@ -19,8 +19,11 @@ class SimulationManager:
     def remove_simulation(self, name):
         self.manager.remove_config(name)
 
-    def add_simulation(self, name, config_file = None, **opts):
+    def add_simulation(self, name, config_file = None, data=None, **opts):
         self.manager.add_config(name, config_file = config_file, **opts)
+        if data is not None:
+            data_src = os.path.join(self.manager.config_loc(name), os.path.basename(data))
+            shutil.copytree(data, data_src)
         self.manager.edit_config(name, name=name)
 
     def edit_simulation(self, name, **opts):
@@ -68,3 +71,6 @@ class SimulationManager:
         """
 
         raise NotImplemented
+
+    def export_simulation(self, name, path):
+        shutil.copytree(self.manager.config_loc(name), path)

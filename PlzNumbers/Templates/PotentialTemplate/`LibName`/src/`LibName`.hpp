@@ -3,14 +3,7 @@
 #include "Python.h"
 #include "RynTypes.hpp"
 
-Real_t `LibName`_Potential(
-    const Coordinates,
-    const Names,
-    const ExtraBools,
-    const ExtraInts,
-    const ExtraFloats
-    );
-Real_t `PotentialCallDeclaration`;
+`MethodDeclarations`
 
 #define RYNLIB_`LIBNAME`_POT_HPP
 

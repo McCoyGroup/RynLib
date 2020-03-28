@@ -120,6 +120,26 @@ PyObject *_getNumPyArray(
     return pot;
 }
 
+PyObject *_getNumPyArray(
+        int n,
+        int m,
+        int l,
+        const char *dtype
+) {
+    // Initialize NumPy array of correct size and dtype
+    PyObject *builder = _getNumPyZerosMethod();
+    if (builder == NULL) return NULL;
+    PyObject *dims = Py_BuildValue("((iii))", n, m, l);
+    Py_XDECREF(builder);
+    if (dims == NULL) return NULL;
+    PyObject *kw = Py_BuildValue("{s:s}", "dtype", dtype);
+    if (kw == NULL) return NULL;
+    PyObject *pot = PyObject_Call(builder, dims, kw);
+    Py_XDECREF(kw);
+    Py_XDECREF(dims);
+    return pot;
+}
+
 // NumPy Communication Methods
 PyObject *_fillNumPyArray(
         const PotentialArray &pot_vals,
@@ -142,4 +162,30 @@ PyObject *_fillNumPyArray(
         );
     };
     return pot;
+}
+
+PyObject *_fillNumPyArray(
+        RawPotentialBuffer pot_vals,
+        const int ncalls,
+        const int num_walkers
+) {
+    // Initialize NumPy array of correct size and dtype
+    PyObject *pot = _getNumPyArray(ncalls, num_walkers, "float");
+    if (pot == NULL) return NULL;
+    double *data = _GetDoubleDataArray(pot);
+    memcpy(data, pot_vals, sizeof(double)  * num_walkers * num_walkers);
+    return pot;
+}
+
+PyObject *_fillWalkersNumPyArray(
+        const RawWalkerBuffer coords,
+        const int num_walkers,
+        const int natoms
+) {
+    // Initialize NumPy array of correct size and dtype
+    PyObject *walkers = _getNumPyArray(num_walkers, natoms, 3, "float");
+    if (walkers == NULL) return NULL;
+    double *data = _GetDoubleDataArray(walkers);
+    memcpy(data, coords, sizeof(double)  * num_walkers * natoms * 3);
+    return walkers;
 }

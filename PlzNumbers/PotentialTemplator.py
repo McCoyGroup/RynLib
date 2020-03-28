@@ -54,76 +54,35 @@ class PotentialArgument:
     def __str__(self):
         return self.name
 
-class PotentialTemplate(TemplateWriter):
-    """
-    A `TemplateWriter` that handles most of the necessary boiler plate to get a C++ potential to play nice with DoMyCode
-    """
-    __props__ = [
-        "lib_name",
-        "function_name",
-        "potential_source",
-        "raw_array_potential",
-        "arguments",
-        "linked_libs"
-    ]
+class PotentialFunction:
     def __init__(self,
-                 *ignored,
                  lib_name = None,
-                 function_name = None,
-                 potential_source = None,
-                 raw_array_potential = False,
+                 name = None,
+                 pointer = None,
                  arguments = (),
-                 linked_libs = None,
-                 static_source = False
+                 default_args = None,
+                 old_style_potential = None,
+                 return_type = "Real_t"
                  ):
-        """
-
-        :param lib_name:
-        :type lib_name: str
-        :param function_name:
-        :type function_name:
-        :param potential_source:
-        :type potential_source:
-        :param raw_array_potential:
-        :type raw_array_potential:
-        :param arguments:
-        :type arguments:
-        :param linked_libs:
-        :type linked_libs:
-        """
-
-        if len(ignored) > 0:
-            raise PotentialTemplateError("{} requires all arguments to be passed as keywords".format(
-                type(self).__name__
-            ))
-
-        if function_name is None:
-            PotentialTemplateError.raise_missing_option(
-                type(self),
-                'function_name',
-                "the name of the function used to get the potential value"
-            )
-
-        self.name = lib_name
-        self.potential_source = potential_source
-        self.function_name = function_name
-        self.old_style_potential = raw_array_potential
+        self.lib_name = lib_name
+        self.name = name
+        self.pointer = pointer # name in the PyCapsule
         self.arguments = [PotentialArgument(*x) for x in arguments]
-        self.libs = linked_libs
-
-        self.static_source = static_source
-
-        super().__init__(
-            os.path.join(os.path.dirname(__file__), "Templates", "PotentialTemplate"),
-            LibName = lib_name,
-            LIBNAME = lib_name.upper(),
-            PotentialCall = self.get_potential_call(),
-            PotentialCallDeclaration = self.get_potential_declaration(),
-            OldStylePotential = "true" if self.old_style_potential else "false",
-            PotentialLoadExtraBools=self.get_extra_args_call(bool),
-            PotentialLoadExtraInts=self.get_extra_args_call(int),
-            PotentialLoadExtraFloats=self.get_extra_args_call(float)
-        )
+        if default_args is None:
+            arg_names = [a[0] for a in arguments]
+            if "coords" in arg_names or "atoms" in arg_names or "raw_coords" in arg_names or "raw_atoms" in arg_names:
+                default_args = False
+            else:
+                default_args = True
+        self.default_args = default_args
+        if old_style_potential is None:
+            arg_names = [a[0] for a in arguments]
+            if "raw_coords" in arg_names or "raw_atoms" in arg_names:
+                old_style_potential = True
+            else:
+                old_style_potential = False
+        self.old_style = old_style_potential
+        self.return_type = return_type
 
     def get_extra_args_call(self, dtype):
         """
@@ -146,16 +105,188 @@ class PotentialTemplate(TemplateWriter):
         return "\n".join(call)
 
     def get_potential_call(self):
-        main_args = ["coords", "atoms"] if not self.old_style_potential else ["raw_coords", "raw_atoms"]
-        return self.function_name + "(" + ",".join(
+        if self.default_args:
+            main_args = ["coords", "atoms"] if not self.old_style else ["raw_coords", "raw_atoms"]
+        else:
+            main_args = []
+        return self.name + "(" + ",".join(
             main_args + [str(arg) for arg in self.arguments]
         ) + ")"
 
     def get_potential_declaration(self):
-        main_args = ["Coordinates", "Names"] if not self.old_style_potential else ["RawWalkerBuffer", "const char*"]
-        return self.function_name + "(" + ",".join(
-            main_args + [arg.dtype if isinstance(arg.dtype, str) else arg.dtype.__name__ for arg in self.arguments]
+        if self.default_args:
+            main_args = ["Coordinates", "Names"] if not self.old_style else ["RawWalkerBuffer", "const char*"]
+        else:
+            main_args = []
+        def get_arg_type(arg):
+            if arg.name == "coords":
+                return "Coordinates"
+            elif arg.name == "raw_coords":
+                return "RawWalkerBuffer"
+            elif arg.name == "atoms":
+                return "Names"
+            elif arg.name == "raw_atoms":
+                return "const char*"
+            elif isinstance(arg.dtype, str):
+                return arg.dtype
+            else:
+                return arg.dtype.__name__
+        return self.name + "(" + ",".join(
+            main_args + [ get_arg_type(arg) for arg in self.arguments ]
         ) + ")"
+
+    def get_attach_declaration(self):
+        return """if (!_AttachCapsuleToModule(m, {lib}_{name}Wrapper, "{pointer}")) {{ return NULL; }}""".format(
+            lib = self.lib_name,
+            name = self.name,
+            pointer = self.pointer
+        )
+
+    old_style_block = """
+            // Copy data into a single array
+            int nels = coords.size() * coords[0].size();
+            std::vector<Real_t> long_vec (nels);
+            nels = 0;
+            std::vector<Real_t> sub_vec;
+            for (unsigned long v=0; v<coords.size(); v++) {
+                sub_vec = coords[v];
+                long_vec.insert(long_vec.end(), sub_vec.begin(), sub_vec.end());
+            }
+            RawWalkerBuffer raw_coords = long_vec.data();
+        
+            std::string long_atoms;
+            for (unsigned long v=0; v<atoms.size(); v++) {
+                long_atoms = long_atoms + atoms[v] + " ";
+            }
+            const char* raw_atoms = long_atoms.data();
+        """
+
+    def get_wrapper(self):
+        return """
+        {return_type} {lib}_{name}(
+            Coordinates coords,
+            Names atoms,
+            ExtraBools extra_bools,
+            ExtraInts extra_ints,
+            ExtraFloats extra_floats
+            ) {{
+        
+            // Load extra args (if necessary)
+            {load_bools}
+            {load_ints}
+            {load_floats}
+            {old_style_block}
+        
+            return {potential_call};
+        }}
+        
+        static PyObject* {lib}_{name}Wrapper = PyCapsule_New((void *){lib}_{name}, "{pointer}", NULL);
+        """.format(
+            lib = self.lib_name,
+            name = self.name,
+            return_type = self.return_type,
+            load_bools = self.get_extra_args_call(bool),
+            load_ints=self.get_extra_args_call(int),
+            load_floats=self.get_extra_args_call(float),
+            old_style_block = self.old_style_block if self.old_style else "",
+            pointer = self.pointer,
+            potential_call = self.get_potential_call()
+        )
+
+    def get_declaration(self):
+        return """
+        {return_type} {lib}_{name}(
+            const Coordinates,
+            const Names,
+            const ExtraBools,
+            const ExtraInts,
+            const ExtraFloats
+            );
+        {return_type} {declaration};""".format(
+            return_type=self.return_type,
+            lib=self.lib_name,
+            name=self.name,
+            declaration=self.get_potential_declaration()
+        )
+
+class PotentialTemplate(TemplateWriter):
+    """
+    A `TemplateWriter` that handles most of the necessary boiler plate to get a C++ potential to play nice with DoMyCode
+    """
+    __props__ = [
+        "lib_name",
+        "function_name",
+        "potential_source",
+        "raw_array_potential",
+        "arguments",
+        "linked_libs"
+    ]
+    def __init__(self,
+                 *ignored,
+                 lib_name = None,
+                 function_name = None,
+                 potential_source = None,
+                 raw_array_potential = None,
+                 arguments = (),
+                 linked_libs = None,
+                 static_source = False,
+                 extra_functions = ()
+                 ):
+        """
+
+        :param lib_name:
+        :type lib_name: str
+        :param function_name:
+        :type function_name:
+        :param potential_source:
+        :type potential_source:
+        :param raw_array_potential:
+        :type raw_array_potential:
+        :param arguments:
+        :type arguments:
+        :param linked_libs:
+        :type linked_libs:
+        :param extra_functions: Extra functions if we'll have more than the default one
+        :type extra_functions:
+        """
+
+        if len(ignored) > 0:
+            raise PotentialTemplateError("{} requires all arguments to be passed as keywords".format(
+                type(self).__name__
+            ))
+
+        if function_name is None:
+            PotentialTemplateError.raise_missing_option(
+                type(self),
+                'function_name',
+                "the name of the function used to get the potential value"
+            )
+
+        self.name = lib_name
+        self.potential_source = potential_source
+        main_function = PotentialFunction(
+            lib_name = lib_name,
+            name = function_name,
+            old_style_potential=raw_array_potential,
+            arguments=arguments,
+            pointer="_potential"
+        )
+
+        self.functions = [main_function] + [
+            o if isinstance(o, PotentialFunction) else PotentialFunction(**o) for o in extra_functions
+        ]
+
+        self.libs = linked_libs
+        self.static_source = static_source
+
+        super().__init__(
+            os.path.join(os.path.dirname(__file__), "Templates", "PotentialTemplate"),
+            LibName = lib_name,
+            LIBNAME = lib_name.upper(),
+            MethodWrappers = "\n\n".join(g.get_wrapper() for g in self.functions),
+            AttachMethods="\n".join(g.get_attach_declaration() for g in self.functions),
+            MethodDeclarations="\n".join(g.get_declaration() for g in self.functions)
+        )
 
     # @property
     # def lib_names(self):

@@ -10,10 +10,12 @@ FROM entos
 #RyAN AND MARK HAFVE FUN TOGETHER
 
 RUN \
-  git clone https://github.com/McCoyGroup/RynLib /home/RynLib &&\
   git clone https://github.com/McCoyGroup/Peeves /home/Peeves
+#   &&\
+#  git clone https://github.com/McCoyGroup/RynLib /home/RynLib
 
-#ADD . /home/RynLib
+
+ADD . /home/RynLib
 #RUN git clone https://github.com/McCoyGroup/Peeves /home/Peeves
 
 RUN python3 /home/RynLib/CLI.py config build_libs

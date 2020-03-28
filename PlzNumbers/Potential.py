@@ -29,6 +29,7 @@ class Potential:
                  arguments=(),
                  potential_directory = None,
                  static_source = False,
+                 extra_functions=(),
 
                  #Loader Options
                  src_ext='src',
@@ -42,6 +43,7 @@ class Potential:
                  requires_make=False,
                  out_dir=None,
                  cleanup_build=True,
+                 python_potential=False,
 
                  #Caller Options
                  bad_walker_file="bad_walkers.txt",
@@ -53,11 +55,12 @@ class Potential:
         self.name = name
 
         self._atoms = None
+        self._args = ()
 
         if wrap_potential:
             if potential_directory is None:
                 from ..Interface import RynLib
-                potential_directory = RynLib.get_conf().potential_directory
+                potential_directory = os.path.abspath(RynLib.get_conf().potential_directory)
             if not os.path.exists(potential_directory):
                 os.makedirs(potential_directory)
             pot_src = src
@@ -69,7 +72,8 @@ class Potential:
                     function_name=function_name,
                     raw_array_potential=raw_array_potential,
                     arguments=arguments,
-                    static_source=static_source
+                    static_source=static_source,
+                    extra_functions=extra_functions
                 ).apply(potential_directory)
 
         self.src = src
@@ -87,7 +91,8 @@ class Potential:
             build_script=build_script,
             requires_make=requires_make,
             out_dir=out_dir,
-            cleanup_build=cleanup_build
+            cleanup_build=cleanup_build,
+            python_potential=python_potential
         )
 
         self._caller = None
@@ -107,13 +112,23 @@ class Potential:
                 **self._caller_opts
             )
         return self._caller
+    @property
+    def mpi_manager(self):
+        return self.caller.mpi_manager
+    @mpi_manager.setter
+    def mpi_manager(self, manager):
+        self.caller.mpi_manager = manager
 
     def bind_atoms(self, atoms):
         self._atoms = atoms
+    def bind_arguments(self, args):
+        self._args = args
     def __call__(self, coordinates, *extra_args):
         if self._atoms is not None:
             atoms = self._atoms
         else:
             atoms = extra_args[0]
             extra_args = extra_args[1:]
+        if len(extra_args) == 0:
+            extra_args = self._args
         return self.caller(coordinates, atoms, *extra_args)

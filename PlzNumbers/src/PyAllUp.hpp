@@ -30,6 +30,18 @@ PyObject *_fillNumPyArray(
         const int num_walkers
 );
 
+PyObject *_fillNumPyArray(
+        RawPotentialBuffer coords,
+        const int ncalls,
+        const int num_walkers
+);
+
+PyObject *_fillWalkersNumPyArray(
+        RawWalkerBuffer coords,
+        const int num_walkers,
+        const int natoms
+);
+
 #define RYNLIB_PYALLUP_HPP
 
 #endif //RYNLIB_PYALLUP_HPP

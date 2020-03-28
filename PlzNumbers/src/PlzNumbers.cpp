@@ -42,6 +42,7 @@ int _LoadExtraArgs(
 
 }
 
+
 PyObject *PlzNumbers_callPot(PyObject* self, PyObject* args ) {
 
     PyObject* atoms;
@@ -213,11 +214,89 @@ PyObject *PlzNumbers_callPotVec( PyObject* self, PyObject* args ) {
 
 }
 
+PyObject *PlzNumbers_callPyPotVec( PyObject* self, PyObject* args ) {
+    // vector version of callPot
+
+    PyObject* atoms;
+    PyObject* coords;
+    PyObject* pot_function;
+    PyObject* ext_args;
+    PyObject* manager;
+    if ( !PyArg_ParseTuple(args, "OOOOO",
+                           &atoms,
+                           &coords,
+                           &pot_function,
+                           &manager,
+                           &ext_args
+    ) ) return NULL;
+
+    // MOST OF THIS BLOCK IS DIRECTLY COPIED FROM callPotVec
+
+    // Assumes we get n atom type names
+    Py_ssize_t num_atoms = PyObject_Length(atoms);
+    if (PyErr_Occurred()) return NULL;
+    // But since we have a python potential we don't even pull them out...
+
+    // we'll assume we have number of walkers X ncalls X number of atoms X 3
+    PyObject *shape = PyObject_GetAttrString(coords, "shape");
+    if (shape == NULL) return NULL;
+
+    PyObject *num_walkers_obj = PyTuple_GetItem(shape, 0);
+    if (num_walkers_obj == NULL) return NULL;
+    Py_ssize_t num_walkers = _FromInt(num_walkers_obj);
+    if (PyErr_Occurred()) return NULL;
+
+    PyObject *ncalls_obj = PyTuple_GetItem(shape, 1);
+    if (ncalls_obj == NULL) return NULL;
+    Py_ssize_t ncalls = _FromInt(ncalls_obj);
+    if (PyErr_Occurred()) return NULL;
+
+    // this thing should have the walker number as the slowest moving index then the number of the timestep
+    // that way we'll really have the correct memory entering into our calls
+    double* raw_data = _GetDoubleDataArray(coords);
+    if (raw_data == NULL) return NULL;
+
+//    printf("num calls %d num walkers %d num atoms %d\n", ncalls, num_walkers, num_atoms);
+    // We can tell if MPI is active or not by whether COMM is None or not
+    PyObject *pot_vals;
+    if (manager == Py_None) {
+        pot_vals = NULL;
+    } else {
+        pot_vals = _mpiGetPyPot(
+                manager,
+                pot_function,
+                raw_data,
+                atoms,
+                ext_args,
+                ncalls,
+                num_walkers,
+                num_atoms
+        );
+    }
+
+    return pot_vals;
+
+//    bool main_core = true;
+//    if ( manager != Py_None ){
+//        PyObject *rank = PyObject_GetAttrString(manager, "world_rank");
+//        if (rank == NULL) { return NULL; }
+//        main_core = (_FromInt(rank) == 0);
+//        Py_XDECREF(rank);
+//    }
+//    if ( main_core ){
+//        return pot_vals;
+//    } else {
+//        Py_RETURN_NONE;
+//    }
+
+}
+
 // PYTHON WRAPPER EXPORT
 
 static PyMethodDef PlzNumbersMethods[] = {
     {"rynaLovesPoots", PlzNumbers_callPot, METH_VARARGS, "calls a potential on a single walker"},
     {"rynaLovesPootsLots", PlzNumbers_callPotVec, METH_VARARGS, "calls a potential on a vector of walkers"},
+    {"rynaLovesPyPootsLots", PlzNumbers_callPyPotVec, METH_VARARGS, "calls a _python_ potential on a vector of walkers"},
     {NULL, NULL, 0, NULL}
 };
 

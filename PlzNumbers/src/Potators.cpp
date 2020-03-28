@@ -164,8 +164,8 @@ PotentialArray _mpiGetPot(
     RawWalkerBuffer walker_buf = (RawWalkerBuffer) malloc(walkers_to_core * walker_cnum * sizeof(Real_t));
 
     // Scatter data buffer to processors
-    PyObject* scatter = PyObject_GetAttrString(manager, "_scatter_walkers");
-    ScatterFunction scatter_walkers = (ScatterFunction) PyCapsule_GetPointer(scatter, "_Scatter_Walkers");
+    PyObject* scatter = PyObject_GetAttrString(manager, "scatter");
+    ScatterFunction scatter_walkers = (ScatterFunction) PyCapsule_GetPointer(scatter, "Dumpi._SCATTER_WALKERS");
     scatter_walkers(
             manager,
             raw_data,  // raw data buffer to chunk up
@@ -230,11 +230,11 @@ PotentialArray _mpiGetPot(
     if ( world_rank == 0) {
         pot_buf = (RawPotentialBuffer) malloc(ncalls * num_walkers * sizeof(Real_t));
     }
-    PyObject* gather = PyObject_GetAttrString(manager, "_gather_walkers");
-    GatherFunction gather_walkers = (GatherFunction) PyCapsule_GetPointer(gather, "_Gather_Walkers");
+    PyObject* gather = PyObject_GetAttrString(manager, "gather");
+    GatherFunction gather_walkers = (GatherFunction) PyCapsule_GetPointer(gather, "Dumpi._GATHER_WALKERS");
     gather_walkers(
             manager,
-            pots,
+            pots.data(),
             walkers_to_core, // number of walkers fed in
             pot_buf // buffer to get the potential values back
     );
@@ -302,4 +302,142 @@ PotentialArray _noMPIGetPot(
     }
     return potVals;
 
+}
+
+PyObject* _mpiGetPyPot(
+        PyObject* manager,
+        PyObject* pot_func,
+        RawWalkerBuffer raw_data,
+        PyObject* atoms,
+        PyObject* extra,
+        int ncalls,
+        Py_ssize_t num_walkers,
+        Py_ssize_t num_atoms
+) {
+
+    // UP UNTIL THE POTENTIAL CALL THIS IS THE SAME AS mpiGetPot
+
+    //
+    // The way this works is that we start with an array of data that looks like (ncalls, num_walkers, *walker_shape)
+    // Then we have m cores such that num_walkers_per_core = num_walkers / m
+    //
+    // We pass these in to MPI and allow them to get distributed out as blocks of ncalls * num_walkers_per_core walkers
+    // to a given core, which calculates the potential over all of them and then returns that
+    //
+    // At the end we have a potential array that is m * (ncalls * num_walkers_per_core) walkers and we need to make this
+    // back into the clean (ncalls, num_walkers) array we expect in the end
+    PyObject* ws = PyObject_GetAttrString(manager, "world_size");
+    int world_size = _FromInt(ws);
+    Py_XDECREF(ws);
+    PyObject* wr = PyObject_GetAttrString(manager, "world_rank");
+    int world_rank = _FromInt(wr);
+    Py_XDECREF(wr);
+
+    // we're gonna assume the former is divisible by the latter on world_rank == 0
+    // and that it's just plain `num_walkers` on every other world_rank
+    int num_walkers_per_core = (num_walkers / world_size);
+    if (world_rank > 0) {
+        // means we're only feeding in num_walkers because we're not on world_rank == 0
+        num_walkers_per_core = num_walkers;
+    }
+
+    // create a buffer for the walkers to be fed into MPI
+    int walker_cnum = num_atoms*3;
+    int walkers_to_core = ncalls * num_walkers_per_core;
+
+    RawWalkerBuffer walker_buf = (RawWalkerBuffer) malloc(walkers_to_core * walker_cnum * sizeof(Real_t));
+
+//    PyObject* dumpi = PyImport_ImportModule("Dumpi");
+
+    // Scatter data buffer to processors
+    PyObject* scatter = PyObject_GetAttrString(manager, "scatter");
+    ScatterFunction scatter_walkers = (ScatterFunction) PyCapsule_GetPointer(scatter, "Dumpi._SCATTER_WALKERS");
+    if (scatter_walkers == NULL) {
+        PyErr_SetString(PyExc_AttributeError, "Couldn't get scatter pointer");
+        return NULL;
+    };
+    if (scatter_walkers(
+            manager,
+            raw_data,  // raw data buffer to chunk up
+            walkers_to_core,
+            walker_cnum, // three coordinates per atom per num_atoms per walker
+            walker_buf // raw array to write into
+    ) == -1) {
+        return NULL;
+    }
+    Py_XDECREF(scatter);
+
+//    printf("filling walkers array...\n");
+
+    // We can just take the buffer and directly turn it into a NumPy array
+    PyObject* walkers = _fillWalkersNumPyArray(walker_buf, walkers_to_core, num_atoms);
+
+    if (walkers == NULL) {
+        free(walker_buf);
+        return NULL;
+    }
+
+//    printf("packing up args...\n");
+    PyObject* args = PyTuple_New(3);
+    // We use SET_ITEM not SetItem because we _don't_ want to give our references to `args`
+    PyTuple_SET_ITEM(args, 0, walkers);
+    PyTuple_SET_ITEM(args, 1, atoms);
+    PyTuple_SET_ITEM(args, 2, extra);
+
+//    printf("calling function on walkers array...\n");
+    PyObject* pot_vals = PyObject_CallObject(pot_func, args);
+    if (pot_vals == NULL) {
+//        PyErr_SetString(PyExc_ValueError, "potential function failed to call?");
+        Py_XDECREF(args);
+        Py_XDECREF(walkers);
+        return NULL;
+    }
+
+//    printf("extracting returned data...?\n");
+    RawPotentialBuffer pots = _GetDoubleDataArray(pot_vals);
+
+//    Py_XDECREF(args);
+    Py_XDECREF(walkers);
+
+    //   [
+    //      pot_i(t=0), pot_i(t=1), ... pot_i(t=n),
+    //      ...,
+    //      pot_(i+k)(t=0), pot_(i+k)(t=1), ... pot_(i+k)(t=n)
+    //   ]
+
+    // we don't work with the walker data at this point
+    free(walker_buf);
+
+//    printf("returning data walkers array...\n");
+
+    // receive buffer -- needs to be the number of walkers total in the system,
+    // so we take the number of walkers and multiply it into the number of calls we make
+    RawPotentialBuffer pot_buf = NULL;
+    PyObject *potVals = NULL;
+    if ( world_rank == 0) {
+        potVals = _getNumPyArray(num_walkers, ncalls, "float");
+        if (potVals == NULL) return NULL;
+        pot_buf = _GetDoubleDataArray(potVals);
+    }
+    PyObject* gather = PyObject_GetAttrString(manager, "gather");
+    GatherFunction gather_walkers = (GatherFunction) PyCapsule_GetPointer(gather, "Dumpi._GATHER_WALKERS");
+    if (gather_walkers == NULL) {
+        PyErr_SetString(PyExc_AttributeError, "Couldn't get gather pointer");
+        return NULL;
+    };
+//    printf("Recieved energies\n");
+//    for (int i=0; i < walkers_to_core; i++) {
+//        printf(" %f ", pots[i]);
+//    }
+//    printf("\nand now we're done...\n");
+    gather_walkers(
+            manager,
+            pots,
+            walkers_to_core, // number of walkers fed in
+            pot_buf // buffer to get the potential values back
+    );
+    Py_XDECREF(gather);
+    Py_XDECREF(pot_vals);
+
+    return potVals;
 }

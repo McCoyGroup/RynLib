@@ -221,14 +221,14 @@ class CLoader:
             if isinstance(make_cmd[0], str):
                 out = subprocess.check_output(make_cmd)
                 if len(out) > 0:
-                    print(out)
+                    print(out.decode())
             else:
                 for cmd in make_cmd:
                     out = subprocess.check_output(cmd)
                     if len(out) > 0:
-                        print(out)
+                        print(out.decode())
         except subprocess.CalledProcessError as e:
-            print(e.output)
+            print(e.output.decode())
             raise
         finally:
             os.chdir(curdir)
@@ -241,7 +241,11 @@ class CLoader:
         :rtype:
         """
         if self.requires_make:
-            self.custom_make(self.requires_make, os.path.join(self.lib_lib_dir, self.lib_name))
+            lib_d = self.lib_lib_dir
+            for lib in os.listdir(lib_d):
+                lib = os.path.join(lib_d, lib)
+                if os.path.isdir(lib):
+                    self.custom_make(self.requires_make, lib)
 
     def build_lib(self):
 

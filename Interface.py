@@ -5,7 +5,7 @@ The overall interface to the RynLib CLI
 import os, shutil
 from .RynUtils import Config, ConfigSerializer
 from .PlzNumbers import PotentialManager
-from .DoMyCode import SimulationManager
+from .DoMyCode import SimulationManager, ImportanceSamplerManager
 
 __all__ = [
     "SimulationInterface",
@@ -46,12 +46,58 @@ class SimulationInterface:
         SimulationManager().edit_simulation(name, **opts)
 
     @classmethod
+    def export_simulation(cls, name=None, path=None):
+        SimulationManager().export_simulation(name, path)
+
+    @classmethod
     def run_simulation(self, name=None):
         SimulationManager().run_simulation(name)
 
     @classmethod
     def restart_simulation(self, name=None):
         SimulationManager().restart_simulation(name)
+
+    @classmethod
+    def configure_HO(cls):
+        sm = SimulationManager()
+        pm = PotentialManager()
+        if 'HarmonicOscillator' not in pm.list_potentials():
+            PotentialInterface.configure_HO()
+        sm.add_simulation(
+            "HO_test",
+            description="Simple H-H with a fake harmonic oscillator potential",
+            walker_set=dict(
+                initial_walker=[[0, 0, 0], [1, 0, 0]],
+                atoms=["H", "H"],
+                masses=None,
+                walkers_per_core=10
+            ),
+            potential=dict(
+                name='HarmonicOscillator',
+                arguments=[.9, 1.]#re and k
+            ),
+            time_step=.1,
+            steps_per_propagation=10,
+            num_time_steps=10000,
+            checkpoint_at=100,
+            equilibration_steps=1000,
+            descendent_weight_every=500,
+            descendent_weighting_steps=50
+        )
+
+    @classmethod
+    def list_samplers(cls):
+        print("\n".join(ImportanceSamplerManager().list_samplers()))
+
+    @classmethod
+    def add_sampler(self, name=None, config_file=None, source=None):
+        ImportanceSamplerManager().add_sampler(name, source, config_file)
+        print("Added importance sampler {}".format(name))
+
+    @classmethod
+    def remove_sampler(self, name=None):
+        ImportanceSamplerManager().remove_sampler(name)
+        print("Removed simulation {}".format(name))
 
 class PotentialInterface:
     """
@@ -63,14 +109,31 @@ class PotentialInterface:
         print("\n".join(PotentialManager().list_potentials()))
 
     @classmethod
-    def add_potential(self, name=None, src=None, config_file=None):
-        PotentialManager().add_potential(name, config_file, src)
+    def add_potential(self, name=None, src=None, config_file=None, data=None, test_file=None):
+        no_config = config_file is None
+        if config_file is None:
+            if os.path.exists(os.path.join(src, "config.py")):
+                config_file = os.path.join(src, "config.py")
+        if data is None:
+            if os.path.exists(os.path.join(src, "data")):
+                data = os.path.join(src, "data")
+        if test_file is None:
+            if os.path.exists(os.path.join(src, "test.py")):
+                test_file = os.path.join(src, "test.py")
+        if no_config:
+            if os.path.exists(os.path.join(src, name)):
+                src = os.path.join(src, name)
+        PotentialManager().add_potential(name, src, config_file=config_file, data=data, test=test_file)
         print("Added potential {}".format(name))
 
     @classmethod
     def remove_potential(self, name=None):
         PotentialManager().remove_potential(name)
         print("Removed potential {}".format(name))
+
+    @classmethod
+    def export_potential(cls, name=None, path=None):
+        PotentialManager().export_potential(name, path)
 
     @classmethod
     def compile_potential(self, name=None):
@@ -118,6 +181,17 @@ class PotentialInterface:
             sep="\n"
         )
 
+    @classmethod
+    def test_potential(self, name=None, input_file=None):
+
+        print("Testing Potential: {}".format(name))
+        print("Energies: {}".format(PotentialManager().test_potential(name), input_file=input_file))
+
+    @classmethod
+    def test_potential_mpi(self, name=None, input_file=None, **opts):
+
+        PotentialManager().test_potential_mpi(name, input_file=input_file, **opts)
+
 class RynLib:
     """
     Defines all of the overall RynLib config things
@@ -161,6 +235,7 @@ class RynLib:
                 mpi_dir="/config/mpi"
             )
         return env
+
     @classmethod
     def get_conf(cls):
         default_env = cls.get_default_env()
@@ -174,6 +249,7 @@ class RynLib:
             )
         cfig = Config(conf_path)
         return cfig
+
     @classmethod
     def reset_config(cls):
         default_env = cls.get_default_env()
@@ -195,6 +271,10 @@ class RynLib:
     def build_libs(cls):
         from .PlzNumbers import PotentialCaller
         PotentialCaller._load_lib()
+
+        # if os.path.isdir(os.path.join(cls.get_conf().mpi_dir)):
+        #     cls.reload_dumpi()
+
 
     @classmethod
     def run_tests(cls):
@@ -323,6 +403,19 @@ class RynLib:
         MPIManagerObject._load_lib()
 
     @classmethod
+    def reload_dumpi(cls):
+        mpi_dir = cls.get_conf().mpi_dir
+        if not os.path.isdir(mpi_dir):
+            cls.install_MPI()
+
+        from .Dumpi import MPIManagerObject
+        try:
+            MPIManagerObject._remove_lib()
+        except OSError:
+            pass
+        MPIManagerObject._load_lib()
+
+    @classmethod
     def test_mpi(cls):
         mpi_dir = cls.get_conf().mpi_dir
         if not os.path.isdir(mpi_dir):
@@ -366,12 +459,12 @@ class RynLib:
         print("Energy of HO: {}".format(HO([[1, 2, 3], [1, 1, 1]], ["H", "H"], .9, 1.)))
 
     @classmethod
-    def test_potential_mpi(cls,
+    def test_potential_mpi(cls, # duplicated for now, but oh well
                            potential,
                            testWalker,
                            testAtoms,
                            *extra_args,
-                           walkers_per_core=5,
+                           walkers_per_core=8,
                            displacement_radius=.5,
                            iterations=5,
                            steps_per_call=5,
@@ -385,7 +478,7 @@ class RynLib:
         if mpi_manager is None:
             raise ImportError("MPI isn't installed. Use `container config install_mpi` first.")
 
-        mpi = MPIManagerObject()
+        mpi = mpi_manager #type: MPIManagerObject
 
         #
         # set up MPI
@@ -404,9 +497,12 @@ class RynLib:
         #
         # randomly permute things
         #
-        testWalkersss = np.array([testWalker] * num_walkers)
-        testWalkersss += np.random.uniform(low=-displacement_radius, high=displacement_radius,
-                                           size=testWalkersss.shape)
+        testWalkersss = np.array([testWalker] * num_walkers).astype(float)
+        testWalkersss += np.random.uniform(
+            low=-displacement_radius,
+            high=displacement_radius,
+            size=testWalkersss.shape
+        )
         test_iterations = iterations
         test_results = np.zeros((test_iterations,))
         lets_get_going = time.time()
@@ -414,25 +510,22 @@ class RynLib:
         # we compute the same walker for each of the nsteps, but that's okay -- gives a nice clean test that everything went right
         testWalkersss = np.broadcast_to(testWalkersss, (nsteps,) + testWalkersss.shape)
 
-
-
         #
         # run tests
         #
+        potential.mpi_manager = mpi_manager
         test_results_for_real = np.zeros((test_iterations, nsteps, num_walkers))
         for ttt in range(test_iterations):
             t0 = time.time()
-            # this gets the correct memory layout
-            test_walkers_reshaped = np.ascontiguousarray(testWalkersss.transpose(1, 0, 2, 3))
             # call the potential
             test_result = potential(
+                testWalkersss,
                 testAtoms,
-                test_walkers_reshaped,
                 *extra_args
             )
             # then we gotta transpose back to the input layout
             if who_am_i == 0:
-                test_results_for_real[ttt] = test_result.transpose()
+                test_results_for_real[ttt] = test_result
                 test_results[ttt] = time.time() - t0
         gotta_go_fast = time.time() - lets_get_going
 
@@ -454,7 +547,7 @@ class RynLib:
                 )
             else:
                 print(
-                    "Got back result with shape {}".format(test_result.shape),
+                    "Got back result with shape {}\n  and first element {}".format(test_result.shape, test_result[0]),
                     sep="\n"
                 )
             print("Total time: {}s (over {} iterations)".format(gotta_go_fast, test_iterations))
@@ -513,17 +606,15 @@ class RynLib:
 
         ho = PotentialManager().load_potential("HarmonicOscillator")
 
-        testWalker = np.array([
-            [0.000000, 0.0000000, 0.0000000],
-            [1.000000, 0.0000000, 0.0000000],
-        ])
+        testWalker = np.array([[1, 2, 3], [1, 1, 1]])
         testAtoms = ["H", "H"]
 
         cls.test_potential_mpi(
             ho,
             testWalker,
             testAtoms,
-            False,
+            .9,
+            1.,
             walkers_per_core=walkers_per_core,
             displacement_radius=displacement_radius,
             iterations=iterations,

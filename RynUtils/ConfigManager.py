@@ -81,13 +81,13 @@ class ConfigSerializer:
             mode = cls.get_serialization_mode(file)
         if mode == "dict":
             if attribute is not None:
-                cls.deserialize_module(file, attribute=attribute)
+                return cls.deserialize_module(file, attribute=attribute)
             else:
-                cls.deserialize_dict(file)
+                return cls.deserialize_dict(file)
         elif mode == "json":
-            cls.deserialize_json(file)
+            return cls.deserialize_json(file)
         elif mode == "pickle":
-            cls.deserialize_json(file)
+            return cls.deserialize_json(file)
         else:
             raise ValueError("{}.{}: don't know serialization mode ''".format(
                 cls.__name__,
@@ -269,7 +269,11 @@ class ConfigManager:
         :return:
         :rtype:
         """
-        shutil.rmtree(self.config_loc(name))
+        loc = self.config_loc(name)
+        if os.path.isdir(loc):
+            shutil.rmtree(loc)
+        else:
+            os.remove(loc)
 
     def edit_config(self, config_tag, **opts):
         """

@@ -16,4 +16,6 @@ class SimulationTests(TestCase):
 
     @debugTest
     def test_ImportanceSampling(self):
+        # Write a set of unit tests that checks if, given a certain trial wavefunction, the
+        # importance sampler class will not throw errors when calling `accept`, `metropolis`, etc.
         ...
