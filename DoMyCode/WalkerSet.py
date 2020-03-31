@@ -33,6 +33,7 @@ class WalkerSet:
         self.atoms = atoms
         self.masses = masses
 
+        initial_walker = np.asarray(initial_walker)
         if len(initial_walker.shape) == 2:
             initial_walker = np.array([ initial_walker ] * num_walkers)
         else:

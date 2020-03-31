@@ -1,6 +1,6 @@
 import os, numpy as np, time
 from .WalkerSet import WalkerSet
-from .ImportanceSampler import ImportanceSampler
+from .ImportanceSampler import ImportanceSampler, ImportanceSamplerManager
 from ..RynUtils import Logger, ParameterManager
 from ..Dumpi import *
 from ..PlzNumbers import PotentialManager
@@ -424,6 +424,13 @@ class Simulation:
 
         self.name = name
         self.description = description
+
+        # basically we don't let it not use MPI...
+        if mpi_manager is None:
+            mpi_manager = MPIManager()
+        elif isinstance(mpi_manager, str) and mpi_manager == "serial":
+            mpi_manager = None
+
         if isinstance(walker_set, str):
             walker_set = WalkerSet.from_file(walker_set, mpi_manager=mpi_manager)
         elif isinstance(walker_set, dict):
@@ -440,9 +447,10 @@ class Simulation:
             if 'parameters' in potential:
                 pot.bind_arguments(potential['parameters'])
             potential = pot
+        potential.mpi_manager = mpi_manager
         self.potential = potential
         if alpha is None:
-            alpha = 1.0 / (2.0 * time)
+            alpha = 1.0 / (2.0 * time_step)
         self.alpha = alpha
         self.steps_per_propagation = steps_per_propagation
 
@@ -455,13 +463,11 @@ class Simulation:
         self.wavefunctions = deque()
         self._num_wavefunctions = 0 # here so we can do things with save_wavefunction <- mattered in the past when I sometimes had deque(maxlength=1)
 
-        if mpi_manager is None:
-            mpi_manager = MPIManager()
         self.mpi_manager = mpi_manager
         self.dummied = mpi_manager is None or mpi_manager.world_rank != 0
 
         if isinstance(importance_sampler, str):
-            raise NotImplementedError("We haven't built out an ImportanceSamplerManager yet")
+            importance_sampler = ImportanceSamplerManager.load_sampler(importance_sampler)
         self.imp_samp = importance_sampler
         if self.imp_samp is not None:
             self.imp_samp.init_params(self.walkers.sigmas, self.time_step)
@@ -547,7 +553,7 @@ class Simulation:
             coord_sets = self.walkers.displace(nsteps, importance_sampler=self.imp_samp)
             self.log_print("Computing potential energy", verbosity=self.logger.LOG_STATUS)
             start = time.time()
-            energies = self.potential(self.walkers.atoms, coord_sets, sim=self)
+            energies = self.potential(coord_sets)
             if self.imp_samp is not None:
                 imp = self.imp_samp #type: ImportanceSampler
                 energies += imp.local_kin(coord_sets)
@@ -577,7 +583,7 @@ class Simulation:
             except AttributeError:
                 self._dummy_walkers = np.broadcast_to(self.walkers.coords, (nsteps,) + self.walkers.coords.shape).copy()
                 walk = self._dummy_walkers
-            self.potential(self.walkers.atoms, walk, sim=self)
+            self.potential(walk)
             self.counter.step_num += nsteps
 
     def _compute_vref(self, energies, weights):

@@ -76,30 +76,7 @@ class CLI:
     def config_update_testing_framework(self):
         RynLib.update_testing_framework()
 
-    def config_test_entos(self):
-        RynLib.test_entos()
-
-    def config_test_HO(self):
-        RynLib.test_HO()
-
-    def config_test_entos_mpi(self):
-        parse_dict = self.get_parse_dict(
-            ("--per_core", dict(default=5, type=int, dest="walkers_per_core")),
-            ("--disp", dict(default=.5, type=int, dest="displacement_radius")),
-            ("--its", dict(default=5, type=int, dest="iterations")),
-            ("--steps", dict(default=5, type=int, dest="steps_per_call"))
         )
-        RynLib.test_entos_mpi(**parse_dict)
-
-    def config_test_ho_mpi(self):
-        parse_dict = self.get_parse_dict(
-            ("--per_core", dict(default=5, type=int, dest="walkers_per_core")),
-            ("--disp", dict(default=.5, type=int, dest="displacement_radius")),
-            ("--its", dict(default=5, type=int, dest="iterations")),
-            ("--steps", dict(default=5, type=int, dest="steps_per_call"))
-        )
-        RynLib.test_ho_mpi(**parse_dict)
-
     def sim_list(self):
         SimulationInterface.list_simulations()
 
@@ -145,6 +122,9 @@ class CLI:
         )
         SimulationInterface.remove_sampler(**parse_dict)
 
+    def sim_test_HO(self):
+        SimulationInterface.test_HO()
+
     def pot_list(self):
         PotentialInterface.list_potentials()
 
@@ -175,6 +155,30 @@ class CLI:
             ("name",)
         )
         PotentialInterface.potential_status(**parse_dict)
+
+    def pot_test_entos(self):
+        RynLib.test_entos()
+
+    def pot_test_HO(self):
+        RynLib.test_HO()
+
+    def pot_test_entos_mpi(self):
+        parse_dict = self.get_parse_dict(
+            ("--per_core", dict(default=5, type=int, dest="walkers_per_core")),
+            ("--disp", dict(default=.5, type=int, dest="displacement_radius")),
+            ("--its", dict(default=5, type=int, dest="iterations")),
+            ("--steps", dict(default=5, type=int, dest="steps_per_call"))
+        )
+        RynLib.test_entos_mpi(**parse_dict)
+
+    def pot_test_ho_mpi(self):
+        parse_dict = self.get_parse_dict(
+            ("--per_core", dict(default=5, type=int, dest="walkers_per_core")),
+            ("--disp", dict(default=.5, type=int, dest="displacement_radius")),
+            ("--its", dict(default=5, type=int, dest="iterations")),
+            ("--steps", dict(default=5, type=int, dest="steps_per_call"))
+        )
+        RynLib.test_ho_mpi(**parse_dict)
 
     def pot_test(self):
         parse_dict = self.get_parse_dict(

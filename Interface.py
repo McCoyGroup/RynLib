@@ -51,39 +51,22 @@ class SimulationInterface:
 
     @classmethod
     def run_simulation(self, name=None):
+        print("Running simulation {}".format(name))
         SimulationManager().run_simulation(name)
+        print("Finished running simulation {}".format(name))
 
     @classmethod
-    def restart_simulation(self, name=None):
-        SimulationManager().restart_simulation(name)
-
-    @classmethod
-    def configure_HO(cls):
+    def test_HO(cls):
         sm = SimulationManager()
+        if "test_HO" in sm.list_simulations():
+            sm.remove_simulation("test_HO")
         pm = PotentialManager()
         if 'HarmonicOscillator' not in pm.list_potentials():
             PotentialInterface.configure_HO()
-        sm.add_simulation(
-            "HO_test",
-            description="Simple H-H with a fake harmonic oscillator potential",
-            walker_set=dict(
-                initial_walker=[[0, 0, 0], [1, 0, 0]],
-                atoms=["H", "H"],
-                masses=None,
-                walkers_per_core=10
-            ),
-            potential=dict(
-                name='HarmonicOscillator',
-                arguments=[.9, 1.]#re and k
-            ),
-            time_step=.1,
-            steps_per_propagation=10,
-            num_time_steps=10000,
-            checkpoint_at=100,
-            equilibration_steps=1000,
-            descendent_weight_every=500,
-            descendent_weighting_steps=50
-        )
+        sm.add_simulation("test_HO",
+                          os.path.join(os.path.dirname(__file__), "Tests", "TestData", "test_HO.py")
+                          )
+        cls.run_simulation("test_HO")
 
     @classmethod
     def list_samplers(cls):

@@ -72,7 +72,7 @@ class ImportanceSampler:
         """
         if self.derivs is None:
             psi = self.psi_calc(coords, self.trial_wvfn)
-            der = (psi[:, 2] - psi[:, 0]) / dx / psi[:, 1]
+            der = (psi[:, :, 2] - psi[:, :, 0]) / dx / psi[:, :, 1]
         else:
             psi = None
             der = self.derivs[0](coords, self.trial_wvfn)
@@ -123,8 +123,8 @@ class ImportanceSampler:
         """
 
         #TODO: Jacob, what is the role of asking for 1, 0, 0 at each timestep?
-        psi_1 = psi1[:, 1, 0, 0]
-        psi_2 = psi2[:, 1, 0, 0]
+        psi_1 = psi1[:, :, 1, 0, 0]
+        psi_2 = psi2[:, :, 1, 0, 0]
         psi_ratio = (psi_2 / psi_1) ** 2
         sigma = self.sigmas
         a = np.exp(1. / 2. * (Fqx + Fqy) * (sigma ** 2 / 4. * (Fqx - Fqy) - (y - x)))
@@ -147,8 +147,6 @@ class ImportanceSampler:
         :return:
         :rtype:
         """
-
-        # TODO: Jacob, do we want psi[:, :, 0] or psi[:, :, :, 0]? We have ncalls x nwalkers x natoms x 3 I think...
 
         sigma = self.sigmas
         time_step = self.time_step

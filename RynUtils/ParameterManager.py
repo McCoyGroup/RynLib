@@ -17,7 +17,10 @@ class ParameterManager:
     def __getattr__(self, item):
         return self.ops[item]
     def __setattr__(self, key, value):
-        self.ops[key] = value
+        if key == "ops":
+            super().__setattr__(key, value)
+        else:
+            self.ops[key] = value
     def __delattr__(self, item):
         del self.ops[item]
     def __hasattr__(self, key):
@@ -50,8 +53,10 @@ class ParameterManager:
         if props is None:
             props = self.get_props(obj)
         new = {}
+        ops = self.ops
         for k in props:
-            new[k] = self.ops[k]
+            if k in ops:
+               new[k] = ops[k]
         return new
 
     def serialize(self, file, mode = None):

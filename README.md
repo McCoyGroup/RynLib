@@ -4,11 +4,11 @@ This started out as a quick layer between python and entos for running DMC
 
 It's grown a bit...
 
-##Idea
+## Idea
 
 We provide a containerized environment in which to run DMC with the potential of your choice with whatever little bells and whistles your little heart desires.
 
-##Interface
+## Interface
 
 Since this is happening inside a container, we provide a command-line interface to the packages inside. This looks like:
 
@@ -87,7 +87,7 @@ pot -- anything involved in configuring a potential for use in the DMC
 
 ### Potential Options
 
-##Configuring a Container Environment
+## Configuring a Container Environment
 
 One thing to be mindful of is that your _container_ is not the same as your _image_. The _image_ will be built locally from the Dockerfile via, the `build_img.sh` script. 
 This is the overall set of raw utilities the program might use
@@ -96,7 +96,7 @@ The _container_ is a specific instance of the image. A container is editable, so
 This will not work on the image. 
 In general, you want your containers to be as stateless as possible, but sometimes for debugging it's nice to have the flexibility.
 
-##Data
+## Data
 
 We're focused, initially, on the [Singularity](https://sylabs.io/docs/) use case, but we're also going to think about [Shifter](https://www.nersc.gov/research-and-development/user-defined-images/) and we'll make it possible to use directly with Docker.
 
@@ -109,7 +109,7 @@ If you'd like to separate the simulation data out (say for space reasons) you ca
 
 This provides a persistence strategy, as by mounting a new volume you can change the configuration environment. For the most part, though, there should be no issue with always using a single volume.
 
-##MPI
+## MPI
 
 Working with MPI is also a little subtle and requires that you have first gotten a container built.
 
@@ -117,7 +117,7 @@ In this case, there are two variables you can set on the config, `mpi_version` a
 For instance, on Hyak the default is to use OpenMPI v3.1.4 and so you need to set `mpi_version=3.1.4` and `mpi_implementation=ompi`. 
 On NeRSC this is slightly different, as the `mpi_implementation=mpich`.
 
-#Examples
+# Examples
 
 These are not examples of the entire process, just small examples to get started on working with RynLib
 

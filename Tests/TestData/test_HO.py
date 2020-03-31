@@ -11,6 +11,7 @@ config = dict(
             initial_walker=[[1, 0, 0], [0, 0, 0]],
             walkers_per_core=1000
         ),
+    time_step = 1,
     steps_per_propagation=10,
     num_time_steps=10000,
     checkpoint_at=100,
