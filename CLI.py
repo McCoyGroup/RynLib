@@ -76,7 +76,6 @@ class CLI:
     def config_update_testing_framework(self):
         RynLib.update_testing_framework()
 
-        )
     def sim_list(self):
         SimulationInterface.list_simulations()
 
