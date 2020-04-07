@@ -189,11 +189,11 @@ class RynLib:
                 containerizer="singularity",
                 entos_binary="/entos/lib/libentos.so",
                 root_directory="",
-                simulation_directory="simulations",
-                potential_directory="potentials",
+                simulation_directory="./simulations",
+                potential_directory="./potentials",
                 mpi_version="3.1.4",
                 mpi_implementation="ompi",
-                mpi_dir="mpi"
+                mpi_dir="./mpi"
             )
         elif 'cori' in node:
             env = dict(
