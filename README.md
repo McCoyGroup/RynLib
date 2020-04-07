@@ -16,7 +16,53 @@ Some of these, like the MPI, are set automatically, unless there's an override o
 
 Everything has been designed to run inside a container, which adds another layer of complexity.
 
-## Interface
+## Getting Started
+
+The first thing we have to do is actually install the package and build it out. All changes live on GitHub, so we'll start by cloning the repository
+
+```ignorelang
+git clone https://github.com/McCoyGroup/RynLib.git RynLib
+```
+
+If you just want to pull the latest updates, you can use `git pull`.
+
+At this point, the specifics of the build process depend on whether you are on in a local compute environment in which case you'll want to use Docker, whether you're on a standard HPC in which case you're likely using Singularity, or if you're on NeRSC in which case you use Shifter. 
+
+Instructions for all of these environments are provided.
+
+You can make this all work without a container, but it will be much more work and I'm not going to write up general instructions for that at this point.
+
+### Docker
+
+RynLib with Docker can generally be configured using  `setup/build_docker.sh`
+
+If building on top of the Entos container, take `setup/DockerfileEntosTemplate` and replace `<ENTOS-COMMIT>` with the specific entos commit to build off of and call this new file `setup/DockerfileEntos`
+
+If not, take the `Dockerfile` and change it so that it will build off of `DockerfileCore` instead.
+
+After that run 
+
+```
+. build_docker.sh
+```
+
+### Singularity
+
+RynLib with Singularity can generally be configured using  `setup/build_docker.sh`
+
+Take `setup/SingularityEntosTemplate.def` and replace `<ENTOS-COMMIT>` with the specific entos commit to build off of and call this new file `setup/SingularityEntos.def`. 
+
+After that run 
+
+```
+. build_singularity.sh
+```
+
+## Running
+
+After building out the image we can run the various exposed commands.
+
+### Interface
 
 Since this is happening inside a container, we provide a command-line interface to the packages inside. This looks like:
 
@@ -31,10 +77,9 @@ config -- anything involved in configuring the overall package
     set_config CONFIG: sets the config file or options for RynLib
     configure_mpi: installs and compiles the necessary MPI libraries
 
-dmc -- anything involved in running the DMC itself, not in making the potential work
+sim -- anything involved in running the DMC itself, not in making the potential work
     list: lists the set of known DMC simulations
     status NAME: returns the status of the DMC simulation (timestep, number of walkers/wavefunctions, etc.)
-    set-config CONFIG: sets the config file for a simulation 
     add NAME CONFIG: adds a simulation with the tag NAME to the set of known simulations and uses the file CONFIG
     run NAME: runs the simulation with the tag NAME
     restart NAME: removes any existing simulation data and restart the simulation with the tag NAME
@@ -43,10 +88,48 @@ dmc -- anything involved in running the DMC itself, not in making the potential 
 pot -- anything involved in configuring a potential for use in the DMC
     list: lists the set of known compiled potentials
     add NAME CONFIG SRC: adds a potential NAME to the set of known potentials using the file CONFIG and the source SRC
-    status NAMEL returns the status of the porntial NAME
+    status NAME returns the status of the potenial NAME
     compile NAME: attempts to compile the potential NAME if it has not already been
     remove NAME: removes the potential NAME
 ```
+
+### Docker
+Here's the way you might alias RynLib for use with Docker:
+
+```ignorelang
+rynlib="docker run --rm --mount source=simdata,target=/config -it rynimg"
+```
+
+one thing to note is that if we want to get data into Docker, say for `rynlib sim add` we'll need to temporarily mount that as a volume, using the `-v` flag, e.g.
+
+```ignorelang
+function ryndata() { echo "docker run --rm --mount source=simdata,target=/config -it -v $1:rw rynimg"; }
+$(ryndata config_dir:/cf) sim add test /cf/config.py 
+```
+
+### Singularity
+With Singularity we lose the ability to mount our own volume and instead `$PWD` is used.
+
+If we've ported the Docker container up we can use it directly, like
+
+```ignorelang
+rynlib="singularity run docker://rynimg"
+```
+
+Otherwise we can use `Singularity.def` to build a `rynlib` SIF image that can be directly used like
+
+```ignorelang
+./rynlib [group] [command] [args]
+```
+
+### Shifter
+With Shifter we directly bind directories, so we might have
+
+```ignorelang
+rynlib="shifter run --volume="/global/cfs/m802/rjdiri/dmc_data:/config" rynimg"
+```
+
+Keep in mind that with Shifter the `sbatch` process is [slightly different](https://docs.nersc.gov/programming/shifter/how-to-use/#running-jobs-in-shifter-images)
 
 ### Config Files
 
@@ -93,81 +176,6 @@ For instance, on Hyak the default is to use OpenMPI v3.1.4 and so you need to se
 On NeRSC this is slightly different, as the `mpi_implementation=mpich`.
 
 By default, this has already been done for you, but it's worth keeping in mind in case you need to modify.
-
-# Examples
-
-These are not examples of the entire process, just small examples to get started on working with RynLib
-
-## Building
-
-### Docker
-
-RynLib with Docker can generally be configured using  `setup/build_docker.sh`
-
-If building on top of the Entos container, take `setup/DockerfileEntosTemplate` and replace `<ENTOS-COMMIT>` with the specific entos commit to build off of and call this new file `setup/DockerfileEntos`
-
-If not, take the `Dockerfile` and change it so that it will build off of `DockerfileCore` instead.
-
-After that run 
-
-```
-. build_docker.sh
-```
-
-### Singularity
-
-RynLib with Singularity can generally be configured using  `setup/build_docker.sh`
-
-Take `setup/SingularityEntosTemplate.def` and replace `<ENTOS-COMMIT>` with the specific entos commit to build off of and call this new file `setup/SingularityEntos.def`. 
-
-After that run 
-
-```
-. build_singularity.sh
-```
-
-## Running
-
-After building out the image we can run the various exposed commands.
-
-### Docker
-Here's the way you might alias RynLib for use with Docker:
-
-```ignorelang
-rynlib="docker run --rm --mount source=simdata,target=/config -it rynimg"
-```
-
-one thing to note is that if we want to get data into Docker, say for `rynlib sim add` we'll need to temporarily mount that as a volume, using the `-v` flag, e.g.
-
-```ignorelang
-function ryndata() { echo "docker run --rm --mount source=simdata,target=/config -it -v $1:rw rynimg"; }
-$(ryndata config_dir:/cf) sim add test /cf/config.py 
-```
-
-### Singularity
-With Singularity we lose the ability to mount our own volume and instead `$PWD` is used.
-
-If we've ported the Docker container up we can use it directly, like
-
-```ignorelang
-rynlib="singularity run docker://rynimg"
-```
-
-Otherwise we can use `Singularity.def` to build a `rynlib` SIF image that can be directly used like
-
-```ignorelang
-./rynlib [group] [command] [args]
-```
-
-### Shifter
-With Shifter we directly bind directories, so we might have
-
-```ignorelang
-rynlib="shifter run --volume="/global/cfs/m802/rjdiri/dmc_data:/config" rynimg"
-```
-
-Keep in mind that with Shifter the `sbatch` process is [slightly different](https://docs.nersc.gov/programming/shifter/how-to-use/#running-jobs-in-shifter-images)
-
 
 ## Setting up a Potential
 
@@ -315,7 +323,38 @@ where the options that can be in that file are
 """
 ```
 
+## Setting up Importance Sampling
+
+An implementation of importance sampling is baked into the package, but this requires a user-side function to evaluate the trial wavefunction.
+To make the config files as stateless as possible and to make it possible to use the same trial wavefunction over different simulation instances (think using 3000 vs 10000 walkers on the same system) we've added this as another object type that you can add to the container, via
+
+```ignorelang
+rynlib sim add_sampler NAME --config=config_file --data=data_directory
+```
+
+where the _data\_directory_ stores any underlying data needed by the sample and the _config\_file_ has the sole option
+
+```python
+"""
+:param module: the file to load that provides the trial wavefunction
+:type module: str
+"""
+```
+
+where _module_ will be a plain `.py` file that has a function in it called `trial_wavefunction` defined like 
+
+```python
+def trial_wavefunction(coords):
+    """
+    :param coords: the WalkerSet that holds the configurations (might be many configurations at once!)
+    """
+    ...
+    return psi
+```
+
 ## Writing an SBATCH file
+
+A core use case for all of this is High-Performance Computing environments. Both NeRSC and the local University of Washington cluster use the SLURM scheduler for jobs, so here are usage instructions for using this with SLURM
 
 ### Docker
 
