@@ -28,7 +28,7 @@ If you just want to pull the latest updates, you can use `git pull`.
 
 At this point, the specifics of the build process depend on whether you are on in a local compute environment in which case you'll want to use Docker, whether you're on a standard HPC in which case you're likely using Singularity, or if you're on NeRSC in which case you use Shifter. 
 
-Instructions for all of these environments are provided.
+Instructions for all of these environments are provided, with build files in the `setup` subdirectory of RynLib.
 
 You can make this all work without a container, but it will be much more work and I'm not going to write up general instructions for that at this point.
 
@@ -47,6 +47,8 @@ After that run
 ```
 
 ### Singularity
+
+*Note:* _you might need to load singularity first by getting on a build node and running `module load singularity`_
 
 RynLib with Singularity can generally be configured using  `setup/build_docker.sh`
 
