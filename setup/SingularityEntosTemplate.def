@@ -1,0 +1,27 @@
+#
+#   ENTOS:
+#       Defines how to compile Entos inside the Singularity environment
+#       If RynLib is being used _without_ Entos this could be omitted
+#
+
+Bootstrap: docker
+From: <ENTOS-COMMIT> # replace this with the relevant Entos commit
+
+%environment
+    DEBIAN_FRONTEND=noninteractive
+
+%post
+ apt-get update &&\
+  apt-get -y install g++ &&\
+  apt-get -y install libboost-dev libboost-filesystem-dev libboost-system-dev &&\
+  apt-get -y install libarmadillo-dev &&\
+  apt-get -y install libxc-dev &&\
+  apt-get -y install git &&\
+  apt-get -y install cmake &&\
+  apt-get -y install xsltproc &&\
+  apt-get -y install ccache &&\
+  apt-get clean
+
+ apt-get -y install python3.7-dev python3-pip &&\
+  pip3 install numpy &&\
+  pip3 install wget

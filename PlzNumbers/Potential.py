@@ -51,6 +51,59 @@ class Potential:
                  vectorized_potential=False,
                  error_value=10.e9
                  ):
+        """
+
+        :param name:
+        :type name:
+        :param potential_source:
+        :type potential_source:
+        :param wrap_potential:
+        :type wrap_potential:
+        :param function_name:
+        :type function_name:
+        :param raw_array_potential:
+        :type raw_array_potential:
+        :param arguments:
+        :type arguments:
+        :param potential_directory:
+        :type potential_directory:
+        :param static_source:
+        :type static_source:
+        :param extra_functions:
+        :type extra_functions:
+        :param src_ext:
+        :type src_ext:
+        :param description:
+        :type description:
+        :param verion:
+        :type verion:
+        :param include_dirs:
+        :type include_dirs:
+        :param linked_libs:
+        :type linked_libs:
+        :param macros:
+        :type macros:
+        :param source_files:
+        :type source_files:
+        :param build_script:
+        :type build_script:
+        :param requires_make:
+        :type requires_make:
+        :param out_dir:
+        :type out_dir:
+        :param cleanup_build:
+        :type cleanup_build:
+        :param python_potential:
+        :type python_potential:
+        :param bad_walker_file:
+        :type bad_walker_file:
+        :param mpi_manager:
+        :type mpi_manager:
+        :param vectorized_potential:
+        :type vectorized_potential:
+        :param error_value:
+        :type error_value:
+        """
         src = potential_source
         self.name = name
 

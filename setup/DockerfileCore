@@ -1,0 +1,36 @@
+#
+#   CORE:
+#       Defines how to build the core that RynLib will require inside the Dockerized environment
+#
+
+# Complete environment for building and running entos with Docker
+# See https://docs.docker.com/engine/reference/builder/
+#
+# Additional libraries must be added with great care and consideration for
+# environments not using Docker e.g. MacOSX or Conda
+
+
+#testing distro
+FROM ubuntu:disco-20191030
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+RUN \
+ # apt-get update &&\
+ apt-get -y install g++ &&\
+ apt-get -y install libboost-dev libboost-filesystem-dev libboost-system-dev &&\
+ apt-get -y install libarmadillo-dev &&\
+ apt-get -y install libxc-dev &&\
+ apt-get -y install git &&\
+ apt-get -y install cmake &&\
+ apt-get -y install xsltproc &&\
+ apt-get -y install ccache &&\
+ apt-get clean
+
+RUN \
+  apt-get -y install python3.7-dev python3-pip &&\
+  pip3 install numpy &&\
+  pip3 install wget
+
+RUN \
+  apt-get -y install gfortran

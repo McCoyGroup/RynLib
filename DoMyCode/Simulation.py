@@ -152,7 +152,7 @@ class SimulationLogger:
                  write_wavefunctions=True,
                  save_snapshots=None,
                  log_file = None,
-                 verbosity = 0
+                 verbosity = 100
                  ):
         self.sim = simulation
         self.output_folder = output_folder

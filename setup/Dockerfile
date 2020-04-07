@@ -1,4 +1,8 @@
 
+# If not building on top of entos, build DockerfileCore as rynlibcore
+# otherwise use DockerfileEntos and build from that
+
+# FROM rynlibcore
 FROM entos
 
 #
@@ -9,14 +13,10 @@ FROM entos
 
 #RyAN AND MARK HAFVE FUN TOGETHER
 
+ADD .. /home/RynLib
+
 RUN \
   git clone https://github.com/McCoyGroup/Peeves /home/Peeves
-#   &&\
-#  git clone https://github.com/McCoyGroup/RynLib /home/RynLib
-
-
-ADD . /home/RynLib
-#RUN git clone https://github.com/McCoyGroup/Peeves /home/Peeves
 
 RUN python3 /home/RynLib/CLI.py config build_libs
 

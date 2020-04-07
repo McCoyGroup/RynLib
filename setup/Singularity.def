@@ -1,5 +1,5 @@
 Bootstrap: localimage
-From: entos.sif
+From: entos
 
 %post
     git clone https://github.com/McCoyGroup/RynLib /home/RynLib &&\

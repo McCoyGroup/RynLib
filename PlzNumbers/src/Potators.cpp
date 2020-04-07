@@ -424,7 +424,7 @@ PyObject* _mpiGetPyPot(
     if (gather_walkers == NULL) {
         PyErr_SetString(PyExc_AttributeError, "Couldn't get gather pointer");
         return NULL;
-    };
+    }
 //    printf("Recieved energies\n");
 //    for (int i=0; i < walkers_to_core; i++) {
 //        printf(" %f ", pots[i]);
