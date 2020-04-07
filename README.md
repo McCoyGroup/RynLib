@@ -36,14 +36,14 @@ You can make this all work without a container, but it will be much more work an
 
 RynLib with Docker can generally be configured using  `setup/build_docker.sh`
 
-If building on top of the Entos container, take `setup/DockerfileEntosTemplate` and replace `<ENTOS-COMMIT>` with the specific entos commit to build off of and call this new file `setup/DockerfileEntos`
+If building on top of the Entos container, take `RynLib/setup/DockerfileEntosTemplate` and replace `<ENTOS-COMMIT>` with the specific entos commit to build off of and call this new file `RynLib/setup/DockerfileEntos`
 
 If not, take the `Dockerfile` and change it so that it will build off of `DockerfileCore` instead.
 
 After that run 
 
 ```
-. build_docker.sh
+bash RynLib/setup/build_docker.sh
 ```
 
 ### Singularity
@@ -52,12 +52,12 @@ After that run
 
 RynLib with Singularity can generally be configured using  `setup/build_docker.sh`
 
-Take `setup/SingularityEntosTemplate.def` and replace `<ENTOS-COMMIT>` with the specific entos commit to build off of and call this new file `setup/SingularityEntos.def`. 
+Take `RynLib/setup/SingularityEntosTemplate.def` and replace `<ENTOS-COMMIT>` with the specific entos commit to build off of and call this new file `RynLib/setup/SingularityEntos.def`. 
 
 After that run 
 
 ```
-. build_singularity.sh
+bash RynLib/setup/build_singularity.sh
 ```
 
 ## Running

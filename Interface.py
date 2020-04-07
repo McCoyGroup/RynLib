@@ -193,7 +193,7 @@ class RynLib:
                 potential_directory="potentials",
                 mpi_version="3.1.4",
                 mpi_implementation="ompi",
-                mpi_dir="/proc/mpi"
+                mpi_dir="mpi"
             )
         elif 'cori' in node:
             env = dict(

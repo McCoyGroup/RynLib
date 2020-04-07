@@ -23,5 +23,6 @@ From: <ENTOS-COMMIT> # replace this with the relevant Entos commit
   apt-get clean
 
  apt-get -y install python3.7-dev python3-pip &&\
+  apt-get -y install gfortran &&\
   pip3 install numpy &&\
   pip3 install wget
