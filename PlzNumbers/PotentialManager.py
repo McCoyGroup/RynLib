@@ -90,7 +90,7 @@ class PotentialManager:
             if input_file is None:
                 input_file = os.path.join(pdir, "test.py")
 
-            pot = PotentialManager().load_potential(name)
+            pot = self.load_potential(name)
             cfig = ConfigSerializer.deserialize(input_file, attribute="config")
 
             walkers = cfig["coordinates"]
