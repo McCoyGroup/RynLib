@@ -110,8 +110,8 @@ class CLI:
     def sim_add_sampler(self):
         parse_dict = self.get_parse_dict(
             ("name",),
-            ("--config", dict(default="", type=str, dest='config_file')),
-            ("--src", dict(default="", type=str, dest='source'))
+            ("source",),
+            ("--config", dict(default="", type=str, dest='config_file'))
         )
         SimulationInterface.add_sampler(**parse_dict)
 
@@ -120,6 +120,12 @@ class CLI:
             ("name",)
         )
         SimulationInterface.remove_sampler(**parse_dict)
+
+    def sim_test_sampler(self):
+        parse_dict = self.get_parse_dict(
+            ("name",)
+        )
+        SimulationInterface.test_sampler(**parse_dict)
 
     def sim_test_HO(self):
         SimulationInterface.test_HO()

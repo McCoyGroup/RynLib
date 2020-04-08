@@ -201,8 +201,12 @@ class PotentialManager:
                     sep="\n"
                 )
             print("Total time: {}s (over {} iterations)".format(gotta_go_fast, test_iterations))
-            print("Average total: {}s Average time per walker: {}s".format(np.average(test_results), np.average(
-                test_results) / num_walkers / nsteps))
+            print("Average total: {}s Average time per walker: {}s".format(
+                np.average(test_results),
+                np.average(test_results) / num_walkers / nsteps)
+            )
+            mpi_manager.finalize_MPI()
+        return test_results
 
     def test_potential_mpi(self, name, input_file=None, **opts):
         import numpy as np
@@ -214,7 +218,7 @@ class PotentialManager:
             if input_file is None:
                 input_file = os.path.join(pdir, "test.py")
 
-            pot = PotentialManager().load_potential(name)
+            pot = self.load_potential(name)
             cfig = ConfigSerializer.deserialize(input_file, attribute="config")
 
             walkers = cfig["coordinates"]

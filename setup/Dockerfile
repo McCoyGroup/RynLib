@@ -13,7 +13,7 @@ FROM entos
 
 #RyAN AND MARK HAFVE FUN TOGETHER
 
-ADD .. /home/RynLib
+ADD . /home/RynLib
 
 RUN \
   git clone https://github.com/McCoyGroup/Peeves /home/Peeves

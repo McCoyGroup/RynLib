@@ -73,14 +73,40 @@ class SimulationInterface:
         print("\n".join(ImportanceSamplerManager().list_samplers()))
 
     @classmethod
-    def add_sampler(self, name=None, config_file=None, source=None):
-        ImportanceSamplerManager().add_sampler(name, source, config_file)
+    def add_sampler(self, name=None, config_file=None, source=None, test_file=None):
+        no_config = config_file is None
+        if config_file is None:
+            if os.path.exists(os.path.join(source, "config.py")):
+                config_file = os.path.join(source, "config.py")
+        if test_file is None:
+            if os.path.exists(os.path.join(source, "test.py")):
+                test_file = os.path.join(source, "test.py")
+        if no_config:
+            if os.path.exists(os.path.join(source, name)):
+                source = os.path.join(source, name)
+        ImportanceSamplerManager().add_sampler(name, source, config_file, test_file=test_file)
         print("Added importance sampler {}".format(name))
 
     @classmethod
     def remove_sampler(self, name=None):
         ImportanceSamplerManager().remove_sampler(name)
-        print("Removed simulation {}".format(name))
+        print("Removed importance sampler {}".format(name))
+
+    @classmethod
+    def test_sampler(cls, name=None):
+        print("Testing importance sampler {}".format(name))
+        print("Sampler returned array with shape {}".format(ImportanceSamplerManager().test_sampler(name).shape))
+
+    @classmethod
+    def test_ch5_sampler(cls):
+        im = ImportanceSamplerManager()
+        if "CH5" in im.list_samplers():
+            im.remove_sampler("CH5")
+        im.add_sampler(
+            "CH5",
+            os.path.join(os.path.dirname(__file__), "Tests", "TestData", "CH5TrialWavefunction"),
+            config_file=os.path.join(os.path.dirname(__file__), "Tests", "TestData", "ch5_sampler.py")
+        )
 
 class PotentialInterface:
     """
@@ -190,10 +216,11 @@ class RynLib:
                 entos_binary="/entos/lib/libentos.so",
                 root_directory="",
                 simulation_directory="./simulations",
+                sampler_directory="./impsamps",
                 potential_directory="./potentials",
                 mpi_version="3.1.4",
                 mpi_implementation="ompi",
-                mpi_dir="./mpi"
+                mpi_dir="/opt/mpi"
             )
         elif 'cori' in node:
             env = dict(
@@ -201,6 +228,7 @@ class RynLib:
                 entos_binary="/entos/lib/libentos.so",
                 root_directory="/config",
                 simulation_directory="/config/simulations",
+                sampler_directory="/config/impsamps",
                 potential_directory="/config/potentials",
                 mpi_version="3.2",
                 mpi_implementation="mpich",
@@ -212,6 +240,7 @@ class RynLib:
                 entos_binary="/entos/lib/libentos.so",
                 root_directory="/config",
                 simulation_directory="/config/simulations",
+                sampler_directory="/config/impsamps",
                 potential_directory="/config/potentials",
                 mpi_version="3.1.4",
                 mpi_implementation="ompi",
@@ -536,6 +565,8 @@ class RynLib:
             print("Total time: {}s (over {} iterations)".format(gotta_go_fast, test_iterations))
             print("Average total: {}s Average time per walker: {}s".format(np.average(test_results), np.average(
                 test_results) / num_walkers / nsteps))
+
+            mpi_manager.finalize_MPI()
 
     @classmethod
     def test_entos_mpi(cls,

@@ -111,7 +111,7 @@ class Config:
             rel_conf = os.path.abspath(config) != config
             if rel_conf:
                 if isinstance(root, str):
-                    config = os.path.join(root, config)
+                    config = os.path.join(os.path.abspath(root), config)
                 elif os.path.exists(abs_conf):
                     config = abs_conf
                 else:

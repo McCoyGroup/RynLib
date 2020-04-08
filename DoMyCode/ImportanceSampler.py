@@ -1,6 +1,6 @@
 
 import numpy as np, os, shutil
-from ..RynUtils import ConfigManager, ModuleLoader
+from ..RynUtils import ConfigManager, ModuleLoader, ConfigSerializer
 
 __all__ = [
     "ImportanceSampler",
@@ -92,7 +92,7 @@ class ImportanceSampler:
         :return:
         :rtype:
         """
-        much_psi = np.zeros(coords.shape[0] + (3,) + coords.shape[1:])
+        much_psi = np.zeros(coords.shape[:1] + (3,) + coords.shape[1:])
         for atom_label in range(len(coords[0, :, 0])):
             for xyz in range(3):
                 coords[:, atom_label, xyz] -= dx
@@ -172,14 +172,16 @@ class ImportanceSamplerManager:
     def remove_sampler(self, name):
         self.manager.remove_config(name)
 
-    def add_sampler(self, name, src, config_file = None, static_source = False, **opts):
+    def add_sampler(self, name, src, config_file = None, static_source = False, test_file=None, **opts):
         self.manager.add_config(name, config_file = config_file, **opts)
         if not static_source:
-            new_src = os.path.join(self.manager.config_loc(name), os.path.basename(src))
+            new_src = os.path.join(self.manager.config_loc(name), name)
             if os.path.isdir(src):
                 shutil.copytree(src, new_src)
             else:
                 shutil.copyfile(src, new_src)
+        if test_file is not None:
+            shutil.copyfile(test_file, os.path.join(self.manager.config_loc(name), "test.py"))
         self.manager.edit_config(name, name=name)
 
     def edit_sampler(self, name, **opts):
@@ -191,8 +193,18 @@ class ImportanceSamplerManager:
     def load_sampler(self, name):
         conf = self.manager.load_config(name)
         mod = conf.module
-        if isinstance(mod, str):
-            mod = ModuleLoader().load(mod, "ImportanceSamplers")
+        if os.path.abspath(mod) != mod:
+            mod = os.path.join(self.manager.config_loc(name), name, mod)
+        if (not os.path.exists(mod)) and os.path.splitext(mod)[1] == "":
+            mod = mod + ".py"
+
+        cur_dir = os.getcwd()
+        try:
+            os.chdir(os.path.join(self.manager.config_loc(name), name))
+            if isinstance(mod, str):
+                mod = ModuleLoader().load(mod, "ImportanceSamplers")
+        finally:
+            os.chdir(cur_dir)
 
         if isinstance(mod, dict):
             trial_wfs = mod["trial_wavefunction"]
@@ -208,3 +220,39 @@ class ImportanceSamplerManager:
                 derivs = None
 
         return ImportanceSampler(trial_wfs, derivs=derivs)
+
+    def test_sampler(self, name, input_file=None):
+        from .WalkerSet import WalkerSet
+
+        pdir = self.manager.config_loc(name)
+        curdir = os.getcwd()
+        try:
+            os.chdir(pdir)
+            if input_file is None:
+                input_file = os.path.join(pdir, "test.py")
+
+            sampler = self.load_sampler(name)
+            cfig = ConfigSerializer.deserialize(input_file, attribute="config")
+
+            walkers = cfig["walkers"]
+            if isinstance(walkers, str):
+                walkers = WalkerSet.from_file(walkers)
+            elif isinstance(walkers, dict):
+                walkers = WalkerSet(**walkers)
+
+            if 'time_step' in cfig:
+                time_step = cfig["time_step"]
+            else:
+                time_step = 1
+            if 'steps_per_propagation' in cfig:
+                steps_per_propagation = cfig["steps_per_propagation"]
+            else:
+                steps_per_propagation = 5
+
+            walkers.initialize(time_step, 2.0)
+
+            print(walkers.coords.shape)
+
+            return walkers.displace(steps_per_propagation, importance_sampler=sampler)
+        finally:
+            os.chdir(curdir)
