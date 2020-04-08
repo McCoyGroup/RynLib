@@ -580,6 +580,8 @@ class Simulation:
         try:
             if not self.dummied:
                 self.log_print("Starting simulation")
+                if self.mpi_manager is not None:
+                    self.mpi_manager.wait()
             self.timer.start()
             self._prop()
         finally:
