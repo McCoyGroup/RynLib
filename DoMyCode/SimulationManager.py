@@ -60,9 +60,16 @@ class SimulationManager:
         sim = self.load_simulation(name)
 
         log = sim.logger.log_file
-        if isinstance(log, str):
-            if not os.path.isdir(os.path.dirname(log)):
-                os.makedirs(os.path.dirname(log))
+        if sim.mpi_manager is not None:
+            sim.run()
+        elif isinstance(log, str):
+            if sim.mpi_manager is not None:
+                if not os.path.isdir(os.path.dirname(log)):
+                    os.makedirs(os.path.dirname(log))
+                sim.mpi_manager.wait()
+            else:
+                if not os.path.isdir(os.path.dirname(log)):
+                    os.makedirs(os.path.dirname(log))
             try:
                 with open(log, "w+") as log_stream:
                     sim.logger.log_file = log_stream
