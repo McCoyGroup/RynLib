@@ -55,7 +55,7 @@ class WalkerSet:
         npz = np.load(file)
         return cls(atoms=npz["atoms"], masses=npz["masses"], initial_walker=npz["walkers"], **opts)
 
-    def initialize(self, deltaT, D):
+    def initialize(self, deltaT, D=1./2.):
         """Sets up necessary parameters for use in calculating displacements and stuff
 
         :param deltaT:
@@ -67,7 +67,7 @@ class WalkerSet:
         """
         self.deltaT = deltaT
         if self.sigmas is None:
-            self.sigmas = np.sqrt((2 * D * deltaT) / self.masses)
+            self.sigmas = np.sqrt((2.0 * D * deltaT) / self.masses)
 
     def get_displacements(self, steps = 1, in_AU = True):
         shape = (steps, ) + self.coords.shape[:-2] + self.coords.shape[-1:]
@@ -93,9 +93,10 @@ class WalkerSet:
         bloop = self.coords
         disps = self.get_displacements(n)
         for i, d in enumerate(disps): # loop over steps
-            bloop = bloop + d
             if importance_sampler is not None:
                 bloop = importance_sampler.accept_step(i, bloop, d)
+            else:
+                bloop = bloop + d
             crds[i] = bloop
         return crds
 

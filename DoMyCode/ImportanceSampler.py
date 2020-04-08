@@ -20,7 +20,7 @@ class ImportanceSampler:
         self.time_step = None
 
     def init_params(self, sigmas, time_step):
-        self.sigmas = np.broadcast_to(sigmas, sigmas.shape + (3,))
+        self.sigmas = np.broadcast_to(sigmas[:, np.newaxis], sigmas.shape + (3,))
         self.time_step = time_step
 
     @property
@@ -29,7 +29,7 @@ class ImportanceSampler:
 
     def setup_psi(self, crds):
         if self._psi is None:
-            self._psi = np.zeros(crds.shape[:1] + (3,) + crds.shape[1:])
+            self._psi = np.empty(crds.shape[:2] + (3,) + crds.shape[2:])
 
     def accept(self, coords, disp):
         """
@@ -42,10 +42,11 @@ class ImportanceSampler:
         :return:
         :rtype:
         """
+
         fx, psi1 = self.drift(coords)
         sigma = self.sigmas
         d = sigma**2/2.*fx
-        new = disp + d
+        new = coords + disp + d
         fy, psi2 = self.drift(new)
         a = self.metropolis(fx, fy, coords, new, psi1, psi2)
         check = np.random.random(size=len(coords))
@@ -72,14 +73,13 @@ class ImportanceSampler:
         """
         if self.derivs is None:
             psi = self.psi_calc(coords, self.trial_wvfn)
-            der = (psi[:, :, 2] - psi[:, :, 0]) / dx / psi[:, :, 1]
+            der = (psi[:, 2] - psi[:, 0]) / dx / psi[:, 1]
         else:
             psi = None
             der = self.derivs[0](coords, self.trial_wvfn)
         return der, psi
 
-    @staticmethod
-    def psi_calc(coords, trial_wvfn, dx = 1e-3):
+    def psi_calc(self, coords, trial_wvfn, dx = 1e-3):
         """
         Calculates the trial wavefunction over the three displacements that are used in numerical differentiation
 
@@ -92,8 +92,15 @@ class ImportanceSampler:
         :return:
         :rtype:
         """
-        much_psi = np.zeros(coords.shape[:1] + (3,) + coords.shape[1:])
-        for atom_label in range(len(coords[0, :, 0])):
+
+        much_psi = trial_wvfn(coords)
+        much_dims = much_psi.ndim
+        ndims = self._psi[0].ndim
+        for i in range(ndims - much_dims):
+            much_psi = np.expand_dims(much_psi, axis=-1)
+        much_psi = np.copy(np.broadcast_to(much_psi, self._psi[0].shape))
+
+        for atom_label in range(coords.shape[-2]):
             for xyz in range(3):
                 coords[:, atom_label, xyz] -= dx
                 much_psi[:, 0, atom_label, xyz] = trial_wvfn(coords)
@@ -121,16 +128,15 @@ class ImportanceSampler:
         :return:
         :rtype:
         """
+        # takes a single timesteps worth of coordinates rather than multiple
 
-        #TODO: Jacob, what is the role of asking for 1, 0, 0 at each timestep?
-        psi_1 = psi1[:, :, 1, 0, 0]
-        psi_2 = psi2[:, :, 1, 0, 0]
+        psi_1 = psi1[:, 1, 0, 0]
+        psi_2 = psi2[:, 1, 0, 0]
         psi_ratio = (psi_2 / psi_1) ** 2
         sigma = self.sigmas
         a = np.exp(1. / 2. * (Fqx + Fqy) * (sigma ** 2 / 4. * (Fqx - Fqy) - (y - x)))
         a = np.prod(np.prod(a, axis=1), axis=1) * psi_ratio
         return a
-
 
     def local_kin(self, coords, dx=1e-3):
         """
@@ -147,6 +153,7 @@ class ImportanceSampler:
         :return:
         :rtype:
         """
+        # only thing that takes all coords at once
 
         sigma = self.sigmas
         time_step = self.time_step
@@ -248,6 +255,9 @@ class ImportanceSamplerManager:
                 steps_per_propagation = cfig["steps_per_propagation"]
             else:
                 steps_per_propagation = 5
+
+            walkers.initialize(time_step)
+
             if 'sigmas' in cfig:
                 sigmas = cfig["sigmas"]
             elif isinstance(walkers, WalkerSet):
@@ -255,7 +265,6 @@ class ImportanceSamplerManager:
             else:
                 sigmas = 1
 
-            walkers.initialize(time_step, 2.0)
             sampler.init_params(sigmas, time_step)
 
             # print(walkers.coords.shape)

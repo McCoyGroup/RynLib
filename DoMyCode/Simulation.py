@@ -456,8 +456,7 @@ class Simulation:
 
         self.reference_potentials = deque() # just a convenient data structure to push into
 
-        D = 2.0 # not sure what this is supposed to be...?
-        self.walkers.initialize(time_step, D)
+        self.walkers.initialize(time_step)
         self.time_step = time_step
 
         self.wavefunctions = deque()
