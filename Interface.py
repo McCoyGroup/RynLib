@@ -317,7 +317,7 @@ class RynLib:
 
         conf = cls.get_conf()
 
-        MPI_DIR = conf.mpi_dir
+        MPI_DIR = os.path.abspath(conf.mpi_dir)
         MPI_IMP = conf.mpi_implementation.lower()
 
         if os.path.isdir(MPI_DIR):
