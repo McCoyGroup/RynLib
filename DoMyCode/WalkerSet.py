@@ -22,7 +22,10 @@ class WalkerSet:
         if num_walkers is None:
             if mpi_manager is None:
                 raise TypeError("MPIManager is None (meaning MPI isn't configured) but 'num_walkers' not passed")
-            num_walkers = walkers_per_core*mpi_manager.world_size
+            if mpi_manager.world_rank > 0:
+                num_walkers = walkers_per_core*mpi_manager.world_size
+            else:
+                num_walkers = walkers_per_core
 
         self.num_walkers = num_walkers
 
@@ -36,7 +39,7 @@ class WalkerSet:
         initial_walker = np.asarray(initial_walker)
         if len(initial_walker.shape) == 2:
             initial_walker = np.array([ initial_walker ] * num_walkers)
-        else:
+        else: # should add some logic for handling stuff differently in the MPI world_rank > 0 case...
             self.num_walkers = len(initial_walker)
 
         self.coords = np.asarray(initial_walker)
