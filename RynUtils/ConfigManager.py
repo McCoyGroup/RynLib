@@ -105,13 +105,15 @@ class Config:
         :type config_file: str | dict | module
         """
         self.loader = loader
+        if isinstance(root, str):
+            root = os.path.abspath(root)
         self.root = root
         if isinstance(config, str):
             abs_conf = os.path.abspath(config)
             rel_conf = os.path.abspath(config) != config
             if rel_conf:
                 if isinstance(root, str):
-                    config = os.path.join(os.path.abspath(root), config)
+                    config = os.path.join(root, config)
                 elif os.path.exists(abs_conf):
                     config = abs_conf
                 else:
