@@ -439,5 +439,10 @@ PyObject* _mpiGetPyPot(
     Py_XDECREF(gather);
     Py_XDECREF(pot_vals);
 
-    return potVals;
+    if ( world_rank > 0 ) {
+        Py_RETURN_NONE;
+    } else {
+       return potVals;
+    }
+
 }

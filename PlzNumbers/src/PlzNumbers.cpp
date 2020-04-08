@@ -260,7 +260,7 @@ PyObject *PlzNumbers_callPyPotVec( PyObject* self, PyObject* args ) {
     // We can tell if MPI is active or not by whether COMM is None or not
     PyObject *pot_vals;
     if (manager == Py_None) {
-        pot_vals = NULL;
+        Py_RETURN_NONE;
     } else {
         pot_vals = _mpiGetPyPot(
                 manager,
