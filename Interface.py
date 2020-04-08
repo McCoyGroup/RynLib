@@ -384,7 +384,8 @@ class RynLib:
                     "./configure",
                     "--prefix={MPI_DIR}".format(MPI_DIR=MPI_DIR),
                     "--disable-oshmem",
-                    "--enable-branch-probabilities"
+                    "--enable-branch-probabilities",
+                    "--disable-fortran"
                 ])
                 subprocess.check_output([
                     "make",
