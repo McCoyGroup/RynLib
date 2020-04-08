@@ -206,8 +206,10 @@ class CLI:
         getattr(self, self.group + "_" + self.cmd.replace("-", "_"))()
 
 if __name__ == "__main__":
-    if sys.argv[1] == "interact":
+    if len(sys.argv) == 1 or sys.argv[1] == "interact":
         import code
         code.interact(banner=None, readfunc=None, local=None, exitmsg=None)
+    elif sys.argv[1] == "ignore":
+        pass
     else:
         CLI().run()

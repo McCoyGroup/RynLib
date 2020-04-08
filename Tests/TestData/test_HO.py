@@ -13,8 +13,8 @@ config = dict(
         ),
     time_step = 1,
     steps_per_propagation=10,
-    num_time_steps=10000,
-    checkpoint_at=100,
+    num_time_steps=5000,
+    checkpoint_every=500,
     equilibration_steps=1000,
     descendent_weight_every=500,
     descendent_weighting_steps=50

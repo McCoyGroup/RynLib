@@ -163,9 +163,19 @@ We're focused, initially, on the [Singularity](https://sylabs.io/docs/) use case
 In the Singularity world, the container can only contact the host environment through a small number of endpoints. Happily one of those is `$PWD`. 
 This means that we're writing/reading all simulation data to/from `./simulations` and potential data to/from `./potentials`.
 
-In the Docker and Shifter world, we can mount volumes. In both of these cases, the library requires you to provide a `config` volume.
+In the Docker and Shifter world, we mount volumes. In both of these cases, the library requires you to provide a `config` volume.
 All data will be written to this volume, including the simulation data, potential data, primary `config.py` file and the necessary MPI libraries. 
 If you'd like to separate the simulation data out (say for space reasons) you can mount another volume for that and use `rynlib config edit --simdir=<new volume>` to set the path.
+
+In the case of NeRSC this writes directly into a directory, but in the case of Docker we need to do a bit of work to get the data out of the container.
+[This Stack Overflow answer](https://stackoverflow.com/a/35410781/5720002) is relevant.
+For our use case this might look like
+
+```ignorelang
+tmp=$(docker run -d --mount source=simdata,target=/config -it rynimg ignore)
+docker cp $tmp:/config/<RELEVANT-DATA> <TARGET-DIR>
+docker rm $tmp
+```
 
 This provides a persistence strategy, as by mounting a new volume you can change the configuration environment. For the most part, though, there should be no issue with always using a single volume.
 

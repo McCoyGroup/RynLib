@@ -1,7 +1,7 @@
-import os, numpy as np, time
+import os, numpy as np, time, enum
 from .WalkerSet import WalkerSet
 from .ImportanceSampler import ImportanceSampler, ImportanceSamplerManager
-from ..RynUtils import Logger, ParameterManager
+from ..RynUtils import Logger, ParameterManager, Constants
 from ..Dumpi import *
 from ..PlzNumbers import PotentialManager
 
@@ -27,7 +27,7 @@ class SimulationStepCounter:
                  sim,
                  step_num = 0,
                  num_time_steps = None,
-                 checkpoint_at=None,
+                 checkpoint_every=None,
                  equilibration_steps=None,
                  descendent_weight_every = None,
                  descendent_weighting_steps = None
@@ -51,14 +51,16 @@ class SimulationStepCounter:
         self.num_time_steps = num_time_steps
 
         self._previous_checkpoint = step_num
-        if isinstance(checkpoint_at, int):
-            checkpoint_at = lambda s, c=checkpoint_at: s.step_num - s._previous_checkpoint >= c
-        elif checkpoint_at is None:
-            checkpoint_at = lambda *a: False
-        self._checkpoint = checkpoint_at
+        if isinstance(checkpoint_every, int):
+            # bind a little lambda to check whether we've gone `checkpoint_every` steps further
+            checkpoint_every = lambda s, c=checkpoint_every: s.step_num - s._previous_checkpoint >= c
+        elif checkpoint_every is None:
+            checkpoint_every = lambda *a: False
+        self._checkpoint = checkpoint_every
+        self._cached_checkpoint = None
 
         self._equilibrated = False
-        if isinstance(equilibration_steps, int):
+        if isinstance(equilibration_steps, (int, np.integer)):
             equilibration_steps = lambda s, e=equilibration_steps: s.step_num > e  # classic lambda parameter binding
         self.equilibration_check = equilibration_steps
 
@@ -69,10 +71,15 @@ class SimulationStepCounter:
 
     @property
     def checkpoint(self):
-        checkpoint = self._checkpoint(self)
-        if checkpoint:
-            self._previous_checkpoint = self.step_num
-        return checkpoint
+        if self._cached_checkpoint is None:
+            self._cached_checkpoint = self._checkpoint(self)
+            if self._cached_checkpoint:
+                self._previous_checkpoint = self.step_num
+        return self._cached_checkpoint
+
+    def increment(self, n):
+        self._cached_checkpoint = None
+        self.step_num+=n
 
     @property
     def equilibrated(self):
@@ -84,20 +91,34 @@ class SimulationStepCounter:
     def done(self):
         return self.step_num >= self.num_time_steps
 
+    class DescendentWeightingStatus(enum.Enum):
+        Waiting = "Waiting"
+        Beginning = "Beginning"
+        Complete = "Complete"
+        Ongoing = "Ongoing"
+
+    @property
     def descendent_weighting_status(self):
+        """
+        Keeps track of when descendent weighting started/was last done/whether we are currently doing it
+
+        :return:
+        :rtype:
+        """
         step = self.step_num
         if self._dw_initialized_step is None:
-            status = "waiting"
+            if step - self._last_dw_step >= self._dw_delay:
+                status = self.DescendentWeightingStatus.Beginning
+                self._dw_initialized_step = step
+                self._dw_initialized_step = step
+                self._last_dw_step = step
+            else:
+                status = self.DescendentWeightingStatus.Waiting
         elif step - self._dw_initialized_step >= self._dw_steps:
-            status = "complete"
+            status = self.DescendentWeightingStatus.Complete
             self._dw_initialized_step = None
-        elif step - self._last_dw_step >= self._dw_delay:
-            status = "beginning"
-            self._dw_initialized_step = step
-            self._dw_initialized_step = step
-            self._last_dw_step = step
         else:
-            status = "ongoing"
+            status = self.DescendentWeightingStatus.Ongoing
         return status
 
 
@@ -122,7 +143,7 @@ class SimulationTimer:
     @property
     def elapsed(self):
         if self.start_time is not None:
-            return time.time() - self.start_time()
+            return time.time() - self.start_time
         else:
             return 0
 
@@ -141,23 +162,28 @@ class SimulationLogger:
 
     __props__ = [
         "output_folder",
-        "write_wavefunctions",
-        "save_snapshots"
         "log_file",
         "verbosity"
     ]
     def __init__(self,
                  simulation,
                  output_folder = None,
-                 write_wavefunctions=True,
-                 save_snapshots=None,
                  log_file = None,
                  verbosity = 100
                  ):
+        """
+
+        :param simulation:
+        :type simulation: Simulation
+        :param output_folder:
+        :type output_folder: str
+        :param log_file:
+        :type log_file: str
+        :param verbosity:
+        :type verbosity: int
+        """
         self.sim = simulation
         self.output_folder = output_folder
-        self.write_wavefunctions = write_wavefunctions
-        self.save_snapshots = save_snapshots
 
         if output_folder is None:
             output_folder = os.path.join(os.path.abspath("dmc_data"), self.sim.name)
@@ -168,8 +194,6 @@ class SimulationLogger:
         self.log_file = log_file
 
         self.verbosity = verbosity
-
-        self.save_snapshots = save_snapshots
 
         self.logger = Logger(self.log_file, verbosity = self.verbosity)
 
@@ -209,16 +233,20 @@ class SimulationLogger:
         out_dir = os.path.dirname(f)
         if not os.path.isdir(out_dir):
             os.makedirs(out_dir)
-        self.sim.params.serialize(f)
+        self.sim.params.serialize(self.sim, f)
 
-    def snapshot_walkers(self, file="walkers{}.npz", save_stepnum = True):
+    def snapshot_walkers(self, file="walkers{core}_{n}.npz", save_stepnum = True):
         """Saves a snapshot of the walkers to a pickle
 
         :return:
         :rtype:
         """
 
-        file = file.format("" if save_stepnum else self.sim.counter.step_num)
+        n = "" if not save_stepnum else self.sim.counter.step_num
+        core = self.sim.world_rank
+        if core == 0:
+            core = ""
+        file = file.format(core=core, n=n)
         f = os.path.abspath(file)
         if not os.path.isfile(f):
             f = os.path.join(self.output_folder, file)
@@ -227,23 +255,28 @@ class SimulationLogger:
             os.makedirs(out_dir)
         self.sim.walkers.snapshot(f)
 
-    def save_wavefunction(self, test = True, file = 'wavefunction_{}.npz'):
+    def save_wavefunction(self, wf, file = 'wavefunction{core}_{n}.npz'):
         """Save wavefunctions to a numpy binary
 
         :return:
         :rtype:
         """
-        if (not test) or self.write_wavefunctions:
-            file = file.format(self.sim.num_wavefunctions)
-            wf_dir = os.path.join(self.output_folder, "wavefunctions")
-            if not os.path.isdir(wf_dir):
-                os.makedirs(wf_dir)
-            file = os.path.join(wf_dir, file)
-            self.log_print("Saving wavefunction to {}", file, verbosity=self.LOG_STEPS)
-            np.savez(file, **self.sim.wavefunctions[-1])
-            return file
 
-    def snapshot_energies(self, test = True, file="energies"):
+        core = self.sim.world_rank
+        if core == 0:
+            core = ""
+        n = self.sim.num_wavefunctions
+        file = file.format(core=core, n=n)
+        file = os.path.join(self.output_folder, file)
+        # if not os.path.isdir(wf_dir):
+        #     os.makedirs(wf_dir)
+        # file = os.path.join(wf_dir, file)
+        if not self.sim.dummied:
+            self.log_print("Saving wavefunction to {}", file, verbosity=self.LOG_STEPS)
+        np.savez(file, **wf)
+        return file
+
+    def snapshot_energies(self, file="energies{core}.npy"):
         """Saves a snapshot of the energies to a numpy binary
 
         :param file:
@@ -252,21 +285,27 @@ class SimulationLogger:
         :rtype:
         """
 
+        core = self.sim.world_rank
+        if core == 0:
+            core = ""
+        file = file.format(core=core)
+
         f = os.path.abspath(file)
         if not os.path.isfile(f):
             if not os.path.isdir(self.output_folder):
                 os.makedirs(self.output_folder)
             f = os.path.join(self.output_folder, file)
+
         np.save(f, np.array(self.sim.reference_potentials))
         return f
 
-    def checkpoint(self, test = True):
-        if (not test) or self.save_snapshots:
-            self.log_print("Checkpointing simulation", verbosity=self.LOG_STEPS)
-            # self.snapshot("checkpoint.pickle")
-            self.snapshot_energies()
-            self.snapshot_params()
-            self.snapshot_walkers(save_stepnum=self.save_snapshots == True)
+    def checkpoint(self, save_stepnum = True):
+        # if not self.sim.dummied:
+        self.log_print("Checkpointing simulation", verbosity=self.LOG_STEPS)
+        # self.snapshot("checkpoint.pickle")
+        self.snapshot_energies()
+        self.snapshot_params()
+        self.snapshot_walkers(save_stepnum=save_stepnum)
 
 
 class SimulationAnalyzer:
@@ -287,7 +326,7 @@ class SimulationAnalyzer:
             vrefs = list(itertools.islice(self.sim.reference_potentials, len(self.sim.reference_potentials) - n, None, 1))
         else:
             vrefs = self.sim.reference_potentials
-        # return Constants.convert(np.average(np.array(vrefs)), "wavenumbers", in_AU=False)
+        return Constants.convert(np.average(np.array(vrefs)), "wavenumbers", in_AU=False)
 
     class Plotter:
         _mpl_loaded = False
@@ -369,7 +408,8 @@ class Simulation:
         "name", "description",
         "walker_set", "time_step", "alpha",
         "potential", "steps_per_propagation",
-        "mpi_manager", "importance_sampler"
+        "mpi_manager", "importance_sampler",
+        "num_wavefunctions", "atomic_units"
     ]
     def __init__(self, params):
         """Initializes the simulation from the simulation parameters
@@ -389,12 +429,14 @@ class Simulation:
             name = "dmc",
             description = "a dmc simulation",
             walker_set = None,
-            time_step = None,
+            time_step = 0,
             alpha = None,
             potential = None,
+            atomic_units = False,
             steps_per_propagation = None,
             mpi_manager = None,
-            importance_sampler = None
+            importance_sampler = None,
+            num_wavefunctions = 0
             ):
         """
 
@@ -449,6 +491,8 @@ class Simulation:
             potential = pot
         potential.mpi_manager = mpi_manager
         self.potential = potential
+        self.atomic_units = atomic_units
+
         if alpha is None:
             alpha = 1.0 / (2.0 * time_step)
         self.alpha = alpha
@@ -460,10 +504,11 @@ class Simulation:
         self.time_step = time_step
 
         self.wavefunctions = deque()
-        self._num_wavefunctions = 0 # here so we can do things with save_wavefunction <- mattered in the past when I sometimes had deque(maxlength=1)
+        self.num_wavefunctions = num_wavefunctions # here so we can do things with save_wavefunction <- mattered in the past when I sometimes had deque(maxlength=1)
 
         self.mpi_manager = mpi_manager
-        self.dummied = mpi_manager is None or mpi_manager.world_rank != 0
+        self.world_rank = 0 if mpi_manager is None else mpi_manager.world_rank
+        self.dummied = self.world_rank != 0
 
         if isinstance(importance_sampler, str):
             importance_sampler = ImportanceSamplerManager().load_sampler(importance_sampler)
@@ -473,7 +518,9 @@ class Simulation:
             self.imp_samp.init_params(self.walkers.sigmas, self.time_step)
 
     def checkpoint(self, test = True):
-        if (not self.dummied) and ((not test) or self.counter.checkpoint):
+        can_check = self.counter.checkpoint
+        self.log_print("Checkpoint? {}", can_check, verbosity=self.logger.LOG_STATUS)
+        if (not test) or can_check:
             self.logger.checkpoint()
 
     @classmethod
@@ -531,13 +578,13 @@ class Simulation:
         :rtype:
         """
         try:
+            self.timer.start()
             self._prop()
-        except:
-            self.checkpoint(test=False)
-            raise
         finally:
+            self.checkpoint(test=False)
             if self.mpi_manager is not None:
                 self.mpi_manager.finalize_MPI()
+            self.timer.stop()
 
     def propagate(self, nsteps = None):
         """Propagates the system forward n steps
@@ -553,7 +600,7 @@ class Simulation:
         if not self.dummied:
             self.log_print("Starting step {}", self.counter.step_num, verbosity=self.logger.LOG_STATUS)
             self.log_print("Moving coordinates {} steps", nsteps, verbosity=self.logger.LOG_STEPS)
-            coord_sets = self.walkers.displace(nsteps, importance_sampler=self.imp_samp)
+            coord_sets = self.walkers.displace(nsteps, importance_sampler=self.imp_samp, atomic_units = self.atomic_units)
             self.log_print("Computing potential energy", verbosity=self.logger.LOG_STATUS)
             start = time.time()
             energies = self.potential(coord_sets)
@@ -562,7 +609,7 @@ class Simulation:
                 energies += imp.local_kin(coord_sets)
             end = time.time()
             self.log_print("    took {}s", end-start, verbosity=self.logger.LOG_STATUS)
-            self.counter.step_num += nsteps
+            self.counter.increment(nsteps)
             self.log_print("Updating walker weights", verbosity=self.logger.LOG_STEPS)
             weights = self.update_weights(energies, self.walkers.weights)
             self.walkers.weights = weights
@@ -621,12 +668,18 @@ class Simulation:
         :rtype: np.ndarray
         """
         for e in energies: # this is basically a reduce call, but there's no real reason not to keep it like this
-            self.log_print("Energies: {}", e, verbosity=self.logger.LOG_DATA)
+            self.log_print("Min Energy: {} Max Energy: {} Mean Energy {}",
+                           np.min(e), np.max(e), np.average(e),
+                           verbosity=self.logger.LOG_DATA
+                           )
             Vref = self._compute_vref(e, weights)
             self.reference_potentials.append(Vref) # a constant time operation
             new_wts = np.nan_to_num(np.exp(-1.0 * (e - Vref) * self.time_step))
             weights *= new_wts
-            self.log_print("Weights: {}", weights, verbosity=self.logger.LOG_DATA)
+            self.log_print("Min Weight: {} Max Weight: {} Mean Weight {}",
+                           np.min(weights), np.max(weights), np.average(weights),
+                           verbosity=self.logger.LOG_DATA
+                           )
         return weights
 
     def branch(self):
@@ -644,7 +697,7 @@ class Simulation:
 
         eliminated_walkers = np.argwhere(weights < threshold).flatten()
         self.log_print('Walkers being removed: {}', len(eliminated_walkers), verbosity=self.logger.LOG_STATUS)
-        self.log_print('Max weight in ensemble: {}', np.amax(weights), verbosity=self.logger.LOG_STATUS)
+        # self.log_print('Min/Max weight in ensemble: {}/{}', np.min(weights), np.max(weights), verbosity=self.logger.LOG_STATUS)
 
         for dying in eliminated_walkers:  # gotta do it iteratively to get the max_weight_walker right...
             cloning = np.argmax(weights)
@@ -661,16 +714,19 @@ class Simulation:
         :rtype:
         """
         if self.counter.equilibrated:
-            status = self.counter.descendent_weighting_status()
-            if status == "complete":
+            status = self.counter.descendent_weighting_status
+            self.log_print("Descendent Weighting Status: {}", status, verbosity=self.logger.LOG_STATUS)
+            if status == self.counter.DescendentWeightingStatus.Complete:
                 self.log_print("Collecting descendent weights", verbosity=self.logger.LOG_STATUS)
                 dw = self.walkers.descendent_weight() # not sure where I want to cache these...
                 self.wavefunctions.append(dw)
-                self._num_wavefunctions += 1
-                self.logger.save_wavefunction()
-            elif status == "beginning":
+                self.num_wavefunctions += 1
+                self.logger.save_wavefunction(dw)
+            elif status == self.counter.DescendentWeightingStatus.Beginning:
                 self.log_print("Starting descendent weighting propagation", verbosity=self.logger.LOG_STATUS)
                 self.walkers._setup_dw()
+        else:
+            self.log_print("Equilibration not complete", verbosity=self.logger.LOG_STATUS)
 
 class SimulationParameters(ParameterManager):
     """

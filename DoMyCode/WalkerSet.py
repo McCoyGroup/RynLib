@@ -69,7 +69,7 @@ class WalkerSet:
         if self.sigmas is None:
             self.sigmas = np.sqrt((2.0 * D * deltaT) / self.masses)
 
-    def get_displacements(self, steps = 1, in_AU = True):
+    def get_displacements(self, steps = 1, in_AU = False):
         shape = (steps, ) + self.coords.shape[:-2] + self.coords.shape[-1:]
         disps = np.array([
             np.random.normal(0.0, sig, size = shape) for sig in self.sigmas
@@ -82,7 +82,7 @@ class WalkerSet:
 
         return disps
 
-    def get_displaced_coords(self, n=1, importance_sampler = None):
+    def get_displaced_coords(self, n=1, importance_sampler = None, in_AU = False):
         # accum_disp = np.cumsum(self.get_displacements(n), axis=1)
         # return np.broadcast_to(self.coords, (n,) + self.coords.shape) + accum_disp # hoping the broadcasting makes this work...
 
@@ -91,7 +91,7 @@ class WalkerSet:
         if importance_sampler is not None:
             importance_sampler.setup_psi(crds)
         bloop = self.coords
-        disps = self.get_displacements(n)
+        disps = self.get_displacements(n, in_AU=in_AU)
         for i, d in enumerate(disps): # loop over steps
             if importance_sampler is not None:
                 bloop = importance_sampler.accept_step(i, bloop, d)
@@ -100,8 +100,8 @@ class WalkerSet:
             crds[i] = bloop
         return crds
 
-    def displace(self, n=1, importance_sampler = None):
-        coords = self.get_displaced_coords(n, importance_sampler=importance_sampler)
+    def displace(self, n=1, importance_sampler = None, atomic_units=False):
+        coords = self.get_displaced_coords(n, importance_sampler=importance_sampler, in_AU=atomic_units)
         self.coords = coords[-1]
         return coords
 

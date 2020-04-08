@@ -55,9 +55,28 @@ class SimulationManager:
         self.run_simulation(name)
 
     def run_simulation(self, name):
+        import sys
+
         sim = self.load_simulation(name)
 
-        sim.run()
+        log = sim.logger.log_file
+        if isinstance(log, str):
+            if not os.path.isdir(os.path.dirname(log)):
+                os.makedirs(os.path.dirname(log))
+            try:
+                with open(log, "w+") as log_stream:
+                    sim.logger.log_file = log_stream
+                    sout = sys.stdout
+                    serr = sys.stderr
+                    sys.stdout = log_stream
+                    sys.stderr = log_stream
+                    sim.run()
+            finally:
+                sim.logger.log_file = log
+                sys.stdout = sout
+                sys.stderr = serr
+        else:
+            sim.run()
 
     def simulation_data(self, name, key):
         """Loads a simulation and returns its data...I guess?

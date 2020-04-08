@@ -9,6 +9,7 @@ from .ParameterManager import *
 from .FileMatcher import *
 from .TemplateWriter import *
 from .CLoader import *
+from .Constants import *
 
 
 # getting the full list of symbols explicitly in an __all__ variable
@@ -26,4 +27,6 @@ __all__ += exposed
 from .TemplateWriter import __all__ as exposed
 __all__ += exposed
 from .CLoader import __all__ as exposed
+__all__ += exposed
+from .Constants import __all__ as exposed
 __all__ += exposed
