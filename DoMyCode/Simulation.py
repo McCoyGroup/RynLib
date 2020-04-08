@@ -535,6 +535,9 @@ class Simulation:
         except:
             self.checkpoint(test=False)
             raise
+        finally:
+            if self.mpi_manager is not None:
+                self.mpi_manager.finalize_MPI()
 
     def propagate(self, nsteps = None):
         """Propagates the system forward n steps
