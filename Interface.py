@@ -220,7 +220,7 @@ class RynLib:
                 potential_directory="./potentials",
                 mpi_version="3.1.4",
                 mpi_implementation="ompi",
-                mpi_dir="/opt/mpi"
+                mpi_dir="./mpi"
             )
         elif 'cori' in node:
             env = dict(
@@ -398,7 +398,7 @@ class RynLib:
                     "clean"
                 ])
             except subprocess.CalledProcessError as e:
-                print(e.output)
+                print(e.output.decode())
                 raise
             finally:
                 os.chdir(curdir)
