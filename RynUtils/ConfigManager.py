@@ -202,6 +202,8 @@ class ConfigManager:
     """
 
     def __init__(self, conf_dir, conf_file = "config.py", config_package = "Configs"):
+        if isinstance(conf_dir, str):
+            conf_dir = os.path.abspath(conf_dir)
         self.conf_dir = conf_dir
         self.conf_name = conf_file
         self.loader = ModuleLoader(rootdir = self.conf_dir, rootpkg = config_package)
