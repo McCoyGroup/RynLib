@@ -468,6 +468,7 @@ class Simulation:
 
         if isinstance(importance_sampler, str):
             importance_sampler = ImportanceSamplerManager().load_sampler(importance_sampler)
+            importance_sampler.init_params(self.walkers.sigmas, self.time_step)
         self.imp_samp = importance_sampler
         if self.imp_samp is not None:
             self.imp_samp.init_params(self.walkers.sigmas, self.time_step)

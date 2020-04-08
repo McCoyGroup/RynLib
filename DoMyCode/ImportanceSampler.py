@@ -248,10 +248,17 @@ class ImportanceSamplerManager:
                 steps_per_propagation = cfig["steps_per_propagation"]
             else:
                 steps_per_propagation = 5
+            if 'sigmas' in cfig:
+                sigmas = cfig["sigmas"]
+            elif isinstance(walkers, WalkerSet):
+                sigmas = walkers.sigmas
+            else:
+                sigmas = 1
 
             walkers.initialize(time_step, 2.0)
+            sampler.init_params(sigmas, time_step)
 
-            print(walkers.coords.shape)
+            # print(walkers.coords.shape)
 
             return walkers.displace(steps_per_propagation, importance_sampler=sampler)
         finally:
