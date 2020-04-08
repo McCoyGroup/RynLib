@@ -76,6 +76,12 @@ class MPIManagerObject:
             noMorePI()
             cls._final = True
 
+    def wait(self):
+        cls = type(self)
+        if not cls._final:
+            holdMyPI = self.lib.holdMyPI
+            holdMyPI()
+
     @property
     def world_size(self):
         self.init_MPI()

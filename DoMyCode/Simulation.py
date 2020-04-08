@@ -519,7 +519,7 @@ class Simulation:
 
     def checkpoint(self, test = True):
         can_check = self.counter.checkpoint
-        self.log_print("Checkpoint? {}", can_check, verbosity=self.logger.LOG_STATUS)
+        # self.log_print("Checkpoint? {}", can_check, verbosity=self.logger.LOG_STATUS)
         if (not test) or can_check:
             self.logger.checkpoint()
 
@@ -578,9 +578,13 @@ class Simulation:
         :rtype:
         """
         try:
+            if not self.dummied:
+                self.log_print("Starting simulation")
             self.timer.start()
             self._prop()
         finally:
+            if not self.dummied:
+                self.log_print("Ending simulation")
             self.checkpoint(test=False)
             if self.mpi_manager is not None:
                 self.mpi_manager.finalize_MPI()
@@ -635,6 +639,9 @@ class Simulation:
                 walk = self._dummy_walkers
             self.potential(walk)
             self.counter.step_num += nsteps
+
+        if self.mpi_manager is not None:
+            self.mpi_manager.wait()
 
     def _compute_vref(self, energies, weights):
         """Takes a single set of energies and weights and computes the average potential
