@@ -95,7 +95,8 @@ class SimulationInterface:
     @classmethod
     def test_sampler(cls, name=None):
         print("Testing importance sampler {}".format(name))
-        print("Sampler returned array with shape {}".format(ImportanceSamplerManager().test_sampler(name).shape))
+        ke = ImportanceSamplerManager().test_sampler(name)
+        print("Sampler returned local kinetic energy {}".format(ke))
 
     @classmethod
     def test_ch5_sampler(cls):
@@ -224,11 +225,11 @@ class RynLib:
                 mpi_flags=[
                     "--disable-oshmem",
                     "--enable-branch-probabilities",
-                    "--disable-fortran",
                     "--disable-mpi-fortran",
-                    "--with-slurm",
-                    "--with-pmi=/usr",
-                    "--with-pmi2=/usr"
+                    "--with-slurm"
+                    #,
+                    # "--with-pmi=/usr",
+                    # "--with-psm2=/usr"
                 ]
             )
         elif 'cori' in node:

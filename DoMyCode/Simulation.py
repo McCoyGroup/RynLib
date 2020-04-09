@@ -630,7 +630,9 @@ class Simulation:
             energies = self.potential(coord_sets)
             if self.imp_samp is not None:
                 imp = self.imp_samp #type: ImportanceSampler
-                energies += imp.local_kin(coord_sets)
+                ke = imp.local_kin(coord_sets)
+                self.log_print("Min/Max local kinetic energy: {}/{}", np.min(ke), np.max(ke), verbosity=self.logger.LOG_STATUS)
+                energies += ke
             end = time.time()
             self.log_print("    took {}s", end-start, verbosity=self.logger.LOG_STATUS)
             self.counter.increment(nsteps)
