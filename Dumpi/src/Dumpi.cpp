@@ -7,15 +7,12 @@ void _mpiInit(int* world_size, int* world_rank) {
     int err = MPI_SUCCESS;
     MPI_Initialized(&did_i_do_good_pops);
     if (!did_i_do_good_pops){
+//        int error;
+//        error = MPI_Comm_set_errhandler(MPI_COMM_WORLD, MPI_ERRORS_RETURN);
         err = MPI_Init(NULL, NULL);
+//        error = MPI_Comm_set_errhandler(MPI_COMM_WORLD, MPI_ERRORS_ARE_FATAL);
     };
-    if (err != MPI_SUCCESS) {
-        // might be a memory leak, but this is also an edge case that should _always_ crash
-        int bad_world = 0;
-        int bad_rank = -1;
-        world_size = &bad_world;
-        world_rank = &bad_rank;
-    } else {
+    if (err == MPI_SUCCESS) {
         MPI_Comm_size(MPI_COMM_WORLD, world_size);
         MPI_Comm_rank(MPI_COMM_WORLD, world_rank);
     }
@@ -85,11 +82,18 @@ static int Gather_Walkers(
 // MPI COMMUNICATION METHODS
 PyObject *Dumpi_initializeMPI(PyObject *self, PyObject *args) {
 
-    PyObject *hello, *cls;
+    PyObject *hello;//, *cls;
     int world_size, world_rank;
-    if ( !PyArg_ParseTuple(args, "O", &cls) ) return NULL;
-    _mpiInit(&world_size, &world_rank);
-    hello = Py_BuildValue("(ii)", world_rank, world_size);
+    world_size = -1;
+    world_rank = -1;
+//    if ( !PyArg_ParseTuple(args, "O", &cls) ) return NULL;
+    _mpiInit(&world_size, &world_rank); // If this fails, nothing is set
+    if (world_rank == -1) {
+        hello = NULL;
+        PyErr_SetString(PyExc_IOError, "MPI failed to initialize");
+    } else {
+        hello = Py_BuildValue("(ii)", world_rank, world_size);
+        };
     return hello;
 }
 
