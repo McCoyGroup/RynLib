@@ -105,9 +105,9 @@ class CLoader:
         :return:
         :rtype:
         """
-        lib_lib_dir = self.lib_lib_dir
+        lib_lib_dir = os.path.abspath(self.lib_lib_dir)
 
-        lib_dirs = self.include_dirs + (lib_lib_dir,)
+        lib_dirs = [os.path.abspath(d) for d in self.include_dirs + (lib_lib_dir,)]
         libbies = self.linked_libs
         mroos = self.macros
         sources = self.source_files
@@ -122,7 +122,7 @@ class CLoader:
             sources=list(sources),
             library_dirs=list(lib_dirs),
             runtime_library_dirs=list(lib_dirs),
-            include_dirs=list(self.include_dirs),
+            include_dirs=[os.path.abspath(d) for d in self.include_dirs],
             libraries=list(libbies),
             define_macros=list(mroos),
             extra_objects=list(self.extra_objects),
@@ -241,7 +241,7 @@ class CLoader:
         :rtype:
         """
         if self.requires_make:
-            lib_d = self.lib_lib_dir
+            lib_d = os.path.abspath(self.lib_lib_dir)
             for lib in os.listdir(lib_d):
                 lib = os.path.join(lib_d, lib)
                 if os.path.isdir(lib):
@@ -251,7 +251,7 @@ class CLoader:
 
         curdir = os.getcwd()
 
-        src_dir = self.src_dir
+        src_dir = os.path.abspath(self.src_dir)
         module = self.get_extension()
 
         sysargv1 = sys.argv
@@ -282,7 +282,7 @@ class CLoader:
         """
 
         libname = self.lib_name
-        lib_dir = self.lib_dir
+        lib_dir = os.path.abspath(self.lib_dir)
         if root is None:
             root = os.path.join(lib_dir, "src")
         target = libname
