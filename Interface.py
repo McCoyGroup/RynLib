@@ -220,7 +220,16 @@ class RynLib:
                 potential_directory="./potentials",
                 mpi_version="3.1.4",
                 mpi_implementation="ompi",
-                mpi_dir="./mpi"
+                mpi_dir="./mpi",
+                mpi_flags=[
+                    "--disable-oshmem",
+                    "--enable-branch-probabilities",
+                    "--disable-fortran",
+                    "--disable-mpi-fortran",
+                    "--with-slurm",
+                    "--with-pmi=/usr",
+                    "--with-pmi2=/usr"
+                ]
             )
         elif 'cori' in node:
             env = dict(
@@ -232,7 +241,13 @@ class RynLib:
                 potential_directory="/config/potentials",
                 mpi_version="3.2",
                 mpi_implementation="mpich",
-                mpi_dir="/config/mpi"
+                mpi_dir="/config/mpi",
+                mpi_flags=[
+                    "--disable-oshmem",
+                    "--enable-branch-probabilities",
+                    "--disable-fortran",
+                    "--disable-mpi-fortran"
+                ]
             )
         else:
             env = dict(
@@ -244,7 +259,8 @@ class RynLib:
                 potential_directory="/config/potentials",
                 mpi_version="3.1.4",
                 mpi_implementation="ompi",
-                mpi_dir="/config/mpi"
+                mpi_dir="/config/mpi",
+                mpi_flags=[]
             )
         return env
 
@@ -383,10 +399,7 @@ class RynLib:
                 subprocess.check_output([
                     "./configure",
                     "--prefix={MPI_DIR}".format(MPI_DIR=MPI_DIR),
-                    "--disable-oshmem",
-                    "--enable-branch-probabilities",
-                    "--disable-fortran",
-                    "--disable-mpi-fortran"
+                    *conf.mpi_flags
                 ])
                 subprocess.check_output([
                     "make",
