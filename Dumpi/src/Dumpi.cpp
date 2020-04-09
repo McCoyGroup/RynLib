@@ -9,6 +9,7 @@ void _mpiInit(int* world_size, int* world_rank) {
     if (!did_i_do_good_pops){
 //        int error;
 //        error = MPI_Comm_set_errhandler(MPI_COMM_WORLD, MPI_ERRORS_RETURN);
+        printf("this is before MPI_Init\n");
         err = MPI_Init(NULL, NULL);
         printf("...okay I guess MPI initialized\n");
 //        error = MPI_Comm_set_errhandler(MPI_COMM_WORLD, MPI_ERRORS_ARE_FATAL);
