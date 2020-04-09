@@ -67,6 +67,9 @@ class MPIManagerObject:
             world_rank, world_size = giveMePI(cls) # as written
             cls._world_size = world_size
             cls._world_rank = world_rank
+            if world_rank == -1:
+                self.abort()
+                raise IOError("MPI failed to initialize")
             cls._initted = True
 
     def finalize_MPI(self):
@@ -74,6 +77,13 @@ class MPIManagerObject:
         if not cls._final:
             noMorePI = self.lib.noMorePI
             noMorePI()
+            cls._final = True
+
+    def abort(self):
+        cls = type(self)
+        if not cls._final:
+            killMyPI = self.lib.killMyPI
+            killMyPI()
             cls._final = True
 
     def wait(self):

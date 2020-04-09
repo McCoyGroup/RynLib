@@ -507,7 +507,11 @@ class Simulation:
         self.num_wavefunctions = num_wavefunctions # here so we can do things with save_wavefunction <- mattered in the past when I sometimes had deque(maxlength=1)
 
         self.mpi_manager = mpi_manager
-        self.world_rank = 0 if mpi_manager is None else mpi_manager.world_rank
+        try:
+            self.world_rank = 0 if mpi_manager is None else mpi_manager.world_rank
+        except:
+            mpi_manager.abort()
+            raise
         self.dummied = self.world_rank != 0
 
         if isinstance(importance_sampler, str):

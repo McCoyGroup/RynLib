@@ -4,12 +4,21 @@
 void _mpiInit(int* world_size, int* world_rank) {
     // Initialize MPI state
     int did_i_do_good_pops = 0;
+    int err = MPI_SUCCESS;
     MPI_Initialized(&did_i_do_good_pops);
     if (!did_i_do_good_pops){
-        MPI_Init(NULL, NULL);
+        err = MPI_Init(NULL, NULL);
     };
-    MPI_Comm_size(MPI_COMM_WORLD, world_size);
-    MPI_Comm_rank(MPI_COMM_WORLD, world_rank);
+    if (err != MPI_SUCCESS) {
+        // might be a memory leak, but this is also an edge case that should _always_ crash
+        int bad_world = 0;
+        int bad_rank = -1;
+        world_size = &bad_world;
+        world_rank = &bad_rank;
+    } else {
+        MPI_Comm_size(MPI_COMM_WORLD, world_size);
+        MPI_Comm_rank(MPI_COMM_WORLD, world_rank);
+    }
     // printf("This many things %d and I am here %d\n", *world_size, *world_rank);
 }
 
@@ -94,12 +103,18 @@ PyObject *Dumpi_syncMPI( PyObject* self, PyObject* args ) {
     Py_RETURN_NONE;
 }
 
+PyObject *Dumpi_abortMPI( PyObject* self, PyObject* args ) {
+    MPI_Abort(MPI_COMM_WORLD, 303);
+    Py_RETURN_NONE;
+}
+
 // PYTHON WRAPPER EXPORT
 
 static PyMethodDef DumpiMethods[] = {
     {"giveMePI", Dumpi_initializeMPI, METH_VARARGS, "calls Init and returns the processor rank"},
     {"noMorePI", Dumpi_finalizeMPI, METH_VARARGS, "calls Finalize in a safe fashion (can be done more than once)"},
     {"holdMyPI", Dumpi_syncMPI, METH_VARARGS, "calls Barrier"},
+    {"killMyPI", Dumpi_abortMPI, METH_VARARGS, "calls Abort"},
     {NULL, NULL, 0, NULL}
 };
 
