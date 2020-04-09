@@ -512,7 +512,7 @@ class Simulation:
             self.mpi_manager.test()
         except:
             import traceback as tb
-            self.log_print("Error Occurred in configuring MPI\n  {}", tb.format_exc(), self.logger.LOG_MPI))
+            self.log_print("Error Occurred in configuring MPI\n  {}", tb.format_exc(), self.logger.LOG_MPI)
             mpi_manager.abort()
             raise
         self.dummied = self.world_rank != 0
