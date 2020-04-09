@@ -580,8 +580,9 @@ class Simulation:
         try:
             if not self.dummied:
                 self.log_print("Starting simulation")
-                if self.mpi_manager is not None:
-                    self.mpi_manager.wait()
+            if self.mpi_manager is not None:
+                self.log_print("waiting for friends", verbosity=self.logger.LOG_STATUS)
+                self.mpi_manager.wait()
             self.timer.start()
             self._prop()
         finally:
@@ -643,6 +644,7 @@ class Simulation:
             self.counter.step_num += nsteps
 
         if self.mpi_manager is not None:
+            self.log_print("waiting for friends", verbosity=self.logger.LOG_STATUS)
             self.mpi_manager.wait()
 
     def _compute_vref(self, energies, weights):
