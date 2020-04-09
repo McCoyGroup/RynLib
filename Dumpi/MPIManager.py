@@ -68,7 +68,7 @@ class MPIManagerObject:
         mpi_dead = test_thread.is_alive()
         if mpi_dead:
             raise MPIManagerError("wait() was called, but the other cores never caught up--MPI probably died on a different one")
-        return mpi_dead
+        return not mpi_dead
 
     def init_MPI(self):
         cls = type(self)
