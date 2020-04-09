@@ -59,6 +59,17 @@ class MPIManagerObject:
             cls._lib = cls._load_lib()
         return self._lib
 
+    def test(self, timeout=5):
+        import threading
+
+        test_thread = threading.Thread(target=lambda s=self:s.wait())
+        test_thread.start()
+        test_thread.join(timeout)
+        mpi_dead = test_thread.is_alive()
+        if mpi_dead:
+            raise MPIManagerError("wait() was called, but the other cores never caught up--MPI probably died on a different one")
+        return mpi_dead
+
     def init_MPI(self):
         cls = type(self)
         if not cls._initted:
