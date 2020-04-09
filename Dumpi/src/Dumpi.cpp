@@ -11,7 +11,7 @@ void _mpiInit(int* world_size, int* world_rank) {
 //        error = MPI_Comm_set_errhandler(MPI_COMM_WORLD, MPI_ERRORS_RETURN);
         printf("this is before MPI_Init\n");
 //        MPI_Errhandler_set(MPI_COMM_WORLD, MPI_ERRORS_RETURN);
-        MPI_ERRORS_ARE_FATAL = MPI_ERRORS_RETURN; // eesh this is dangerous, but I just want to see if it works...
+//        MPI_ERRORS_ARE_FATAL = MPI_ERRORS_RETURN; // eesh this is dangerous, but I just want to see if it works...
         err = MPI_Init(NULL, NULL);
         printf("...okay I guess MPI initialized\n");
 //        error = MPI_Comm_set_errhandler(MPI_COMM_WORLD, MPI_ERRORS_ARE_FATAL);
