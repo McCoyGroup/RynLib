@@ -17,6 +17,7 @@ class CLoader:
                  description = "An extension module",
                  version = "1.0.0",
                  include_dirs = None,
+                 runtime_dirs = None,
                  linked_libs = None,
                  macros = None,
                  extra_link_args=None,
@@ -34,6 +35,7 @@ class CLoader:
         self.lib_version = version
 
         self.include_dirs = () if include_dirs is None else tuple(include_dirs)
+        self.runtime_dirs = runtime_dirs
         self.linked_libs = () if linked_libs is None else tuple(linked_libs)
         self.extra_link_args = () if extra_link_args is None else tuple(extra_link_args)
         self.extra_compile_args = () if extra_compile_args is None else tuple(extra_compile_args)
@@ -108,6 +110,7 @@ class CLoader:
         lib_lib_dir = os.path.abspath(self.lib_lib_dir)
 
         lib_dirs = [os.path.abspath(d) for d in self.include_dirs + (lib_lib_dir,)]
+        runtime_dirs = lib_dirs if self.runtime_dirs is None else self.runtime_dirs
         libbies = self.linked_libs
         mroos = self.macros
         sources = self.source_files
@@ -121,7 +124,7 @@ class CLoader:
             self.lib_name,
             sources=list(sources),
             library_dirs=list(lib_dirs),
-            runtime_library_dirs=list(lib_dirs),
+            runtime_library_dirs=list(runtime_dirs),
             include_dirs=[os.path.abspath(d) for d in self.include_dirs],
             libraries=list(libbies),
             define_macros=list(mroos),
