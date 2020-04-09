@@ -163,7 +163,7 @@ class ImportanceSampler:
         else:
             d2psidx2 = self.derivs[1](coords)
         # kin = -1. / 2. * np.sum(np.sum(sigma ** 2 / time_step * d2psidx2, axis=2), axis=2)
-        kin = -1. / 2 * np.tensordot(sigma**2/time_step, d2psidx2, axes=[[0, 1], [0, 1]])
+        kin = -1. / 2 * np.tensordot(sigma**2/time_step, d2psidx2, axes=[[0, 1], [-2, -1]])
         return kin
 
 class ImportanceSamplerManager:
@@ -269,6 +269,7 @@ class ImportanceSamplerManager:
 
             # print(walkers.coords.shape)
 
-            return walkers.displace(steps_per_propagation, importance_sampler=sampler)
+            disp_walks = walkers.displace(steps_per_propagation, importance_sampler=sampler)
+            return sampler.local_kin(disp_walks)
         finally:
             os.chdir(curdir)

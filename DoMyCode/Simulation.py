@@ -588,10 +588,10 @@ class Simulation:
         except Exception as e:
             import traceback as tb
             if not self.dummied:
-                self.log_print("Error Occurred\n  {}", tb.format_exc(), verbosity=self.logger.LOG_STATUS)
+                self.log_print("Error Occurred\n  {}", tb.format_exc().replace("\n", "\n  "), verbosity=self.logger.LOG_STATUS)
             else:
-                self.log_print("  Error Occurred on core {}\n  {}",
-                               self.world_rank, tb.format_exc(),
+                self.log_print("Error Occurred on core {}\n  {}",
+                               self.world_rank, tb.format_exc().replace("\n", "\n  "),
                                verbosity=self.logger.LOG_STATUS
                                )
             raise
