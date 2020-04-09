@@ -585,6 +585,16 @@ class Simulation:
                 self.mpi_manager.wait()
             self.timer.start()
             self._prop()
+        except Exception as e:
+            import traceback as tb
+            if not self.dummied:
+                self.log_print("Error Occurred\n  {}", tb.format_exc(), verbosity=self.logger.LOG_STATUS)
+            else:
+                self.log_print("  Error Occurred on core {}\n  {}",
+                               self.world_rank, tb.format_exc(),
+                               verbosity=self.logger.LOG_STATUS
+                               )
+            raise
         finally:
             if not self.dummied:
                 self.log_print("Ending simulation")
