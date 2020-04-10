@@ -391,7 +391,7 @@ class RynLib:
             #     conf = cls.get_conf()
             # mpi_flags = conf.mpi_flags
 
-        MPI_DIR = os.path.join(mpi_dir, "mpi")
+        MPI_DIR = os.path.abspath(mpi_dir) # os.path.join(mpi_dir, "mpi")
         MPI_IMP = mpi_implementation.lower()
 
         if os.path.isdir(MPI_DIR):
