@@ -221,7 +221,7 @@ class RynLib:
                 potential_directory="/config/potentials",
                 mpi_version="3.1.4",
                 mpi_implementation="ompi",
-                mpi_dir="/config/libs",
+                mpi_dir="/mpi",
                 mpi_flags=[
                     "--disable-oshmem",
                     "--enable-branch-probabilities",
@@ -242,11 +242,10 @@ class RynLib:
                 potential_directory="/config/potentials",
                 mpi_version="3.2",
                 mpi_implementation="mpich",
-                mpi_dir="/config/mpi",
+                mpi_dir="/mpi",
                 mpi_flags=[
                     "--disable-oshmem",
                     "--enable-branch-probabilities",
-                    "--disable-fortran",
                     "--disable-mpi-fortran"
                 ]
             )
@@ -300,6 +299,7 @@ class RynLib:
     def build_libs(cls):
         from .PlzNumbers import PotentialCaller
         PotentialCaller._load_lib()
+        cls.reload_dumpi()
 
         # if os.path.isdir(os.path.join(cls.get_conf().mpi_dir)):
         #     cls.reload_dumpi()
@@ -356,21 +356,49 @@ class RynLib:
             os.chdir(curdir)
 
     @classmethod
-    def install_MPI(cls):
+    def install_MPI(cls,
+                    mpi_version=None,
+                    mpi_implementation=None,
+                    mpi_dir=None,
+                    mpi_flags=None,
+                    bind_conf = False
+                    ):
         """Installs MPI into the containerized environment"""
         #This comes from /sw/singularity-images/testing/ngsolve-2.def
         import subprocess, tempfile, wget, tarfile
 
-        conf = cls.get_conf()
+        conf = None
+        if mpi_dir is None:
+            mpi_dir="/mpi"
+            # if conf is None:
+            #     conf = cls.get_conf()
+            # mpi_dir=os.path.abspath(conf.mpi_dir)
+        if mpi_implementation is None:
+            if conf is None:
+                conf = cls.get_conf()
+            mpi_implementation=conf.mpi_implementation
+        if mpi_version is None:
+            if conf is None:
+                conf = cls.get_conf()
+            mpi_version=conf.mpi_version
+        if mpi_flags is None:
+            mpi_flags = (
+                "--disable-oshmem",
+                "--enable-branch-probabilities",
+                "--disable-mpi-fortran"
+            )
+            # if conf is None:
+            #     conf = cls.get_conf()
+            # mpi_flags = conf.mpi_flags
 
-        MPI_DIR = os.path.join(os.path.abspath(conf.mpi_dir), "mpi")
-        MPI_IMP = conf.mpi_implementation.lower()
+        MPI_DIR = os.path.join(mpi_dir, "mpi")
+        MPI_IMP = mpi_implementation.lower()
 
         if os.path.isdir(MPI_DIR):
             shutil.rmtree(MPI_DIR)
         os.makedirs(MPI_DIR)
 
-        MPI_VERSION = conf.mpi_version
+        MPI_VERSION = mpi_version
         MPI_MAJOR_VERSION = ".".join(MPI_VERSION.split(".")[:2])
         if MPI_IMP == "ompi":
             MPI_URL = "https://download.open-mpi.org/release/open-mpi/v{MPI_MAJOR_VERSION}/openmpi-{MPI_VERSION}.tar.bz2".format(
@@ -401,7 +429,7 @@ class RynLib:
                 subprocess.check_output([
                     "./configure",
                     "--prefix={MPI_DIR}".format(MPI_DIR=MPI_DIR),
-                    *conf.mpi_flags
+                    *mpi_flags
                 ])
                 subprocess.check_output([
                     "make",
@@ -420,7 +448,8 @@ class RynLib:
 
         print("\nInstalling MPI to {}",format(MPI_DIR))
 
-        conf.update(mpi_dir=MPI_DIR)
+        if bind_conf:
+            conf.update(mpi_dir=MPI_DIR)
 
     @classmethod
     def configure_mpi(cls):

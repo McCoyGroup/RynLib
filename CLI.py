@@ -59,6 +59,10 @@ class CLI:
         RynLib.reset_config()
 
     def config_install_mpi(self):
+        parse_dict = self.get_parse_dict(
+            ("--version", dict(default="", type=str, dest='version')),
+            ("--imp", dict(default="", type=str, dest='imp'))
+        )
         RynLib.install_MPI()
 
     def config_reload_dumpi(self):

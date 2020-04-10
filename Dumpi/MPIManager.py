@@ -25,23 +25,24 @@ class MPIManagerObject:
 
     @classmethod
     def _load_lib(cls):
-        from ..Interface import RynLib
-        import shutil
-        cf = RynLib.get_conf()
-        mpi_dir = cf.mpi_dir
-        env = cf.containerizer
-        if not os.path.exists(os.path.join(mpi_dir, "Dumpi")):
-            shutil.copytree(
-                os.path.dirname(__file__),
-                os.path.join(mpi_dir, "Dumpi")
-                )
+        # from ..Interface import RynLib
+        # import shutil
+        # cf = RynLib.get_conf()
+        mpi_dir = "/mpi"#cf.mpi_dir
+        # env = cf.containerizer
+        # if not os.path.exists(os.path.join(mpi_dir, "Dumpi")):
+        #     shutil.copytree(
+        #         os.path.dirname(__file__),
+        #         os.path.join(mpi_dir, "Dumpi")
+        #         )
         loader = CLoader("Dumpi",
-                         os.path.join(mpi_dir, "Dumpi"),
+                         os.path.dirname(os.path.abspath(__file__)),
+                         # os.path.join(mpi_dir, "Dumpi"),
                          linked_libs=["mpi"],
                          # runtime_dirs = ("/) if env.lower() == "singularity" else None,
                          include_dirs=[
-                             os.path.join(mpi_dir, "mpi", "lib"),
-                             os.path.join(mpi_dir, "mpi", "include")
+                             os.path.join(mpi_dir, "lib"),
+                             os.path.join(mpi_dir, "include")
                             ]
                          )
         return loader.load()

@@ -18,6 +18,8 @@ ADD . /home/RynLib
 RUN \
   git clone https://github.com/McCoyGroup/Peeves /home/Peeves
 
+RUN python3 /home/RynLib/CLI.py install_MPI --version=3.1.4 --imp=ompi
+
 RUN python3 /home/RynLib/CLI.py config build_libs
 
 WORKDIR /home
