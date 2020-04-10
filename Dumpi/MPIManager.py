@@ -29,7 +29,7 @@ class MPIManagerObject:
         import shutil
         cf = RynLib.get_conf()
         mpi_dir = cf.mpi_dir
-        env = cf.containerizer
+        # env = cf.containerizer
         if not os.path.exists(os.path.join(mpi_dir, "Dumpi")):
             shutil.copytree(
                 os.path.dirname(__file__),
@@ -38,7 +38,7 @@ class MPIManagerObject:
         loader = CLoader("Dumpi",
                          os.path.join(mpi_dir, "Dumpi"),
                          linked_libs=["mpi"],
-                         runtime_dirs = () if env.lower() == "singularity" else None,
+                         # runtime_dirs = () if env.lower() == "singularity" else None,
                          include_dirs=[
                              os.path.join(mpi_dir, "lib"),
                              os.path.join(mpi_dir, "include")
