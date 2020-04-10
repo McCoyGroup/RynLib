@@ -1,8 +1,10 @@
 Bootstrap: localimage
 From: entos
 
+%setup
+    touch /config
+
 %files
-    /config
     .. /home/RynLib
 
 %environment
