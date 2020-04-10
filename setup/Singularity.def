@@ -1,9 +1,6 @@
 Bootstrap: localimage
 From: entos
 
-%setup
-    touch /config
-
 %files
     .. /home/RynLib
 
@@ -12,8 +9,8 @@ From: entos
     export LD_LIBRARY_PATH
 
 %post
+    mkdir /config
     git clone https://github.com/McCoyGroup/Peeves /home/Peeves
-
     python3 /home/RynLib/CLI.py config build_libs
 
 %runscript
