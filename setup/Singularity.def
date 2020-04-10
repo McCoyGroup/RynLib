@@ -4,7 +4,7 @@ From: entos
 %files
     .. /home/RynLib
 
-%postconfig
+%post
     git clone https://github.com/McCoyGroup/Peeves /home/Peeves
     python3 /home/RynLib/CLI.py config install_MPI --version=3.1.4 --imp=ompi
     python3 /home/RynLib/CLI.py config build_libs
