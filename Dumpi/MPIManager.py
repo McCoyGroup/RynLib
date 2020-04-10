@@ -74,8 +74,8 @@ class MPIManagerObject:
         return not mpi_dead
 
     def init_MPI(self):
-        import os
-        print(os.environ["LD_LIBRARY_PATH"])
+        # import os
+        # print(os.environ["LD_LIBRARY_PATH"])
         cls = type(self)
         if not cls._initted:
             giveMePI = self.lib.giveMePI

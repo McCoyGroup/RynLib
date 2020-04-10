@@ -165,6 +165,9 @@ class CLoader:
             sources = make_file["sources"] if 'sources' in make_file else self.source_files
             compiler_flags = make_file["compiler_flags"] if 'compiler_flags' in make_file else self.extra_compile_args
             include_dirs = make_file["include_directories"] if 'include_directories' in make_file else self.include_dirs
+            runtime_dirs = make_file["runtime_directories"] if 'runtime_directories' in make_file else self.runtime_dirs
+            if runtime_dirs is None:
+                runtime_dirs = include_dirs
 
             linker = make_file["linker"]
             link_flags = make_file["link_flags"] if 'link_flags' in make_file else self.extra_link_args
