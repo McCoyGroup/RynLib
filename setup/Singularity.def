@@ -4,10 +4,6 @@ From: entos
 %files
     .. /home/RynLib
 
-%environment
-    LD_LIBRARY_PATH=/config/libs/mpi/lib:/usr/lib64:/config/libs/lib64
-    export LD_LIBRARY_PATH
-
 %post
     mkdir /config
     git clone https://github.com/McCoyGroup/Peeves /home/Peeves
