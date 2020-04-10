@@ -221,7 +221,7 @@ class RynLib:
                 potential_directory="./potentials",
                 mpi_version="3.1.4",
                 mpi_implementation="ompi",
-                mpi_dir="./mpi",
+                mpi_dir="./libs",
                 mpi_flags=[
                     "--disable-oshmem",
                     "--enable-branch-probabilities",
