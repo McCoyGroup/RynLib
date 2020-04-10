@@ -2,10 +2,8 @@ Bootstrap: localimage
 From: entos
 
 %files
-    .. /home/RynLib
-
-%touch
     /config
+    .. /home/RynLib
 
 %environment
     LD_LIBRARY_PATH=/config/libs/mpi/lib
