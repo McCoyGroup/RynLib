@@ -5,7 +5,7 @@ From: entos
     .. /home/RynLib
 
 %environment
-    LD_LIBRARY_PATH=/config/libs/mpi/lib
+    LD_LIBRARY_PATH=/config/libs/mpi/lib:/usr/lib64:/usr/lib
     export LD_LIBRARY_PATH
 
 %post
