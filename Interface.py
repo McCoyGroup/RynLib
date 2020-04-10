@@ -363,11 +363,12 @@ class RynLib:
 
         conf = cls.get_conf()
 
-        MPI_DIR = os.path.abspath(conf.mpi_dir)
+        MPI_DIR = os.path.join(os.path.abspath(conf.mpi_dir), "mpi")
         MPI_IMP = conf.mpi_implementation.lower()
 
         if os.path.isdir(MPI_DIR):
             shutil.rmtree(MPI_DIR)
+        os.makedirs(MPI_DIR)
 
         MPI_VERSION = conf.mpi_version
         MPI_MAJOR_VERSION = ".".join(MPI_VERSION.split(".")[:2])

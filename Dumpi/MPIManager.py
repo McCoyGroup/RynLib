@@ -40,8 +40,8 @@ class MPIManagerObject:
                          linked_libs=["mpi"],
                          # runtime_dirs = () if env.lower() == "singularity" else None,
                          include_dirs=[
-                             os.path.join(mpi_dir, "lib"),
-                             os.path.join(mpi_dir, "include")
+                             os.path.join(mpi_dir, "mpi", "lib"),
+                             os.path.join(mpi_dir, "mpi", "include")
                             ]
                          )
         return loader.load()
