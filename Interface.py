@@ -296,14 +296,17 @@ class RynLib:
         return cls.get_conf().containerizer
 
     @classmethod
-    def build_libs(cls):
+    def build_libs(cls, rebuild=False):
         from .PlzNumbers import PotentialCaller
-        PotentialCaller._load_lib()
-        cls.reload_dumpi()
+        if rebuild:
+            PotentialCaller.reload()
+            cls.reload_dumpi()
+        else:
+            PotentialCaller.load_lib()
+            cls.configure_mpi()
 
         # if os.path.isdir(os.path.join(cls.get_conf().mpi_dir)):
         #     cls.reload_dumpi()
-
 
     @classmethod
     def run_tests(cls):
@@ -406,7 +409,10 @@ class RynLib:
                 MPI_VERSION = MPI_VERSION
             )
         else:
-            MPI_URL = "https://www.mpich.org/static/downloads/{MPI_VERSION}/mpich-{MPI_VERSION}.tar.gz"
+            MPI_URL = "https://www.mpich.org/static/downloads/{MPI_VERSION}/mpich-{MPI_VERSION}.tar.gz".format(
+                MPI_MAJOR_VERSION = MPI_MAJOR_VERSION,
+                MPI_VERSION = MPI_VERSION
+            )
 
         with tempfile.TemporaryDirectory() as build_dir:
             if MPI_IMP == "ompi":
@@ -453,7 +459,7 @@ class RynLib:
 
     @classmethod
     def configure_mpi(cls):
-        mpi_dir = cls.get_conf().mpi_dir
+        mpi_dir = "/mpi"#cls.get_conf().mpi_dir
         if not os.path.isdir(mpi_dir):
             cls.install_MPI()
 
@@ -462,7 +468,7 @@ class RynLib:
 
     @classmethod
     def reload_dumpi(cls):
-        mpi_dir = cls.get_conf().mpi_dir
+        mpi_dir = "/mpi"#cls.get_conf().mpi_dir
         if not os.path.isdir(mpi_dir):
             cls.install_MPI()
 
@@ -475,7 +481,7 @@ class RynLib:
 
     @classmethod
     def test_mpi(cls):
-        mpi_dir = cls.get_conf().mpi_dir
+        mpi_dir = "/mpi"#cls.get_conf().mpi_dir
         if not os.path.isdir(mpi_dir):
             cls.install_MPI()
 

@@ -35,11 +35,16 @@ class PotentialCaller:
         self._py_pot = not repr(self.potential).startswith("<capsule object ")  # wow this is a hack...
 
     @classmethod
-    def _load_lib(cls):
+    def load_lib(cls):
         loader = CLoader("PlzNumbers", os.path.dirname(os.path.abspath(__file__)),
                 source_files=["PlzNumbers.cpp", "Potators.cpp", "PyAllUp.cpp"]
                 )
         return loader.load()
+
+    @classmethod
+    def reload(cls):
+        os.remove(os.path.join(os.path.dirname(os.path.abspath(__file__)), "PlzNumbers.so"))
+        return cls.load_lib()
     @property
     def lib(self):
         """
@@ -48,7 +53,7 @@ class PotentialCaller:
         :rtype: module
         """
         if self._lib is None:
-            self._lib = self._load_lib()
+            self._lib = self.load_lib()
         return self._lib
 
     def call_single(self, walker, atoms, extra_bools=(), extra_ints=(), extra_floats=()):

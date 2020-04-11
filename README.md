@@ -96,6 +96,7 @@ pot -- anything involved in configuring a potential for use in the DMC
 ```
 
 ### Docker
+
 Here's the way you might alias RynLib for use with Docker:
 
 ```ignorelang
@@ -110,25 +111,25 @@ $(ryndata config_dir:/cf) sim add test /cf/config.py
 ```
 
 ### Singularity
-With Singularity we lose the ability to mount our own volume and instead `$PWD` is used.
 
 If we've ported the Docker container up we can use it directly, like
 
 ```ignorelang
-rynlib="singularity run docker://rynimg"
+rynlib="singularity run --bind .:/config docker://rynimg"
 ```
 
-Otherwise we can use `Singularity.def` to build a `rynlib` SIF image that can be directly used like
+Otherwise we can use `Singularity.def` to build a `rynlib` SIF image that can be used like
 
 ```ignorelang
-./rynlib [group] [command] [args]
+rynlib="singularity run --bind .:/config rynlib"
 ```
 
 ### Shifter
-With Shifter we directly bind directories, so we might have
+
+With Shifter, like Singularity, we directly bind directories, so we might have
 
 ```ignorelang
-rynlib="shifter run --volume="/global/cfs/m802/rjdiri/dmc_data:/config" rynimg"
+rynlib="shifter --volume=$PWD:/config --image=registry.services.nersc.gov/b3m2a1/rynimg:latest python3.7 RynLib/CLI.py"
 ```
 
 Keep in mind that with Shifter the `sbatch` process is [slightly different](https://docs.nersc.gov/programming/shifter/how-to-use/#running-jobs-in-shifter-images)
@@ -393,7 +394,7 @@ mpirun -n <number of cores> ./rynlib sim run <name of simulation>
 #--SBATCH ... blah blah blah
 #--SBATCH ... blah blah blah
 
-rynlib="shifter run --volume="/global/cfs/m802/rjdiri/dmc_data:/config" rynimg"
+rynlib="shifter --volume=$PWD:/config --image=registry.services.nersc.gov/b3m2a1/rynimg:latest python3.7 RynLib/CLI.py"
 # <number of cores> will be close to 28 * <number of nodes>
 srun -n <number of cores> $rynlib sim run <name of simulation>
 ```

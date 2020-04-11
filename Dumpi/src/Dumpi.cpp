@@ -45,7 +45,7 @@ static int Scatter_Walkers(
     if (comm_capsule == NULL) {
         return -1;
     }
-    MPI_Comm comm = (MPI_Comm) PyCapsule_GetPointer(comm_capsule, "Dumpi._COMM_WORLD");
+//    MPI_Comm comm = (MPI_Comm) PyCapsule_GetPointer(comm_capsule, "Dumpi._COMM_WORLD");
     return MPI_Scatter(
             raw_data,  // raw data buffer to chunk up
             walkers_to_core * walker_cnum, // three coordinates per atom per num_atoms per walker
@@ -54,7 +54,7 @@ static int Scatter_Walkers(
             walkers_to_core * walker_cnum, // three coordinates per atom per num_atoms per walker
             MPI_DOUBLE, // coordinates stored as doubles
             0, // root caller
-            comm // communicator handle
+            MPI_COMM_WORLD // communicator handle
     );
 }
 
@@ -69,7 +69,7 @@ static int Gather_Walkers(
     if (comm_capsule == NULL) {
         return -1;
     }
-    MPI_Comm comm = (MPI_Comm) PyCapsule_GetPointer(comm_capsule, "Dumpi._COMM_WORLD");
+//    MPI_Comm comm = (MPI_Comm) PyCapsule_GetPointer(comm_capsule, "Dumpi._COMM_WORLD");
 //    printf("got COMM so now gathering %d walkers\n", walkers_to_core);
     return MPI_Gather(
             pots,
@@ -79,7 +79,7 @@ static int Gather_Walkers(
             walkers_to_core, // number of walkers fed in
             MPI_DOUBLE, // coordinates stored as doubles
             0, // where they should go
-            comm // communicator handle
+            MPI_COMM_WORLD // communicator handle
     );
 }
 

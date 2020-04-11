@@ -37,7 +37,10 @@ class CLI:
         return {k:o for k,o in opts.items() if not (isinstance(o, str) and o=="")}
 
     def config_build_libs(self):
-        RynLib.build_libs()
+        parse_dict = self.get_parse_dict(
+            ("--rebuild", dict(default=False, type=bool, dest='rebuild')),
+        )
+        RynLib.build_libs(**parse_dict)
 
     def config_run_tests(self):
         RynLib.run_tests()
@@ -60,10 +63,10 @@ class CLI:
 
     def config_install_mpi(self):
         parse_dict = self.get_parse_dict(
-            ("--version", dict(default="", type=str, dest='version')),
-            ("--imp", dict(default="", type=str, dest='imp'))
+            ("--version", dict(default="", type=str, dest='mpi_version')),
+            ("--imp", dict(default="", type=str, dest='mpi_implementation'))
         )
-        RynLib.install_MPI()
+        RynLib.install_MPI(**parse_dict)
 
     def config_reload_dumpi(self):
         RynLib.reload_dumpi()

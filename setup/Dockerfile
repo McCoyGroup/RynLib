@@ -18,7 +18,7 @@ ADD . /home/RynLib
 RUN \
   git clone https://github.com/McCoyGroup/Peeves /home/Peeves
 
-RUN python3 /home/RynLib/CLI.py install-mpi --version=3.1.4 --imp=ompi
+RUN python3 /home/RynLib/CLI.py config install-mpi --version=3.2 --imp=mpich
 
 RUN python3 /home/RynLib/CLI.py config build-libs
 

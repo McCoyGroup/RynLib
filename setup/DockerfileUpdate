@@ -1,0 +1,7 @@
+
+# Since we're updating, we build off the existing image
+
+FROM rynimg
+
+ADD . /home/RynLib
+RUN python3 /home/RynLib/CLI.py config build-libs --rebuild=True
