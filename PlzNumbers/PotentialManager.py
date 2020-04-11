@@ -232,6 +232,15 @@ class PotentialManager:
 
             atoms = cfig["atoms"]
 
+            for k in ('walkers_per_core', 'displacement_radius', 'iterations', 'steps_per_call', 'print_walkers'):
+                if k not in opts:
+                    try:
+                        v = cfig[k]
+                    except (AttributeError, KeyError):
+                        pass
+                    else:
+                        opts[k] = v
+
             return self._test_potential_mpi(pot, walkers, atoms, *params, **opts)
         finally:
             os.chdir(curdir)

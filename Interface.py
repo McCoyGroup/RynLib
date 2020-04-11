@@ -22,8 +22,16 @@ class SimulationInterface:
         print("\n".join(SimulationManager().list_simulations()))
 
     @classmethod
-    def add_simulation(self, name=None, config_file=None):
-        SimulationManager().add_simulation(name, config_file)
+    def add_simulation(self, name=None, src=None, config_file=None):
+        data=src
+        no_config = config_file is None
+        if config_file is None:
+            if os.path.exists(os.path.join(data, "config.py")):
+                config_file = os.path.join(data, "config.py")
+        if no_config:
+            if os.path.exists(os.path.join(data, "data")):
+                data = os.path.join(data, "data")
+        SimulationManager().add_simulation(name, data=data, config_file=config_file)
         print("Added simulation {}".format(name))
 
     @classmethod
