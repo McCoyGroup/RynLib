@@ -339,7 +339,7 @@ class RynLib:
         curdir = os.getcwd()
         try:
             os.chdir(os.path.dirname(__file__))
-            print(subprocess.check_call(["git", "pull"]))
+            subprocess.call(["git", "pull"])#print()
         except subprocess.CalledProcessError as e:
             print(e.output)
             raise

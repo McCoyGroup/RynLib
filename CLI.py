@@ -294,7 +294,7 @@ class CLI:
         RynLib.test_ho_mpi(**parse_dict)
 
     def pot_test(self):
-        """Tests a generic potential"""
+        """Tests a generic potential. Args: NAME"""
         parse_dict = self.get_parse_dict(
             ("name",)
             # ("--in", dict(default="", type=str, dest='input_file'))
@@ -302,7 +302,7 @@ class CLI:
         PotentialInterface.test_potential(**parse_dict)
 
     def pot_test_mpi(self):
-        """Tests a generic potential under MPI"""
+        """Tests a generic potential under MPI. Args: NAME"""
         parse_dict = self.get_parse_dict(
             ("name",)
             # ("--in", dict(default="", type=str, dest='input_file'))
