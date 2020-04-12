@@ -323,7 +323,7 @@ class CLI:
         return res
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1 and sys.argv[1] in {"--update", "--rebuild"}
+    if len(sys.argv) > 1 and sys.argv[1] in {"--update", "--rebuild"}:
         import subprocess
         sys.argv.pop(1)
         CLI.update_lib(rebuild=sys.argv[1]=="--rebuild")
