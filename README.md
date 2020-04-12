@@ -60,6 +60,17 @@ After that run
 bash RynLib/setup/build_singularity.sh
 ```
 
+### Shifter
+
+RynLib with Shifter can be configured using  `setup/build_shifter.sh` and `setup/update_shifter.sh`. These just build with Docker and then push that to the NeRSC private registry. 
+To use these you'll want to either ask me for my registry API key or  follow the instructions [here](https://docs.nersc.gov/programming/shifter/how-to-use/). 
+
+You'll then pull in the image like so 
+
+```ignorelang
+shifterimg pull registry.services.nersc.gov/b3m2a1/rynimg:latest
+```
+
 ## Running
 
 After building out the image we can run the various exposed commands.
@@ -394,7 +405,7 @@ mpirun -n <number of cores> ./rynlib sim run <name of simulation>
 #--SBATCH ... blah blah blah
 #--SBATCH ... blah blah blah
 
-rynlib="shifter --volume=$PWD:/config --image=registry.services.nersc.gov/b3m2a1/rynimg:latest python3.7 RynLib/CLI.py"
+rynlib="shifter --volume=$PWD:/config --image=registry.services.nersc.gov/b3m2a1/rynimg:latest python3.7 /home/RynLib/CLI.py"
 # <number of cores> will be close to 28 * <number of nodes>
 srun -n <number of cores> $rynlib sim run <name of simulation>
 ```

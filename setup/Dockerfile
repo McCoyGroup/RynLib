@@ -20,7 +20,7 @@ RUN \
 
 RUN python3 /home/RynLib/CLI.py config install-mpi --version=3.2 --imp=mpich
 
-RUN python3 /home/RynLib/CLI.py config build-libs
+RUN python3 /home/RynLib/CLI.py config build-libs --rebuild=True
 
 WORKDIR /home
 

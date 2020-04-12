@@ -66,7 +66,7 @@ class CLI:
         if self.group == "":
             groups = OrderedDict((k, OrderedDict()) for k in ("config", "sim", "pot"))
         else:
-            groups = OrderedDict((self.group, OrderedDict()))
+            groups = OrderedDict([(self.group, OrderedDict())])
 
         indent="    "
         template = "{group}:\n{commands}"
