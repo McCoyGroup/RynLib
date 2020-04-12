@@ -49,12 +49,13 @@ class MPIManagerObject:
 
     @classmethod
     def _remove_lib(cls):
-        from ..Interface import RynLib
-        import shutil
-        mpi_dir = RynLib.get_conf().mpi_dir
-        dump_lib = os.path.join(mpi_dir, "Dumpi")
+        # from ..Interface import RynLib
+        # import shutil
+        # mpi_dir = "/mpi"#RynLib.get_conf().mpi_dir
+        dump_lib = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Dumpi.so")
         if os.path.exists(dump_lib):
-            shutil.rmtree(dump_lib)
+            os.remove(dump_lib)
+            # shutil.rmtree(dump_lib)
 
     @property
     def lib(self):

@@ -322,22 +322,76 @@ class CLI:
             print(res)
         return res
 
-if __name__ == "__main__":
-    if len(sys.argv) > 1 and sys.argv[1] in {"--update", "--rebuild"}:
-        import subprocess
-        sys.argv.pop(1)
-        CLI.update_lib(rebuild=sys.argv[1]=="--rebuild")
-        subprocess.call([sys.executable, *sys.argv])
-    elif len(sys.argv) == 1 or sys.argv[1] == "interact":
-        import code
-        code.interact(banner="RynLib Interactive Session", readfunc=None, local=None, exitmsg=None)
-    elif sys.argv[1] == "help":
-        if len(sys.argv) == 2:
+
+def run_command(parse):
+    interact = parse.interact or (len(sys.argv) == 1 and not parse.help)
+    if parse.help:
+        if len(sys.argv) == 1:
             print("$rynlib [--update|--rebuild] GRP CMD [ARGS] runs RynLib with the specified command")
-        group = sys.argv[2] if len(sys.argv) > 2 else ""
-        command = sys.argv[3] if len(sys.argv) > 3 else ""
+        group = sys.argv[1] if len(sys.argv) > 1 else ""
+        command = sys.argv[2] if len(sys.argv) > 2 else ""
         CLI(group=group, command=command).help()
-    elif sys.argv[1] == "ignore":
-        pass
     else:
         CLI().run()
+    if interact:
+        import code
+        code.interact(banner="RynLib Interactive Session", readfunc=None, local=None, exitmsg=None)
+
+def run():
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--update", default=False, action='store_const', const=True, dest="update")
+    parser.add_argument("--rebuild", default=False, action='store_const', const=True, dest="rebuild")
+    parser.add_argument("--output", default="", type=str, dest="output")
+    parser.add_argument("--error", default="", type=str, dest="error")
+    parser.add_argument("--interact", default=False, action='store_const', const=True, dest="interact")
+    parser.add_argument("--help", default=False, action='store_const', const=True, dest="help")
+    parser.add_argument("--pass", default=False, action='store_const', const=True, dest="ignore")
+    new_argv = []
+    for k in sys.argv[1:]:
+        if not k.startswith("--"):
+            break
+        new_argv.append(k)
+    unknown = sys.argv[1+len(new_argv):]
+    sys.argv = [sys.argv[0]]+new_argv
+    parse = parser.parse_args()
+
+    if not parse.ignore:
+        if parse.update or parse.rebuild:
+            import subprocess
+
+            CLI.update_lib(rebuild=parse.rebuild)
+
+            sys.argv = [sys.argv[0]]
+            if parse.output != "":
+                sys.argv.append("--output="+parse.output)
+            if parse.error != "":
+                sys.argv.append("--error="+parse.error)
+            if parse.interact:
+                sys.argv.append("--interact")
+            if parse.interact:
+                sys.argv.append("--help")
+            sys.argv += unknown
+            subprocess.call([sys.executable, *sys.argv])
+        else:
+            stdout = sys.stdout
+            stderr = sys.stderr
+            sys.argv = [sys.argv[0]] + unknown
+            # print(sys.argv)
+            try:
+                if parse.output != "":
+                    with open(parse.output, "w+") as out:
+                        sys.stdout = out
+                        if parse.error != "":
+                            with open(parse.error, "w+") as err:
+                                sys.stderr = err
+                                run_command(parse)
+                        else:
+                            run_command(parse)
+                else:
+                    run_command(parse)
+            finally:
+                sys.stdout = stdout
+                sys.stderr = stderr
+
+if __name__ == "__main__":
+    run()

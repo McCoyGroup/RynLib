@@ -481,10 +481,10 @@ class RynLib:
             cls.install_MPI()
 
         from .Dumpi import MPIManagerObject
-        try:
-            MPIManagerObject._remove_lib()
-        except OSError:
-            pass
+        # try:
+        MPIManagerObject._remove_lib()
+        # except OSError:
+        #     pass
         MPIManagerObject._load_lib()
 
     @classmethod
@@ -502,9 +502,9 @@ class RynLib:
         import numpy as np
 
         testWalker = np.array([
-            [0.9578400, 0.0000000, 0.0000000],
+            [ 0.9578400, 0.0000000, 0.0000000],
             [-0.2399535, 0.9272970, 0.0000000],
-            [0.0000000, 0.0000000, 0.0000000]
+            [ 0.0000000, 0.0000000, 0.0000000]
         ])
         testAtoms = ["H", "H", "O"]
 
