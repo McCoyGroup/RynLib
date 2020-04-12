@@ -332,6 +332,8 @@ if __name__ == "__main__":
         import code
         code.interact(banner="RynLib Interactive Session", readfunc=None, local=None, exitmsg=None)
     elif sys.argv[1] == "help":
+        if len(sys.argv) == 1:
+            print("$rynlib [--update|--rebuild] GRP CMD [ARGS] runs RynLib with the specified command")
         group = sys.argv[2] if len(sys.argv) > 2 else ""
         command = sys.argv[3] if len(sys.argv) > 3 else ""
         CLI(group=group, command=command).help()
