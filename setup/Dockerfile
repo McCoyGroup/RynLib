@@ -24,4 +24,4 @@ RUN python3 /home/RynLib/CLI.py config build-libs
 
 WORKDIR /home
 
-ENTRYPOINT ["python3", "/home/RynLib/CLI.py"]
+ENTRYPOINT ["python3", "CLI.py"]

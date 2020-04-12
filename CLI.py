@@ -323,13 +323,12 @@ class CLI:
         return res
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1 and sys.argv[1] == "--update":
+    if len(sys.argv) > 1 and sys.argv[1] in {"--update", "--rebuild"}
+        import subprocess
         sys.argv.pop(1)
-        CLI.update_lib()
-    elif len(sys.argv) > 1 and sys.argv[1] == "--rebuild":
-        sys.argv.pop(1)
-        CLI.update_lib(rebuild=True)
-    if len(sys.argv) == 1 or sys.argv[1] == "interact":
+        CLI.update_lib(rebuild=sys.argv[1]=="--rebuild")
+        subprocess.call([sys.executable, *sys.argv])
+    elif len(sys.argv) == 1 or sys.argv[1] == "interact":
         import code
         code.interact(banner="RynLib Interactive Session", readfunc=None, local=None, exitmsg=None)
     elif sys.argv[1] == "help":
