@@ -63,7 +63,7 @@ bash RynLib/setup/build_singularity.sh
 ### Shifter
 
 RynLib with Shifter can be configured using  `setup/build_shifter.sh` and `setup/update_shifter.sh`. These just build with Docker and then push that to the NeRSC private registry. 
-To use these you'll want to either ask me for my registry API key or  follow the instructions [here](https://docs.nersc.gov/programming/shifter/how-to-use/). 
+To use these you'll want to either ask me for my registry API key or follow the instructions [here](https://docs.nersc.gov/programming/shifter/how-to-use/).
 
 You'll then pull in the image like so 
 

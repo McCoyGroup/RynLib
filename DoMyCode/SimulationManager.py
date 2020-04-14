@@ -34,7 +34,7 @@ class SimulationManager:
 
     def simulation_output_folder(self, name):
         loc = self.manager.config_loc(name)
-        return os.path.join(loc, "data")
+        return os.path.join(loc, "output")
 
     def simulation_ran(self, name):
         return os.path.isdir(self.simulation_output_folder(name))
@@ -71,7 +71,7 @@ class SimulationManager:
                 if not os.path.isdir(os.path.dirname(log)):
                     os.makedirs(os.path.dirname(log))
             try:
-                with open(log, "w+") as log_stream:
+                with open(log, "w+", buffering=1) as log_stream:
                     sim.logger.log_file = log_stream
                     sout = sys.stdout
                     serr = sys.stderr

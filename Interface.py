@@ -44,7 +44,7 @@ class SimulationInterface:
         status = SimulationManager().simulation_ran(name)
         config = SimulationManager().simulation_config(name)
         print(
-            "Status: {}".format(status),
+            "Has Run: {}".format(status),
             *("  {}: {}".format(k, v) for k, v in config.opt_dict.items()),
             sep="\n"
         )
