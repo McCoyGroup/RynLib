@@ -184,7 +184,7 @@ In the case of NeRSC this writes directly into a directory, but in the case of D
 For our use case this might look like
 
 ```ignorelang
-tmp=$(docker run -d --mount source=simdata,target=/config -it rynimg ignore)
+tmp=$(docker run -d --mount source=simdata,target=/config -it rynimg --ignore)
 docker cp $tmp:/config/<RELEVANT-DATA> <TARGET-DIR>
 docker rm $tmp
 ```
@@ -193,13 +193,14 @@ This provides a persistence strategy, as by mounting a new volume you can change
 
 ## MPI
 
-Working with MPI is also a little subtle and requires that you have first gotten a container built.
+Working with MPI can also be a little subtle.
+In this case, there are two variables you can set in the Dockerfile/Singularity definition file, `mpi_version` and `mpi_implementation`. 
+These both have to be aligned with the environment you're working on.
 
-In this case, there are two variables you can set on the config, `mpi_version` and `mpi_implementation`. These both have to be aligned with the environment you're working on.
 For instance, on Hyak the default is to use OpenMPI v3.1.4 and so you need to set `mpi_version=3.1.4` and `mpi_implementation=ompi`. 
 On NeRSC this is slightly different, as the `mpi_implementation=mpich`.
 
-By default, this has already been done for you, but it's worth keeping in mind in case you need to modify.
+By default, this has already been set up for you, but it's worth keeping in mind in case you need to modify.
 
 ## Setting up a Potential
 
@@ -274,77 +275,22 @@ If you know the binary you have will work with the container, you can pass it in
 When getting a potential into the container, we use the command
 
 ```ignorelang
-rynlib pot add --src=source --config=config_file
+rynlib pot add src
 ```
 
 The _source_ should be where our potential is stored, so either the directory containing the source or the potential binary.
 
 The _config\_file_ holds the parameters for the potential. 
-For the most part it just makes sense to look at one of the examples, since there are an overwhelming number of options, but if you want to see the whole list, here they are
-
-```python
-"""
-:param description: 
-:type description: str
-:param function_name: the function to be called inside the linked library
-:type function_name: str
-:param arguments: the extra arguments passed to the function, with each given by `(argname, "argtype")`
-:type arguments: tuple
-:param raw_array_potential: whether the potential wrapper should convert the coordinates to a raw C double* (default: `False`)
-:type raw_array_potential: bool
-:param wrap_potential: whether to wrap the potential in a C++ layer to expose the function (default: `True`)
-:type wrap_potential: bool
-:param static_source: whether the source should be copied before building the wrapper or used in place (default: `False`)
-:type static_source: bool
-:param requires_make: whether the underlying lib needs to be built first
-:type requires_make: bool
-:param python_potential: whether the potential is implemented in python or not
-:type python_potential: bool
-:param bad_walker_file: the file to spit bad walkers out to
-:type bad_walker_file: str
-:param vectorized_potential: whether or not the potential is vectorized
-:type vectorized_potential: bool
-:param error_value: the value returned if an error occurs (default: `1.0e9`)
-:type error_value: float
-"""
-```
+For the most part it just makes sense to look at one of the examples, since there are an overwhelming number of options.
+At some point in the future, once the API has stabilized, I'll go back and document the options here.
 
 ## Setting up a Simulation
 
-This will feel much like setting up a potential, but probably a little bit simpler. 
-All we need for this is the same kind of _config\_file_ as before and then we run
+This will feel much like setting up a potential, but maybe a little bit simpler. 
+We'll pass a directory (`SRC`) that contains a `config.py` file to set up the simulation as well as any other data that we might need to load in, e.g. a set of initial walkers.
 
 ```ignorelang
-rynlib sim add NAME --config=config_file
-```
-
-where the options that can be in that file are
-
-```python
-"""
-:param description: a description of the simulation
-:type description: str
-:param walker_set: configuration options for the walker population or a file with the initial walkers
-:type walker_set: dict | str
-:param potential: the name of the potential to use
-:type potential: str 
-:param mpi_manager: whether to use an `MPIManager` or not
-:type mpi_manager: True | None
-:param steps_per_propagation: how many steps to go every propagation
-:type steps_per_propagation: int
-:param importance_sampler: which importance sampler to use
-:type importance_sampler: str
-:param num_time_steps: the total number of timesteps we're running
-:type num_time_steps: int
-:param checkpoint_every: how often to checkpoint the simulation
-:type checkpoint_every: int
-:param equilibration_steps: the number of equilibration timesteps
-:type equilibration_steps: int
-:param descendent_weight_every: how often to calculate descendent weights
-:type descendent_weight_every: int
-:param descendent_weighting_steps: the number of steps taken in descendent weighting
-:type descendent_weighting_steps: int
-"""
+rynlib sim add NAME SRC
 ```
 
 ## Setting up Importance Sampling
@@ -353,10 +299,11 @@ An implementation of importance sampling is baked into the package, but this req
 To make the config files as stateless as possible and to make it possible to use the same trial wavefunction over different simulation instances (think using 3000 vs 10000 walkers on the same system) we've added this as another object type that you can add to the container, via
 
 ```ignorelang
-rynlib sim add_sampler NAME --config=config_file --data=data_directory
+rynlib sim add_sampler NAME SRC
 ```
 
-where the _data\_directory_ stores any underlying data needed by the sample and the _config\_file_ has the sole option
+where the `SRC` directory stores any underlying data needed by the sampler and contains a `config.py` file that provides the configuration options.
+The main configuration option for this is
 
 ```python
 """
