@@ -379,10 +379,10 @@ def run():
             # print(sys.argv)
             try:
                 if parse.output != "":
-                    with open(parse.output, "w+") as out:
+                    with open(parse.output, "w+", buffering=1) as out:
                         sys.stdout = out
                         if parse.error != "":
-                            with open(parse.error, "w+") as err:
+                            with open(parse.error, "w+", buffering=1) as err:
                                 sys.stderr = err
                                 run_command(parse)
                         else:

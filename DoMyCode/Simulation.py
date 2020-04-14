@@ -509,7 +509,7 @@ class Simulation:
         self.mpi_manager = mpi_manager
         try:
             self.world_rank = 0 if mpi_manager is None else mpi_manager.world_rank
-            self.log_print("Testing MPI validity on {}: {}".format(self.world_rank, self.mpi_manager.test()))
+            # self.log_print("Testing MPI validity on {}: {}".format(self.world_rank, self.mpi_manager.test()))
         except:
             import traceback as tb
             self.log_print("Error Occurred in configuring MPI\n  {}", tb.format_exc(), self.logger.LOG_MPI)

@@ -626,7 +626,7 @@ class RynLib:
             print("Average total: {}s Average time per walker: {}s".format(np.average(test_results), np.average(
                 test_results) / num_walkers / nsteps))
 
-            mpi_manager.finalize_MPI()
+        mpi_manager.finalize_MPI()
 
     @classmethod
     def test_entos_mpi(cls,
