@@ -170,17 +170,15 @@ This could be relaxed in the future, but for now this just makes life way easier
 
 ## Data
 
-We're focused, initially, on the [Singularity](https://sylabs.io/docs/) use case, but we're also going to think about [Shifter](https://www.nersc.gov/research-and-development/user-defined-images/) and we'll make it possible to use directly with Docker.
+We're focused on the [Singularity](https://sylabs.io/docs/) and [Shifter](https://www.nersc.gov/research-and-development/user-defined-images/) use cases, but we'll also make it possible to use directly with Docker.
 
-In the Singularity world, the container can only contact the host environment through a small number of endpoints. Happily one of those is `$PWD`. 
-This means that we're writing/reading all simulation data to/from `./simulations` and potential data to/from `./potentials`.
+In all of these cases, we bind either a volume (Docker) or a directory on the host (Shifter and Singularity) to the container that it will write to.
 
-In the Docker and Shifter world, we mount volumes. In both of these cases, the library requires you to provide a `config` volume.
-All data will be written to this volume, including the simulation data, potential data, primary `config.py` file and the necessary MPI libraries. 
-If you'd like to separate the simulation data out (say for space reasons) you can mount another volume for that and use `rynlib config edit --simdir=<new volume>` to set the path.
+The relevant bind is called `/config` by default, but this can be configured differently in the overall `config.py` file for the container if we want to put (e.g.) our simulation data elsewhere.
+All data will be written to this volume, including the simulation data, importance samplers, potential data, and the primary `config.py`.
 
-In the case of NeRSC this writes directly into a directory, but in the case of Docker we need to do a bit of work to get the data out of the container.
-[This Stack Overflow answer](https://stackoverflow.com/a/35410781/5720002) is relevant.
+Since Docker mounts a volume, not a host directory, it can be a pain to get data out. 
+For that, [this Stack Overflow answer](https://stackoverflow.com/a/35410781/5720002) is relevant.
 For our use case this might look like
 
 ```ignorelang
@@ -190,6 +188,8 @@ docker rm $tmp
 ```
 
 This provides a persistence strategy, as by mounting a new volume you can change the configuration environment. For the most part, though, there should be no issue with always using a single volume.
+
+For Shifter and Singularity the data gets written directly to the host, so it's easy to access.
 
 ## MPI
 
