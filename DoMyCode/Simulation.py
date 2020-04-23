@@ -410,7 +410,7 @@ class Simulation:
         "potential", "steps_per_propagation",
         "mpi_manager", "importance_sampler",
         "num_wavefunctions", "atomic_units",
-        "ignore_errors"
+        "ignore_errors", "branching_threshold"
     ]
     def __init__(self, params):
         """Initializes the simulation from the simulation parameters
@@ -438,7 +438,8 @@ class Simulation:
             mpi_manager = None,
             importance_sampler = None,
             num_wavefunctions = 0,
-            ignore_errors = True
+            ignore_errors = True,
+            branching_threshold = 1.0
             ):
         """
 
@@ -495,6 +496,8 @@ class Simulation:
         self.potential = potential
         self.atomic_units = atomic_units
         self.ignore_errors = ignore_errors
+
+        self.branching_threshold = branching_threshold
 
         if alpha is None:
             alpha = 1.0 / (2.0 * time_step)
@@ -727,7 +730,7 @@ class Simulation:
         weights = self.walkers.weights
         walkers = self.walkers.coords
         parents = self.walkers.parents
-        threshold = 1.0 / self.walkers.num_walkers
+        threshold = self.branching_threshold / self.walkers.num_walkers
 
         eliminated_walkers = np.argwhere(weights < threshold).flatten()
         self.log_print('Walkers being removed: {}', len(eliminated_walkers), verbosity=self.logger.LOG_STATUS)

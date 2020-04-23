@@ -23,7 +23,7 @@ void _printOutWalkerStuff(
         fprintf(err, " )\n");
         fclose(err);
     } else {
-        fprintf(err, err_string);
+        printf(err_string);
         printf("This walker was bad: ( ");
         for ( size_t i = 0; i < walker_coords.size(); i++) {
             printf("(%f, %f, %f)", walker_coords[i][0], walker_coords[i][1], walker_coords[i][2]);
