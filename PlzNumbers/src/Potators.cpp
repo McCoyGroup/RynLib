@@ -2,11 +2,17 @@
 #include "RynTypes.hpp"
 #include "PyAllUp.hpp"
 #include <csignal>
+#include <iostream>
 
-void _printOutWalkerStuff( Coordinates walker_coords, const std::string &bad_walkers ) {
+void _printOutWalkerStuff(
+    Coordinates walker_coords,
+    const std::string &bad_walkers,
+    const char* err_string
+    ) {
     if (!bad_walkers.empty()) {
         const char* fout = bad_walkers.c_str();
         FILE *err = fopen(fout, "a");
+        fprintf(err, err_string);
         fprintf(err, "This walker was bad: ( ");
         for (size_t i = 0; i < walker_coords.size(); i++) {
             fprintf(err, "(%f, %f, %f)", walker_coords[i][0], walker_coords[i][1], walker_coords[i][2]);
@@ -17,6 +23,7 @@ void _printOutWalkerStuff( Coordinates walker_coords, const std::string &bad_wal
         fprintf(err, " )\n");
         fclose(err);
     } else {
+        fprintf(err, err_string);
         printf("This walker was bad: ( ");
         for ( size_t i = 0; i < walker_coords.size(); i++) {
             printf("(%f, %f, %f)", walker_coords[i][0], walker_coords[i][1], walker_coords[i][2]);
@@ -66,8 +73,13 @@ double _doopAPot(
                     retries-1
                     );
         } else {
-            PyErr_SetString(PyExc_ValueError, e.what());
-            _printOutWalkerStuff(walker_coords, bad_walkers_file);
+//            PyErr_SetString(PyExc_ValueError, e.what());
+            // pushed error reporting into bad_walkers_file
+            _printOutWalkerStuff(
+                walker_coords,
+                bad_walkers_file,
+                e.what()
+                );
             pot = err_val;
         }
     }

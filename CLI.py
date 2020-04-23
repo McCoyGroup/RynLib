@@ -331,7 +331,7 @@ def run_command(parse):
         group = sys.argv[1] if len(sys.argv) > 1 else ""
         command = sys.argv[2] if len(sys.argv) > 2 else ""
         CLI(group=group, command=command).help()
-    else:
+    elif len(sys.argv) > 0:
         CLI().run()
     if interact:
         import code

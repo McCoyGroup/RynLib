@@ -409,7 +409,8 @@ class Simulation:
         "walker_set", "time_step", "alpha",
         "potential", "steps_per_propagation",
         "mpi_manager", "importance_sampler",
-        "num_wavefunctions", "atomic_units"
+        "num_wavefunctions", "atomic_units",
+        "ignore_errors"
     ]
     def __init__(self, params):
         """Initializes the simulation from the simulation parameters
@@ -436,7 +437,8 @@ class Simulation:
             steps_per_propagation = None,
             mpi_manager = None,
             importance_sampler = None,
-            num_wavefunctions = 0
+            num_wavefunctions = 0,
+            ignore_errors = True
             ):
         """
 
@@ -492,6 +494,7 @@ class Simulation:
         potential.mpi_manager = mpi_manager
         self.potential = potential
         self.atomic_units = atomic_units
+        self.ignore_errors = ignore_errors
 
         if alpha is None:
             alpha = 1.0 / (2.0 * time_step)
@@ -601,7 +604,8 @@ class Simulation:
                                self.world_rank, tb.format_exc().replace("\n", "\n  "),
                                verbosity=self.logger.LOG_STATUS
                                )
-            raise
+            if not self.ignore_errors:
+                raise
         finally:
             if not self.dummied:
                 self.log_print("Ending simulation")
