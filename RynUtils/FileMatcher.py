@@ -15,7 +15,9 @@ class StringMatcher:
         if isinstance(match_patterns, str):
             pattern = re.compile(match_patterns)
             self.matcher = lambda f, p = pattern: re.match(p, f)
-        elif isinstance(match_patterns, re.Pattern):
+        elif hasattr(re, "Pattern") and isinstance(match_patterns, re.Pattern): # re.Pattern is new as of python3.7...
+            self.matcher = lambda f, p = match_patterns: re.match(p, f)
+        elif type(match_patterns).__name__=="SRE_Pattern": # pre 3.7
             self.matcher = lambda f, p = match_patterns: re.match(p, f)
         elif isinstance(match_patterns, StringMatcher):
             self.matcher = match_patterns.matches
