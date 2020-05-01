@@ -315,7 +315,7 @@ The main configuration option for this is
 where _module_ will be a plain `.py` file that has a function in it called `trial_wavefunction` defined like 
 
 ```python
-def trial_wavefunction(coords):
+def trial_wavefunction(coords, atoms, *parameters):
     """
     :param coords: the WalkerSet that holds the configurations (might be many configurations at once!)
     """

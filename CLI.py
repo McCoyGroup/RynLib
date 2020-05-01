@@ -202,6 +202,17 @@ class CLI:
         """Lists the added importance samplers"""
         SimulationInterface.list_samplers()
 
+    def sim_list_archive(self):
+        """Lists the archived simulations"""
+        SimulationInterface.list_archive()
+
+    def sim_archive(self):
+        """Archives a simulation. Args: NAME"""
+        parse_dict = self.get_parse_dict(
+            ("name",)
+        )
+        SimulationInterface.add_sampler(**parse_dict)
+
     def sim_add_sampler(self):
         """Adds an importance sampler. Args: NAME SRC --config=CONFIG_FILE"""
         parse_dict = self.get_parse_dict(

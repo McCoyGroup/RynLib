@@ -214,7 +214,7 @@ PotentialArray _mpiGetPot(
     std::string bad_file = _GetPyString(bad_walkers_file, pyStr);
     Py_XDECREF(pyStr);
 
-    #ifdef _OMP
+    #ifdef _nOPENMP
     #pragma omp parallel
     #pragma omp for
     #endif
@@ -302,7 +302,7 @@ PotentialArray _noMPIGetPot(
     std::string bad_file = _GetPyString(bad_walkers_file, pyStr);
     Py_XDECREF(pyStr);
     Coordinates walker_coords;
-    #ifdef _OMP
+    #ifdef _nOPENMP
     #pragma omp parallel
     #pragma omp for
     #endif

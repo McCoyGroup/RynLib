@@ -4,6 +4,7 @@
 #include "RynTypes.hpp"
 #include "Python.h"
 #include <stdio.h>
+//#include <omp.h>
 
 void _printOutWalkerStuff( Coordinates walker_coords );
 

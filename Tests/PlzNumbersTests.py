@@ -23,6 +23,10 @@ class PotentialTests(TestCase):
     def test_HarmonicOscillator(self):
         RynLib.test_HO()
 
+    # @validationTest
+    # def test_HarmonicOscillatorMPI(self):
+    #     RynLib.test_ho_mpi()
+
     @validationTest
     def test_ConfigureEntos(self):
         PotentialInterface.configure_entos()

@@ -7,16 +7,23 @@ __all__ = [
 ]
 
 class SimulationManager:
+    archive_path = "archives"
     def __init__(self, config_dir=None):
         if config_dir is None:
             from ..Interface import RynLib
             config_dir = RynLib.simulation_directory()
         self.manager = ConfigManager(config_dir)
+        self.archiver = ConfigManager(os.path.join(config_dir, self.archive_path))
+
+    def check_simulation(self, name):
+        if not self.manager.check_config(name):
+            raise IOError("No simulation {}".format(name))
 
     def list_simulations(self):
         return self.manager.list_configs()
 
     def remove_simulation(self, name):
+        self.check_simulation(name)
         self.manager.remove_config(name)
 
     def add_simulation(self, name, data=None, config_file = None, **opts):
@@ -27,9 +34,11 @@ class SimulationManager:
         self.manager.edit_config(name, name=name)
 
     def edit_simulation(self, name, **opts):
+        self.check_simulation(name)
         self.manager.edit_config(name, **opts)
 
     def simulation_config(self, name):
+        self.check_simulation(name)
         return self.manager.load_config(name)
 
     def simulation_output_folder(self, name):
@@ -37,9 +46,11 @@ class SimulationManager:
         return os.path.join(loc, "output")
 
     def simulation_ran(self, name):
+        self.check_simulation(name)
         return os.path.isdir(self.simulation_output_folder(name))
 
     def load_simulation(self, name):
+        self.check_simulation(name)
         if self.simulation_ran(name):
             sim = Simulation.reload(output_folder=self.simulation_output_folder(name))
         else:
@@ -85,18 +96,19 @@ class SimulationManager:
         else:
             sim.run()
 
-    def simulation_data(self, name, key):
-        """Loads a simulation and returns its data...I guess?
-
-        :param name:
-        :type name:
-        :param key:
-        :type key:
-        :return:
-        :rtype:
-        """
-
-        raise NotImplemented
-
     def export_simulation(self, name, path):
+        self.check_simulation(name)
         shutil.copytree(self.manager.config_loc(name), path)
+
+    def list_archive(self):
+        return self.archiver.list_configs()
+    def archive_simulation(self, name):
+        import datetime as dt
+
+        self.check_simulation(name)
+        old_loc = self.manager.config_loc(name)
+        new_name = dt.datetime.now().isoformat()
+        new_loc = self.archiver.config_loc(name+"_"+new_name)
+        os.rename(old_loc, new_loc)
+    def archive_config(self, name):
+        return self.archiver.load_config(name)

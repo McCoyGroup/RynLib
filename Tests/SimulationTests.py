@@ -21,3 +21,9 @@ class SimulationTests(TestCase):
             source=os.path.join(RynLib.test_data, "HOSimulation", "HOTrialWavefunction")
         )
         self.im.test_sampler("HOSampler")
+
+    @debugTest
+    def test_SimulationArchiving(self):
+        SimulationInterface.test_add_HO()
+        SimulationInterface.archive_simulation("test_HO")
+        self.assertTrue(len(SimulationManager().list_archive()) > 0 )

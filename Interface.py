@@ -64,17 +64,51 @@ class SimulationInterface:
         print("Finished running simulation {}".format(name))
 
     @classmethod
-    def test_HO(cls):
-        sm = SimulationManager()
-        if "test_HO" in sm.list_simulations():
-            sm.remove_simulation("test_HO")
+    def test_add_HO(cls):
         pm = PotentialManager()
         if 'HarmonicOscillator' not in pm.list_potentials():
             PotentialInterface.configure_HO()
+        sm = SimulationManager()
+        if "test_HO" in sm.list_simulations():
+            sm.remove_simulation("test_HO")
         cls.add_simulation("test_HO",
-                          os.path.join(RynLib.test_data, "HOSimulation", "HOSim300")
-                          )
+                           os.path.join(RynLib.test_data, "HOSimulation", "HOSim300")
+                           )
+
+    @classmethod
+    def test_HO(cls):
+        cls.test_add_HO()
         cls.run_simulation("test_HO")
+
+    @classmethod
+    def test_HO_imp(cls):
+        sm = SimulationManager()
+        if "test_HO" in sm.list_simulations():
+            sm.remove_simulation("test_HO_imp")
+        pm = PotentialManager()
+        if 'HarmonicOscillator' not in pm.list_potentials():
+            PotentialInterface.configure_HO()
+        cls.add_simulation("test_HO_imp",
+                           os.path.join(RynLib.test_data, "HOSimulation", "HOSim300Imp")
+                           )
+        cls.run_simulation("test_HO_imp")
+
+    @classmethod
+    def list_archive(cls):
+        print("\n".join(SimulationManager().list_archive()))
+
+    @classmethod
+    def archive_simulation(cls, name=None):
+        SimulationManager().archive_simulation(name)
+        print("Archived simulation {}".format(name))
+
+    @classmethod
+    def archive_status(cls, name=None):
+        config = SimulationManager().archive_config(name)
+        print(
+            *("{}: {}".format(k, v) for k, v in config.opt_dict.items()),
+            sep="\n"
+        )
 
     @classmethod
     def list_samplers(cls):

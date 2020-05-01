@@ -3,7 +3,6 @@ from unittest import TestCase
 from RynLib.Interface import *
 import os, shutil
 
-
 class InterfaceTests(TestCase):
 
     @validationTest
