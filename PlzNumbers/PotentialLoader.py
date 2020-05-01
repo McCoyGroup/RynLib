@@ -35,28 +35,35 @@ class PotentialLoader:
                  requires_make=False,
                  out_dir=None,
                  python_potential=False,
-                 cleanup_build=True
+                 cleanup_build=True,
+                 pointer_name=None
                  ):
         self.python_potential = python_potential
-        self.c_loader = CLoader(name, src,
-                              src_ext=src_ext,
-                              description=description,
-                              version=version,
-                              include_dirs=include_dirs,
-                              linked_libs=linked_libs,
-                              macros=macros,
-                              source_files=source_files,
-                              build_script=build_script,
-                              requires_make=requires_make,
-                              out_dir=out_dir,
-                              cleanup_build=cleanup_build
-                              )
+        if python_potential is False:
+            self.c_loader = CLoader(name, src,
+                                  src_ext=src_ext,
+                                  description=description,
+                                  version=version,
+                                  include_dirs=include_dirs,
+                                  linked_libs=linked_libs,
+                                  macros=macros,
+                                  source_files=source_files,
+                                  build_script=build_script,
+                                  requires_make=requires_make,
+                                  out_dir=out_dir,
+                                  cleanup_build=cleanup_build
+                                  )
+        else:
+            self.c_loader = None
         self._lib = None
+        if pointer_name is None:
+            pointer_name = "_potential"
+        self.function_name = pointer_name
 
     @property
     def lib(self):
         if self._lib is None:
-            if self.python_potential:
+            if self.python_potential is True:
                 loader = ModuleLoader()
                 remade = False
                 try:
@@ -69,9 +76,12 @@ class PotentialLoader:
                         raise
                 if remade:
                     self._lib = loader.load(self.c_loader.lib_dir, self.c_loader.lib_name + "Lib")
-            else:
+            elif self.python_potential is False:
                 self._lib = self.c_loader.load()
         return self._lib
     @property
     def pointer(self):
-        return self.lib._potential
+        if self.python_potential is not False and self.python_potential is not True:
+            return self.python_potential
+        else:
+            return getattr(self.lib, self.function_name)

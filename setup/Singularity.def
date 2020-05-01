@@ -5,9 +5,10 @@ From: core
     .. /home/RynLib
 
 %post
+    mkdir -p /tests
     git clone https://github.com/McCoyGroup/Peeves /home/Peeves
     python3 /home/RynLib/CLI.py config install-mpi --version=3.1.4 --imp=ompi
-    python3 /home/RynLib/CLI.py config build-libs
+    python3 /home/RynLib/CLI.py config build-libs --rebuild=True
 
 %runscript
     exec python3 /home/RynLib/CLI.py $@

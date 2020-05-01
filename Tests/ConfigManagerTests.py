@@ -3,11 +3,10 @@ from unittest import TestCase
 from RynLib.RynUtils.ConfigManager import *
 import os
 
-
 class ConfigManagerTests(TestCase):
 
     def setUp(self):
-        self.cm = ConfigManager(os.path.expanduser("~/Desktop/Configs"))
+        self.cm = ConfigManager("/tests/configs")
 
     def ensure_config(self):
         if "testDMC" not in self.cm.list_configs():

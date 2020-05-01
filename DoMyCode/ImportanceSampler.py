@@ -1,6 +1,7 @@
 
 import numpy as np, os, shutil
 from ..RynUtils import ConfigManager, ModuleLoader, ConfigSerializer
+from ..PlzNumbers import Potential
 
 __all__ = [
     "ImportanceSampler",
@@ -18,10 +19,17 @@ class ImportanceSampler:
         self._psi=None
         self.sigmas = None
         self.time_step = None
+        self.parameters = None
+        self.caller = Potential(
+            python_potential=trial_wavefunctions
+        )
 
-    def init_params(self, sigmas, time_step):
+    def init_params(self, sigmas, time_step, atoms, mpi_manager, *extra_args):
         self.sigmas = np.broadcast_to(sigmas[:, np.newaxis], sigmas.shape + (3,))
         self.time_step = time_step
+        self.caller.mpi_manager = mpi_manager
+        self.caller.bind_atoms(atoms)
+        self.caller.bind_arguments(extra_args)
 
     @property
     def psi(self):
@@ -72,14 +80,14 @@ class ImportanceSampler:
         :rtype:
         """
         if self.derivs is None:
-            psi = self.psi_calc(coords, self.trial_wvfn)
+            psi = self.psi_calc(coords)
             der = (psi[:, 2] - psi[:, 0]) / dx / psi[:, 1]
         else:
             psi = None
-            der = self.derivs[0](coords, self.trial_wvfn)
+            der = self.derivs[0](coords)
         return der, psi
 
-    def psi_calc(self, coords, trial_wvfn, dx = 1e-3):
+    def psi_calc(self, coords, dx = 1e-3):
         """
         Calculates the trial wavefunction over the three displacements that are used in numerical differentiation
 
@@ -93,6 +101,7 @@ class ImportanceSampler:
         :rtype:
         """
 
+        trial_wvfn = self.caller
         much_psi = trial_wvfn(coords)
         much_dims = much_psi.ndim
         ndims = self._psi[0].ndim
@@ -170,7 +179,7 @@ class ImportanceSamplerManager:
     def __init__(self, config_dir=None):
         if config_dir is None:
             from ..Interface import RynLib
-            config_dir = RynLib.get_conf().sampler_directory
+            config_dir = RynLib.sampler_directory()
         self.manager = ConfigManager(config_dir)
 
     def list_samplers(self):
@@ -265,7 +274,14 @@ class ImportanceSamplerManager:
             else:
                 sigmas = 1
 
-            sampler.init_params(sigmas, time_step)
+            if 'parameters' in cfig:
+                parameters = cfig["parameters"]
+            else:
+                parameters = ()
+
+            mpi_manager = None
+
+            sampler.init_params(sigmas, time_step, walkers.atoms, mpi_manager, *parameters)
 
             # print(walkers.coords.shape)
 

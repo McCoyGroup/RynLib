@@ -6,16 +6,6 @@ import os, shutil
 
 class InterfaceTests(TestCase):
 
-    @debugTest
+    @validationTest
     def test_LoadConfig(self):
-        self.assertEquals(RynLib.get_conf().mpi_version, "3.1.4")
-
-    @debugTest
-    def test_CompileMPI(self):
-        RynLib.configure_mpi()
-
-    @debugTest
-    def test_CompileEntos(self):
-        PotentialInterface.configure_entos()
-
-
+        self.assertEquals(RynLib.root_directory(), "/tests")

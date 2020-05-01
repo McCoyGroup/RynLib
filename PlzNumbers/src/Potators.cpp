@@ -12,7 +12,7 @@ void _printOutWalkerStuff(
     if (!bad_walkers.empty()) {
         const char* fout = bad_walkers.c_str();
         FILE *err = fopen(fout, "a");
-        fprintf(err, "%s", err_string);
+        fprintf(err, "%s \n", err_string);
         fprintf(err, "This walker was bad: ( ");
         for (size_t i = 0; i < walker_coords.size(); i++) {
             fprintf(err, "(%f, %f, %f)", walker_coords[i][0], walker_coords[i][1], walker_coords[i][2]);
@@ -213,6 +213,11 @@ PotentialArray _mpiGetPot(
     PyObject* pyStr = NULL;
     std::string bad_file = _GetPyString(bad_walkers_file, pyStr);
     Py_XDECREF(pyStr);
+
+    #ifdef _OMP
+    #pragma omp parallel
+    #pragma omp for
+    #endif
     for (int i = 0; i < walkers_to_core; i++) {
         // Some amount of wasteful copying but ah well
         walker_coords = _getWalkerCoords(walker_buf, i, num_atoms);
@@ -297,6 +302,10 @@ PotentialArray _noMPIGetPot(
     std::string bad_file = _GetPyString(bad_walkers_file, pyStr);
     Py_XDECREF(pyStr);
     Coordinates walker_coords;
+    #ifdef _OMP
+    #pragma omp parallel
+    #pragma omp for
+    #endif
     for (int n = 0; n < ncalls; n++) {
         for (int i = 0; i < num_walkers; i++) {
             walker_coords = _getWalkerCoords2(raw_data, n, i, ncalls, num_walkers, num_atoms);
@@ -389,26 +398,22 @@ PyObject* _mpiGetPyPot(
         return NULL;
     }
 
-//    printf("packing up args...\n");
     PyObject* args = PyTuple_New(3);
     // We use SET_ITEM not SetItem because we _don't_ want to give our references to `args`
     PyTuple_SET_ITEM(args, 0, walkers);
     PyTuple_SET_ITEM(args, 1, atoms);
     PyTuple_SET_ITEM(args, 2, extra);
 
-//    printf("calling function on walkers array...\n");
     PyObject* pot_vals = PyObject_CallObject(pot_func, args);
     if (pot_vals == NULL) {
-//        PyErr_SetString(PyExc_ValueError, "potential function failed to call?");
         Py_XDECREF(args);
         Py_XDECREF(walkers);
         return NULL;
     }
 
-//    printf("extracting returned data...?\n");
     RawPotentialBuffer pots = _GetDoubleDataArray(pot_vals);
 
-//    Py_XDECREF(args);
+    Py_XDECREF(args);
     Py_XDECREF(walkers);
 
     //   [
@@ -419,8 +424,6 @@ PyObject* _mpiGetPyPot(
 
     // we don't work with the walker data at this point
     free(walker_buf);
-
-//    printf("returning data walkers array...\n");
 
     // receive buffer -- needs to be the number of walkers total in the system,
     // so we take the number of walkers and multiply it into the number of calls we make
@@ -437,11 +440,7 @@ PyObject* _mpiGetPyPot(
         PyErr_SetString(PyExc_AttributeError, "Couldn't get gather pointer");
         return NULL;
     }
-//    printf("Recieved energies\n");
-//    for (int i=0; i < walkers_to_core; i++) {
-//        printf(" %f ", pots[i]);
-//    }
-//    printf("\nand now we're done...\n");
+
     gather_walkers(
             manager,
             pots,

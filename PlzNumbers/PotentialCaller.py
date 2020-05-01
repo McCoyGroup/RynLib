@@ -36,14 +36,19 @@ class PotentialCaller:
 
     @classmethod
     def load_lib(cls):
-        loader = CLoader("PlzNumbers", os.path.dirname(os.path.abspath(__file__)),
-                source_files=["PlzNumbers.cpp", "Potators.cpp", "PyAllUp.cpp"]
+        loader = CLoader("PlzNumbers",
+                         os.path.dirname(os.path.abspath(__file__)),
+                         extra_compile_args=["-fopenmp"],
+                         source_files=["PlzNumbers.cpp", "Potators.cpp", "PyAllUp.cpp"]
                 )
         return loader.load()
 
     @classmethod
     def reload(cls):
-        os.remove(os.path.join(os.path.dirname(os.path.abspath(__file__)), "PlzNumbers.so"))
+        try:
+            os.remove(os.path.join(os.path.dirname(os.path.abspath(__file__)), "PlzNumbers.so"))
+        except OSError:
+            pass
         return cls.load_lib()
     @property
     def lib(self):

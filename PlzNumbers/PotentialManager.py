@@ -10,13 +10,17 @@ class PotentialManager:
     def __init__(self, config_dir=None):
         if config_dir is None:
             from ..Interface import RynLib
-            config_dir = RynLib.get_conf().potential_directory
+            config_dir = RynLib.potential_directory()
         self.manager = ConfigManager(config_dir)
 
     def list_potentials(self):
         return self.manager.list_configs()
 
+    def check_potential(self, name):
+        if not self.manager.check_config(name):
+            raise IOError("No potential {}".format(name))
     def remove_potential(self, name):
+        self.check_potential(name)
         self.manager.remove_config(name)
 
     def add_potential(self, name, src,
@@ -59,12 +63,14 @@ class PotentialManager:
             self.manager.edit_config(name, name=name, potential_source=src, static_source=True)
 
     def potential_config(self, name):
+        self.check_potential(name)
         return self.manager.load_config(name)
 
     def load_potential(self, name):
         if name == "entos" and "entos" not in self.list_potentials():
             from ..Interface import PotentialInterface
             PotentialInterface.configure_entos()
+        self.check_potential(name)
         conf = self.manager.load_config(name)
         params = conf.opt_dict
         out_dir = self.manager.config_loc(name)
@@ -77,10 +83,54 @@ class PotentialManager:
 
     def potential_compiled(self, name):
         import glob
-
         return len(glob.glob(os.path.join(self.manager.config_loc(name), "*.so")))>0
 
-    def test_potential(self, name, input_file=None):
+    def test_potential(self, name, input_file=None,
+                       coordinates = None,
+                       parameters = None,
+                       atoms = None
+                       ):
+        import numpy as np
+
+        pdir = self.manager.config_loc(name)
+        curdir = os.getcwd()
+        try:
+            os.chdir(pdir)
+
+            if input_file is None:
+                inp = os.path.join(pdir, "test.py")
+                if os.path.exists(inp):
+                    input_file = inp
+
+            pot = self.load_potential(name)
+
+            if input_file is not None:
+                cfig = ConfigSerializer.deserialize(input_file, attribute="config")
+            else:
+                cfig = {}
+
+            walkers = coordinates if coordinates is not None else cfig["coordinates"]
+            if isinstance(walkers, str):
+                walkers = np.load(walkers)
+
+            try:
+                params = parameters if parameters is not None else cfig["parameters"]
+            except (AttributeError, KeyError):
+                params = []
+
+            atoms = atoms if atoms is not None else cfig["atoms"]
+
+            return pot(walkers, atoms, *params)
+        finally:
+            os.chdir(curdir)
+
+    def test_potential_mpi(self, name,
+                           input_file=None,
+                           coordinates=None,
+                           parameters=None,
+                           atoms=None,
+                           **opts
+                           ):
         import numpy as np
 
         pdir = self.manager.config_loc(name)
@@ -88,23 +138,38 @@ class PotentialManager:
         try:
             os.chdir(pdir)
             if input_file is None:
-                input_file = os.path.join(pdir, "test.py")
+                inp = os.path.join(pdir, "test.py")
+                if os.path.exists(inp):
+                    input_file = inp
 
             pot = self.load_potential(name)
-            cfig = ConfigSerializer.deserialize(input_file, attribute="config")
 
-            walkers = cfig["coordinates"]
+            if input_file is not None:
+                cfig = ConfigSerializer.deserialize(input_file, attribute="config")
+            else:
+                cfig = {}
+
+            walkers = coordinates if coordinates is not None else cfig["coordinates"]
             if isinstance(walkers, str):
                 walkers = np.load(walkers)
 
             try:
-                params = cfig["parameters"]
+                params = parameters if parameters is not None else cfig["parameters"]
             except (AttributeError, KeyError):
                 params = []
 
-            atoms = cfig["atoms"]
+            atoms = atoms if atoms is not None else cfig["atoms"]
 
-            return pot(walkers, atoms, *params)
+            for k in ('walkers_per_core', 'displacement_radius', 'iterations', 'steps_per_call', 'print_walkers'):
+                if k not in opts:
+                    try:
+                        v = cfig[k]
+                    except (AttributeError, KeyError):
+                        pass
+                    else:
+                        opts[k] = v
+
+            return self._test_potential_mpi(pot, walkers, atoms, *params, **opts)
         finally:
             os.chdir(curdir)
 
@@ -208,43 +273,5 @@ class PotentialManager:
             mpi_manager.finalize_MPI()
         return test_results
 
-    def test_potential_mpi(self, name, input_file=None, **opts):
-        import numpy as np
-
-        pdir = self.manager.config_loc(name)
-        curdir = os.getcwd()
-        try:
-            os.chdir(pdir)
-            if input_file is None:
-                input_file = os.path.join(pdir, "test.py")
-
-            pot = self.load_potential(name)
-            cfig = ConfigSerializer.deserialize(input_file, attribute="config")
-
-            walkers = cfig["coordinates"]
-            if isinstance(walkers, str):
-                walkers = np.load(walkers)
-
-            try:
-                params = cfig["parameters"]
-            except (AttributeError, KeyError):
-                params = []
-
-            atoms = cfig["atoms"]
-
-            for k in ('walkers_per_core', 'displacement_radius', 'iterations', 'steps_per_call', 'print_walkers'):
-                if k not in opts:
-                    try:
-                        v = cfig[k]
-                    except (AttributeError, KeyError):
-                        pass
-                    else:
-                        opts[k] = v
-
-            return self._test_potential_mpi(pot, walkers, atoms, *params, **opts)
-        finally:
-            os.chdir(curdir)
-
     def export_potential(self, name, path):
         shutil.copytree(self.manager.config_loc(name), path)
-

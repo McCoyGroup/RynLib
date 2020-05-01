@@ -140,7 +140,7 @@ rynlib="singularity run --bind .:/config rynlib"
 With Shifter, like Singularity, we directly bind directories, so we might have
 
 ```ignorelang
-rynlib="shifter --volume=$PWD:/config --image=registry.services.nersc.gov/b3m2a1/rynimg:latest python3.7 RynLib/CLI.py"
+rynlib="shifter --volume=$PWD:/config --image=registry.services.nersc.gov/b3m2a1/rynimg:latest python3.7 /home/RynLib/CLI.py"
 ```
 
 Keep in mind that with Shifter the `sbatch` process is [slightly different](https://docs.nersc.gov/programming/shifter/how-to-use/#running-jobs-in-shifter-images)

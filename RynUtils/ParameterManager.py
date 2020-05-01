@@ -28,6 +28,11 @@ class ParameterManager:
     def update(self, **ops):
         self.ops.update(**ops)
 
+    def keys(self):
+        return self.ops.keys()
+    def items(self):
+        return self.ops.items()
+
     def save(self, file, mode=None, attribute=None):
         self.serialize(file)
     @classmethod

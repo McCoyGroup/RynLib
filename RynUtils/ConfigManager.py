@@ -239,6 +239,9 @@ class ConfigManager:
             conf_file = self.conf_name
         return Config( conf_file,  root=os.path.join(self.conf_dir, name), loader=self.loader )
 
+    def check_config(self, config_tag):
+        return os.path.isdir(os.path.join(self.conf_dir, config_tag))
+
     def add_config(self, config_tag, config_file = None, **opts):
         """Adds a config to the known list. Requires a name. Takes either a config file or a bunch of options.
 

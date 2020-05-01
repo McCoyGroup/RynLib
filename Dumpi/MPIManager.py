@@ -25,21 +25,12 @@ class MPIManagerObject:
 
     @classmethod
     def _load_lib(cls):
-        # from ..Interface import RynLib
-        # import shutil
-        # cf = RynLib.get_conf()
-        mpi_dir = "/mpi"#cf.mpi_dir
-        # env = cf.containerizer
-        # if not os.path.exists(os.path.join(mpi_dir, "Dumpi")):
-        #     shutil.copytree(
-        #         os.path.dirname(__file__),
-        #         os.path.join(mpi_dir, "Dumpi")
-        #         )
+        from ..Interface import RynLib
+        mpi_dir = RynLib.mpi_dir#"/mpi"#cf.mpi_dir
         loader = CLoader("Dumpi",
                          os.path.dirname(os.path.abspath(__file__)),
-                         # os.path.join(mpi_dir, "Dumpi"),
                          linked_libs=["mpi"],
-                         # runtime_dirs = ("/) if env.lower() == "singularity" else None,
+                         extra_compile_args=['-fopenmp'],
                          include_dirs=[
                              os.path.join(mpi_dir, "lib"),
                              os.path.join(mpi_dir, "include")
@@ -49,13 +40,9 @@ class MPIManagerObject:
 
     @classmethod
     def _remove_lib(cls):
-        # from ..Interface import RynLib
-        # import shutil
-        # mpi_dir = "/mpi"#RynLib.get_conf().mpi_dir
         dump_lib = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Dumpi.so")
         if os.path.exists(dump_lib):
             os.remove(dump_lib)
-            # shutil.rmtree(dump_lib)
 
     @property
     def lib(self):
@@ -76,8 +63,6 @@ class MPIManagerObject:
         return not mpi_dead
 
     def init_MPI(self):
-        # import os
-        # print(os.environ["LD_LIBRARY_PATH"])
         cls = type(self)
         if not cls._initted:
             giveMePI = self.lib.giveMePI

@@ -310,7 +310,7 @@ class SimulationLogger:
 
 class SimulationAnalyzer:
     __props__ = [ "zpe_averages" ]
-    def __init__(self, simulation, zpe_averages = 1000):
+    def __init__(self, simulation, zpe_averages = 5000):
         self.sim = simulation
         self.zpe_averages = zpe_averages
 
@@ -323,7 +323,14 @@ class SimulationAnalyzer:
         if n is None:
             n = self.zpe_averages
         if len(self.sim.reference_potentials) > n:
-            vrefs = list(itertools.islice(self.sim.reference_potentials, len(self.sim.reference_potentials) - n, None, 1))
+            vrefs = list(
+                itertools.islice(
+                    self.sim.reference_potentials,
+                    len(self.sim.reference_potentials) - n,
+                    None,
+                    1
+                )
+            )
         else:
             vrefs = self.sim.reference_potentials
         return Constants.convert(np.average(np.array(vrefs)), "wavenumbers", in_AU=False)
@@ -523,12 +530,45 @@ class Simulation:
             raise
         self.dummied = self.world_rank != 0
 
+        if isinstance(importance_sampler, dict):
+            params = importance_sampler["parameters"]
+            importance_sampler = importance_sampler["name"]
+        else:
+            params = None
         if isinstance(importance_sampler, str):
             importance_sampler = ImportanceSamplerManager().load_sampler(importance_sampler)
             importance_sampler.init_params(self.walkers.sigmas, self.time_step)
         self.imp_samp = importance_sampler
         if self.imp_samp is not None:
-            self.imp_samp.init_params(self.walkers.sigmas, self.time_step)
+            if params is None:
+                params = ()
+            self.imp_samp.init_params(
+                self.walkers.sigmas,
+                self.time_step,
+                self.mpi_manager,
+                self.walkers.atoms,
+                *params
+            )
+
+    @property
+    def config_string(self):
+        header = "RynLib DMC SIMULATION: {}".format(self.name, self.description)
+        params_props = "\n".join([
+            "{}: {}".format(k, v) for k, v in self.params.items()
+        ])
+        sim_props = "\n".join([
+            "{}: {}".format(k, getattr(self, k)) for k in [
+                'output_folder',
+                'mpi_manager'
+            ]
+        ])
+        walk_props = "\n".join([
+            "{}: {}".format(k, getattr(self.walkers, k)) for k in [
+                'masses',
+                'sigmas'
+            ]
+        ])
+        return "\n".join([header, params_props, sim_props, walk_props])
 
     def checkpoint(self, test = True):
         can_check = self.counter.checkpoint
@@ -592,7 +632,9 @@ class Simulation:
         """
         try:
             if not self.dummied:
+                self.log_print(self.config_string)
                 self.log_print("Starting simulation")
+                # TODO: print out log properties
             if self.mpi_manager is not None:
                 # self.log_print("waiting for friends", verbosity=self.logger.LOG_STATUS)
                 self.mpi_manager.wait()
@@ -655,6 +697,7 @@ class Simulation:
                 # we do the check here so as to not waste time computing ZPE... even though that waste is effectively 0
                 self.log_print("Zero-point Energy: {}", self.analyzer.zpe, verbosity=self.logger.LOG_STATUS)
             self.log_print("Runtime: {}s", round(self.timer.elapsed), verbosity=self.logger.LOG_STATUS)
+            self.log_print("-" * 50, verbosity=self.logger.LOG_STATUS)
         else:
             self.log_print(
                 "    computing potential energy on core {}",
@@ -713,10 +756,11 @@ class Simulation:
             self.reference_potentials.append(Vref) # a constant time operation
             new_wts = np.nan_to_num(np.exp(-1.0 * (e - Vref) * self.time_step))
             weights *= new_wts
-            self.log_print("Min Weight: {} Max Weight: {} Mean Weight {}",
-                           np.min(weights), np.max(weights), np.average(weights),
-                           verbosity=self.logger.LOG_DATA
-                           )
+            self.log_print(
+                "Min Weight: {} Max Weight: {} Mean Weight {}",
+                np.min(weights), np.max(weights), np.average(weights),
+                verbosity=self.logger.LOG_DATA
+            )
         return weights
 
     def branch(self):

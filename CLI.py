@@ -108,9 +108,13 @@ class CLI:
 
     def config_run_tests(self):
         """
-        Currently inactive; should hook into the unit tests that we've bundled, once we have enough test data
+        Runs the unit tests distributed with the package. Can be run in debug mode or validation mode.
         """
-        RynLib.run_tests()
+        get_bool = lambda s: False if s == 'False' else bool(s)
+        parse_dict = self.get_parse_dict(
+            ("--debug", dict(default=False, type=get_bool, dest='debug')),
+        )
+        RynLib.run_tests(**parse_dict)
 
     def config_set_config(self):
         """
@@ -331,7 +335,7 @@ def run_command(parse):
         group = sys.argv[1] if len(sys.argv) > 1 else ""
         command = sys.argv[2] if len(sys.argv) > 2 else ""
         CLI(group=group, command=command).help()
-    elif len(sys.argv) > 0:
+    elif len(sys.argv) > 1:
         CLI().run()
     if interact:
         import code

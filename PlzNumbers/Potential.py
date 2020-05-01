@@ -44,6 +44,7 @@ class Potential:
                  out_dir=None,
                  cleanup_build=True,
                  python_potential=False,
+                 pointer_name=None,
 
                  #Caller Options
                  bad_walker_file="bad_walkers.txt",
@@ -113,7 +114,7 @@ class Potential:
         if wrap_potential:
             if potential_directory is None:
                 from ..Interface import RynLib
-                potential_directory = os.path.abspath(RynLib.get_conf().potential_directory)
+                potential_directory = RynLib.potential_directory()
             if not os.path.exists(potential_directory):
                 os.makedirs(potential_directory)
             pot_src = src
@@ -145,7 +146,8 @@ class Potential:
             requires_make=requires_make,
             out_dir=out_dir,
             cleanup_build=cleanup_build,
-            python_potential=python_potential
+            python_potential=python_potential,
+            pointer_name=pointer_name
         )
 
         self._caller = None

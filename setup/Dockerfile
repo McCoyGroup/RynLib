@@ -15,12 +15,14 @@ FROM entos
 
 ADD . /home/RynLib
 
+RUN mkdir -p /tests
+
 RUN \
   git clone https://github.com/McCoyGroup/Peeves /home/Peeves
 
 RUN python3 /home/RynLib/CLI.py config install-mpi --version=3.2 --imp=mpich
-
 RUN python3 /home/RynLib/CLI.py config build-libs --rebuild=True
+RUN python3 /home/RynLib/CLI.py config run-tests
 
 WORKDIR /home
 

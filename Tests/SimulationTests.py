@@ -4,18 +4,20 @@ from RynLib.DoMyCode import *
 from RynLib.Interface import *
 import os
 
-
 class SimulationTests(TestCase):
 
     def setUp(self):
-        self.cm = SimulationManager(RynLib.get_conf().simulations_directory)
+        self.cm = SimulationManager()
+        self.im = ImportanceSamplerManager()
 
     @debugTest
     def test_SimpleHO(self):
-        ...
+        SimulationInterface.test_HO()
 
     @debugTest
     def test_ImportanceSampling(self):
-        # Write a set of unit tests that checks if, given a certain trial wavefunction, the
-        # importance sampler class will not throw errors when calling `accept`, `metropolis`, etc.
-        ...
+        SimulationInterface.add_sampler(
+            "HOSampler",
+            source=os.path.join(RynLib.test_data, "HOSimulation", "HOTrialWavefunction")
+        )
+        self.im.test_sampler("HOSampler")
