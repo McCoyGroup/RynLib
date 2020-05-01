@@ -89,7 +89,7 @@ class SimulationInterface:
         if 'HarmonicOscillator' not in pm.list_potentials():
             PotentialInterface.configure_HO()
         cls.add_simulation("test_HO_imp",
-                           os.path.join(RynLib.test_data, "HOSimulation", "HOSim300Imp")
+                           os.path.join(RynLib.test_data, "HOSimulation", "HOSimImp")
                            )
         cls.run_simulation("test_HO_imp")
 
@@ -335,16 +335,24 @@ class RynLib:
         #     cls.reload_dumpi()
 
     @classmethod
-    def run_tests(cls, debug=False):
+    def run_tests(cls, test_dir=None, debug=False):
         import sys
 
         curdir = os.getcwd()
         root = cls.root
         argv = sys.argv
+        if test_dir is None:
+            no_user_dir = True
+            test_dir = "/tests"
+        else:
+            no_user_dir = False
         try:
-            cls.root = "/tests"
-            shutil.rmtree("/tests")
-            os.mkdir("/tests")
+            cls.root = test_dir
+            if no_user_dir and os.path.exists(test_dir):
+                shutil.rmtree(test_dir)
+            if not os.path.exists(test_dir):
+                os.mkdir(test_dir)
+
             os.chdir(os.path.dirname(os.path.dirname(__file__)))
             if debug:
                 sys.argv = [argv[0], "-d"]

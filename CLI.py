@@ -113,6 +113,7 @@ class CLI:
         get_bool = lambda s: False if s == 'False' else bool(s)
         parse_dict = self.get_parse_dict(
             ("--debug", dict(default=False, type=get_bool, dest='debug')),
+            ("--testdir", dict(default="", type=str, dest='test_dir')),
         )
         RynLib.run_tests(**parse_dict)
 

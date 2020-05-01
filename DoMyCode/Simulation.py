@@ -255,6 +255,29 @@ class SimulationLogger:
             os.makedirs(out_dir)
         self.sim.walkers.snapshot(f)
 
+    def snapshot_trial_wavefunction(self, file="psit{core}_{n}.npz", save_stepnum = True):
+        """Saves a snapshot of the walkers to a pickle
+
+        :return:
+        :rtype:
+        """
+
+        if self.sim.imp_samp is not None:
+            psi = self.sim.imp_samp.psi
+            if psi is not None:
+                n = "" if not save_stepnum else self.sim.counter.step_num
+                core = self.sim.world_rank
+                if core == 0:
+                    core = ""
+                file = file.format(core=core, n=n)
+                f = os.path.abspath(file)
+                if not os.path.isfile(f):
+                    f = os.path.join(self.output_folder, file)
+                out_dir = os.path.dirname(f)
+                if not os.path.isdir(out_dir):
+                    os.makedirs(out_dir)
+                np.save(f, psi)
+
     def save_wavefunction(self, wf, file = 'wavefunction{core}_{n}.npz'):
         """Save wavefunctions to a numpy binary
 
@@ -306,6 +329,7 @@ class SimulationLogger:
         self.snapshot_energies()
         self.snapshot_params()
         self.snapshot_walkers(save_stepnum=save_stepnum)
+        self.snapshot_trial_wavefunction(save_stepnum=save_stepnum)
 
 
 class SimulationAnalyzer:
@@ -442,7 +466,7 @@ class Simulation:
             potential = None,
             atomic_units = False,
             steps_per_propagation = None,
-            mpi_manager = None,
+            mpi_manager = True,
             importance_sampler = None,
             num_wavefunctions = 0,
             ignore_errors = True,
@@ -478,10 +502,10 @@ class Simulation:
         self.description = description
 
         # basically we don't let it not use MPI...
-        if mpi_manager is None:
+        if mpi_manager is True:
             mpi_manager = MPIManager()
-        elif isinstance(mpi_manager, str) and mpi_manager == "serial":
-            mpi_manager = None
+        # elif isinstance(mpi_manager, str) and mpi_manager == "serial":
+        #     mpi_manager = None
 
         if isinstance(walker_set, str):
             walker_set = WalkerSet.from_file(walker_set, mpi_manager=mpi_manager)
@@ -552,13 +576,17 @@ class Simulation:
 
     @property
     def config_string(self):
-        header = "RynLib DMC SIMULATION: {}".format(self.name, self.description)
+        header = "RynLib DMC SIMULATION: {}\n{}\n".format(self.name, self.description)
         params_props = "\n".join([
             "{}: {}".format(k, v) for k, v in self.params.items()
         ])
+        logger_props = "\n".join([
+            "{}: {}".format(k, getattr(self.logger, k)) for k in [
+                'verbosity'
+            ]
+        ])
         sim_props = "\n".join([
             "{}: {}".format(k, getattr(self, k)) for k in [
-                'output_folder',
                 'mpi_manager'
             ]
         ])
@@ -568,7 +596,8 @@ class Simulation:
                 'sigmas'
             ]
         ])
-        return "\n".join([header, params_props, sim_props, walk_props])
+        c_string = "\n".join([header, params_props, logger_props, sim_props, walk_props])
+        return c_string
 
     def checkpoint(self, test = True):
         can_check = self.counter.checkpoint

@@ -7,4 +7,4 @@ class InterfaceTests(TestCase):
 
     @validationTest
     def test_LoadConfig(self):
-        self.assertEquals(RynLib.root_directory(), "/tests")
+        self.assertIsInstance(RynLib.root_directory(), str)

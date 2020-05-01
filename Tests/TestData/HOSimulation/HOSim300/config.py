@@ -9,8 +9,9 @@ config = dict(
     walker_set=dict(
             atoms=["H", "H"],
             initial_walker=[[1, 0, 0], [0, 0, 0]],
-            walkers_per_core=1000
+            num_walkers=1000
         ),
+    mpi_manager = None,
     time_step=1,
     steps_per_propagation=3,
     num_time_steps=120,

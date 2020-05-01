@@ -1,12 +1,13 @@
 from Peeves.TestUtils import *
 from unittest import TestCase
+from ..Interface import RynLib
 from RynLib.RynUtils.ConfigManager import *
 import os
 
 class ConfigManagerTests(TestCase):
 
     def setUp(self):
-        self.cm = ConfigManager("/tests/configs")
+        self.cm = ConfigManager(os.path.join(RynLib.root_directory(), "configs"))
 
     def ensure_config(self):
         if "testDMC" not in self.cm.list_configs():

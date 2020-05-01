@@ -24,6 +24,10 @@ class Logger:
                         pass
                 #O_NONBLOCK is *nix only
                 with open(log, "a", os.O_NONBLOCK) as lf: # this is potentially quite slow but I am also quite lazy
-                    print(message.format(*params), file = lf, **kwargs)
+                    if len(params) > 0:
+                        message = message.format(*params)
+                    print(message, file = lf, **kwargs)
             else:
-                print(message.format(*params), file = log, **kwargs)
+                if len(params) > 0:
+                    message = message.format(*params)
+                print(message, file = log, **kwargs)
