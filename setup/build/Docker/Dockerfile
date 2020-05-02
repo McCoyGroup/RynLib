@@ -3,7 +3,7 @@
 # otherwise use DockerfileEntos and build from that
 
 # FROM rynlibcore
-FROM entos
+FROM rynlibcore
 
 #
 #   RYNLIB:
