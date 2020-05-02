@@ -1,3 +1,3 @@
 module load singularity
 
-rynlib=...
+rynlib="singularity run --bind .:/config rynlib"

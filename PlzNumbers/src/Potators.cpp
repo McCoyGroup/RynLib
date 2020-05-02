@@ -3,7 +3,6 @@
 #include "PyAllUp.hpp"
 #include <csignal>
 #include <iostream>
-#include <unordered_map>
 
 void _printOutWalkerStuff(
     Coordinates walker_coords,
