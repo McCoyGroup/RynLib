@@ -4,7 +4,7 @@
 #include "RynTypes.hpp"
 #include "Python.h"
 #include <stdio.h>
-//#include <omp.h>
+#include <omp.h>
 
 void _printOutWalkerStuff( Coordinates walker_coords );
 
@@ -40,7 +40,8 @@ PotentialArray _mpiGetPot(
         bool vectorized_potential,
         ExtraBools &extra_bools,
         ExtraInts &extra_ints,
-        ExtraFloats &extra_floats
+        ExtraFloats &extra_floats,
+        bool use_openMP
         );
 
 PotentialArray _noMPIGetPot(
@@ -55,7 +56,8 @@ PotentialArray _noMPIGetPot(
         bool vectorized_potential,
         ExtraBools &extra_bools,
         ExtraInts &extra_ints,
-        ExtraFloats &extra_floats
+        ExtraFloats &extra_floats,
+        bool use_openMP
         );
 
 PyObject* _mpiGetPyPot(

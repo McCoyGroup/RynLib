@@ -705,6 +705,7 @@ class Simulation:
             coord_sets = self.walkers.displace(nsteps, importance_sampler=self.imp_samp, atomic_units = self.atomic_units)
             self.log_print("Computing potential energy", verbosity=self.logger.LOG_STATUS)
             start = time.time()
+            self.log_print(self.potential)
             energies = self.potential(coord_sets)
             if self.imp_samp is not None:
                 imp = self.imp_samp #type: ImportanceSampler

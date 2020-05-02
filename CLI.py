@@ -341,6 +341,8 @@ class CLI:
 
 def run_command(parse):
     interact = parse.interact or (len(sys.argv) == 1 and not parse.help)
+    if parse.nomp:
+        RynLib.use_MP = False
     if parse.help:
         if len(sys.argv) == 1:
             print("$rynlib [--update|--rebuild] GRP CMD [ARGS] runs RynLib with the specified command")
@@ -357,6 +359,7 @@ def run():
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--update", default=False, action='store_const', const=True, dest="update")
     parser.add_argument("--rebuild", default=False, action='store_const', const=True, dest="rebuild")
+    parser.add_argument("--nomp", default=False, action='store_const', const=True, dest="nomp")
     parser.add_argument("--output", default="", type=str, dest="output")
     parser.add_argument("--error", default="", type=str, dest="error")
     parser.add_argument("--interact", default=False, action='store_const', const=True, dest="interact")
@@ -386,6 +389,8 @@ def run():
                 sys.argv.append("--interact")
             if parse.interact:
                 sys.argv.append("--help")
+            if parse.no_openmp:
+                sys.argv.append("--nomp")
             sys.argv += unknown
             subprocess.call([sys.executable, *sys.argv])
         else:
@@ -402,6 +407,7 @@ def run():
                                 sys.stderr = err
                                 run_command(parse)
                         else:
+                            sys.stderr = out
                             run_command(parse)
                 else:
                     run_command(parse)

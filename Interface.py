@@ -72,7 +72,7 @@ class SimulationInterface:
         if "test_HO" in sm.list_simulations():
             sm.remove_simulation("test_HO")
         cls.add_simulation("test_HO",
-                           os.path.join(RynLib.test_data, "HOSimulation", "HOSim300")
+                           os.path.join(RynLib.test_data, "HOSimulation", "HOSim")
                            )
 
     @classmethod
@@ -234,6 +234,7 @@ class RynLib:
     config_file = "config.py"
     mpi_dir = "/usr/lib/mpi"
     test_data = os.path.join(os.path.dirname(__file__), "Tests", "TestData")
+    use_MP = True
 
     @classmethod
     def get_default_env(cls):

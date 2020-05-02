@@ -112,22 +112,27 @@ PyObject *PlzNumbers_callPotVec( PyObject* self, PyObject* args ) {
     PyObject* pot_function;
     PyObject* bad_walkers_file;
     PyObject* ext_bool, *ext_int, *ext_float;
+    PyObject* manager;
     double err_val;
     bool raw_array_pot, vectorized_potential;
-    PyObject* manager;
-    if ( !PyArg_ParseTuple(args, "OOOOdppOOOO",
+    bool use_openMP;
+    if ( !PyArg_ParseTuple(
+            args,
+            "OOOOOOOOdppp",
+            &manager,
             &atoms,
             &coords,
             &pot_function,
             &bad_walkers_file,
+            &ext_bool,
+            &ext_int,
+            &ext_float,
             &err_val,
             &raw_array_pot,
             &vectorized_potential,
-            &manager,
-            &ext_bool,
-            &ext_int,
-            &ext_float
-            ) ) return NULL;
+            &use_openMP
+            )
+    ) return NULL;
 
     // Assumes we get n atom type names
     Py_ssize_t num_atoms = PyObject_Length(atoms);
@@ -153,7 +158,6 @@ PyObject *PlzNumbers_callPotVec( PyObject* self, PyObject* args ) {
     double* raw_data = _GetDoubleDataArray(coords);
     if (raw_data == NULL) return NULL;
 
-
      // we load in the extra arguments that the potential can pass -- this bit of flexibility makes every
      // call a tiny bit slower, but allows us to not have to change this code constantly and recompile
 
@@ -166,6 +170,29 @@ PyObject *PlzNumbers_callPotVec( PyObject* self, PyObject* args ) {
     // We can tell if MPI is active or not by whether COMM is None or not
     PotentialFunction pot = (PotentialFunction) PyCapsule_GetPointer(pot_function, "_potential");
     PotentialArray pot_vals;
+
+//    printf("?___? %s\n", use_openMP ? "true" : "false");
+//    PyObject* managerRepr = PyObject_Repr(bad_walkers_file);
+//    PyObject* str;
+//    printf("%s\n", _GetPyString(managerRepr, str));
+//
+//    PyObject* newR1 = PyObject_Repr(ext_bool);
+//    PyObject* newS1;
+//    printf("%s\n", _GetPyString(newR1, newS1));
+//    PyObject* newR2 = PyObject_Repr(ext_int);
+//    PyObject* newS2;
+//    printf("%s\n", _GetPyString(newR2, newS2));
+//    PyObject* newR3 = PyObject_Repr(ext_float);
+//    PyObject* newS3;
+//    printf("%s\n", _GetPyString(newR3, newS3));
+//
+//    printf("%p %p %p\n", manager, Py_None, coords);
+//
+//    PyObject* newNewRepr = PyObject_Repr(manager);
+//    printf("-_____-\n");
+//    PyObject* newnewStr;
+//    printf("%s\n", _GetPyString(newNewRepr, newnewStr));
+
     if (manager == Py_None) {
         pot_vals = _noMPIGetPot(
                 pot,
@@ -179,7 +206,8 @@ PyObject *PlzNumbers_callPotVec( PyObject* self, PyObject* args ) {
                 vectorized_potential,
                 extra_bools,
                 extra_ints,
-                extra_floats
+                extra_floats,
+                use_openMP
                 );
     } else {
         pot_vals = _mpiGetPot(
@@ -195,7 +223,8 @@ PyObject *PlzNumbers_callPotVec( PyObject* self, PyObject* args ) {
                 vectorized_potential,
                 extra_bools,
                 extra_ints,
-                extra_floats
+                extra_floats,
+                use_openMP
         );
     }
 

@@ -3,6 +3,7 @@
 #include "PyAllUp.hpp"
 #include <csignal>
 #include <iostream>
+#include <unordered_map>
 
 void _printOutWalkerStuff(
     Coordinates walker_coords,
@@ -142,7 +143,8 @@ PotentialArray _mpiGetPot(
         bool vectorized_potential,
         ExtraBools &extra_bools,
         ExtraInts &extra_ints,
-        ExtraFloats &extra_floats
+        ExtraFloats &extra_floats,
+        bool use_openMP
 ) {
 
     //
@@ -188,7 +190,7 @@ PotentialArray _mpiGetPot(
     Py_XDECREF(scatter);
 
     // Allocate a coordinate array to pull data into
-    Coordinates walker_coords (num_atoms, Point(3));
+//    Coordinates walker_coords (num_atoms, Point(3));
 
     // Do the same with the potentials
     // walkers_to_core is the number of calls * the number of walkers per core
@@ -214,23 +216,47 @@ PotentialArray _mpiGetPot(
     std::string bad_file = _GetPyString(bad_walkers_file, pyStr);
     Py_XDECREF(pyStr);
 
-    #ifdef _nOPENMP
-    #pragma omp parallel
-    #pragma omp for
-    #endif
-    for (int i = 0; i < walkers_to_core; i++) {
-        // Some amount of wasteful copying but ah well
-        walker_coords = _getWalkerCoords(walker_buf, i, num_atoms);
-        pots[i] = _doopAPot(
-                walker_coords,
-                atoms,
-                pot,
-                bad_file,
-                err_val,
-                extra_bools,
-                extra_ints,
-                extra_floats
-                );
+    if (use_openMP) {
+        #ifdef _OPENMP
+        #pragma omp parallel \
+                                    shared (raw_data, atoms, pot, bad_file)
+        #pragma omp for
+        #endif
+        for (int i = 0; i < walkers_to_core; i++) {
+            // Some amount of wasteful copying but ah well
+            Coordinates walker_coords = _getWalkerCoords(walker_buf, i, num_atoms);
+            Real_t pot_val = _doopAPot(
+                    walker_coords,
+                    atoms,
+                    pot,
+                    bad_file,
+                    err_val,
+                    extra_bools,
+                    extra_ints,
+                    extra_floats
+            );
+            #ifdef _OPENMP
+            #pragma omp critical
+            #endif
+            pots[i] = pot_val;
+        }
+    } else {
+        for (int i = 0; i < walkers_to_core; i++) {
+            // Some amount of wasteful copying but ah well
+            Coordinates walker_coords = _getWalkerCoords(walker_buf, i, num_atoms);
+            Real_t pot_val = _doopAPot(
+                    walker_coords,
+                    atoms,
+                    pot,
+                    bad_file,
+                    err_val,
+                    extra_bools,
+                    extra_ints,
+                    extra_floats
+            );
+            pots[i] = pot_val;
+        }
+
     }
     //   [
     //      pot_i(t=0), pot_i(t=1), ... pot_i(t=n),
@@ -294,33 +320,60 @@ PotentialArray _noMPIGetPot(
         bool vectorized_potential,
         ExtraBools &extra_bools,
         ExtraInts &extra_ints,
-        ExtraFloats &extra_floats
+        ExtraFloats &extra_floats,
+        bool use_openMP
 ) {
     // currently I have nothing to manage an independently vectorized potential but maybe someday I will
     PotentialArray potVals(num_walkers, PotentialVector(ncalls, 0));
     PyObject* pyStr = NULL;
     std::string bad_file = _GetPyString(bad_walkers_file, pyStr);
     Py_XDECREF(pyStr);
-    Coordinates walker_coords;
-    #ifdef _nOPENMP
-    #pragma omp parallel
-    #pragma omp for
-    #endif
-    for (int n = 0; n < ncalls; n++) {
-        for (int i = 0; i < num_walkers; i++) {
-            walker_coords = _getWalkerCoords2(raw_data, n, i, ncalls, num_walkers, num_atoms);
-            potVals[i][n] = _doopAPot(
-                    walker_coords,
-                    atoms,
-                    pot,
-                    bad_file,
-                    err_val,
-                    extra_bools,
-                    extra_ints,
-                    extra_floats
-            );
+
+    if (use_openMP) {
+        #ifdef _OPENMP
+            #pragma omp parallel \
+                        shared (raw_data, atoms, potVals, pot, bad_file)
+            #pragma omp for
+        #endif
+        for (int n = 0; n < ncalls; n++) {
+            for (int i = 0; i < num_walkers; i++) {
+                Coordinates walker_coords = _getWalkerCoords2(raw_data, n, i, ncalls, num_walkers, num_atoms);
+                Real_t pot_val = _doopAPot(
+                        walker_coords,
+                        atoms,
+                        pot,
+                        bad_file,
+                        err_val,
+                        extra_bools,
+                        extra_ints,
+                        extra_floats
+                );
+                #ifdef _OPENMP
+                #pragma omp critical
+                #endif
+                potVals[i][n] = pot_val;
+            }
         }
+    } else {
+        for (int n = 0; n < ncalls; n++) {
+            for (int i = 0; i < num_walkers; i++) {
+                Coordinates walker_coords = _getWalkerCoords2(raw_data, n, i, ncalls, num_walkers, num_atoms);
+                Real_t pot_val = _doopAPot(
+                        walker_coords,
+                        atoms,
+                        pot,
+                        bad_file,
+                        err_val,
+                        extra_bools,
+                        extra_ints,
+                        extra_floats
+                );
+                potVals[i][n] = pot_val;
+            }
+        }
+
     }
+
     return potVals;
 
 }

@@ -16,10 +16,13 @@ class SimulationTests(TestCase):
         f = SimulationManager().simulation_output_folder("test_HO")
         with open(os.path.join(f, "log.txt")) as out:
             out_stuff = out.read()
-        self.assertTrue('Ending simulation' in out_stuff and 'Zero-point Energy' in out_stuff)
+        clean_end = 'Ending simulation' in out_stuff and 'Zero-point Energy' in out_stuff
+        if not clean_end:
+            print(out_stuff)
+        self.assertTrue(clean_end)
         SimulationInterface.archive_simulation("test_HO")
 
-    @debugTest
+    @validationTest
     def test_SimpleHOImp(self):
         SimulationInterface.test_HO_imp()
         f = SimulationManager().simulation_output_folder("test_HO_imp")
@@ -28,7 +31,7 @@ class SimulationTests(TestCase):
         self.assertTrue('Ending simulation' in out_stuff and 'Zero-point Energy' in out_stuff)
         SimulationInterface.archive_simulation("test_HO_imp")
 
-    @debugTest
+    @validationTest
     def test_ImportanceSampling(self):
         SimulationInterface.add_sampler(
             "HOSampler",
@@ -36,7 +39,7 @@ class SimulationTests(TestCase):
         )
         self.im.test_sampler("HOSampler")
 
-    @debugTest
+    @validationTest
     def test_SimulationArchiving(self):
         SimulationInterface.test_add_HO()
         SimulationInterface.archive_simulation("test_HO")

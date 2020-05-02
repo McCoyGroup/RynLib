@@ -5,6 +5,7 @@ needing to know about MPI.
 Allows for easier separation of components.
 """
 from ..RynUtils import CLoader
+import multiprocessing as mp
 import os, sys
 
 __all__ = [
@@ -20,7 +21,8 @@ class MPIManagerObject:
     _world_rank = None
     _lib = None
 
-    def __init__(self):
+    def __init__(self, hybrid_parallelization = None):
+        self._hybrid_parallelization = hybrid_parallelization
         self.init_MPI()
 
     @classmethod
@@ -50,6 +52,32 @@ class MPIManagerObject:
             cls = type(self)
             cls._lib = cls._load_lib()
         return self._lib
+
+    @property
+    def hybrid_parallelization(self):
+        if self._hybrid_parallelization is None:
+            # import multiprocessing as mp, platform
+            # from ..Interface import RynLib
+            #world_size is smaller than the number of cores on a given node
+            # or not divisible
+            world_size = self.world_size
+            cores_per_node = mp.cpu_count()
+            hybrid = world_size < cores_per_node or (world_size % cores_per_node != 0)
+            # if hybrid:
+            #     # means we need to see how many "nodes" we've got
+            #     cf = RynLib.get_conf()
+            #     try:
+            #         arch_min_processors = cf.min_processors
+            #     except AttributeError:
+            #         node = platform.node()
+            #         if
+            self._hybrid_parallelization = hybrid
+        return self._hybrid_parallelization
+
+    @property
+    def hybrid_world_size(self):
+        # we assume the "world_size" is the number of nodes
+        return self.world_size * mp.cpu_count()
 
     def test(self, timeout=5):
         import threading
@@ -141,9 +169,15 @@ class MPIManagerLoader:
         self._manager_initialized = False
         self.manager = None
     def load_manager(self):
+        from ..Interface import RynLib
+
         if not self._manager_initialized:
             self._manager_initialized = True
-            self.manager = MPIManagerObject()
+            if RynLib.use_MP == False:
+                hybrid_parallelization = False
+            else:
+                hybrid_parallelization = None
+            self.manager = MPIManagerObject(hybrid_parallelization=hybrid_parallelization)
             try:
                 self.manager.init_MPI()
             except ImportError:
