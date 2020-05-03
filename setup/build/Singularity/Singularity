@@ -64,8 +64,9 @@ From: nvidia/cuda:10.1-devel-centos7
   pip3 install scipy &&\
   pip3 install wget
 
+# we assume we build from _outside_ this directory?
 %files
-    RynLib /home/RynLib # we assume we build from _outside_ this directory?
+    RynLib /home/RynLib
 
 %post
     mkdir -p /tests
