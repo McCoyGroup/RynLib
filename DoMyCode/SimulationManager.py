@@ -112,3 +112,14 @@ class SimulationManager:
         os.rename(old_loc, new_loc)
     def archive_config(self, name):
         return self.archiver.load_config(name)
+    def archive_output_folder(self, name):
+        loc = self.archiver.config_loc(name)
+        return os.path.join(loc, "output")
+    def load_archive(self, name):
+        conf = self.archiver.load_config(name)
+        params = SimulationParameters(**conf.opt_dict)
+        params.output_folder = self.archive_output_folder(name)
+        sim = Simulation(params)
+        if self.simulation_ran(name):
+            sim.reload()
+        return sim
