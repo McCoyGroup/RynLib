@@ -24,9 +24,7 @@ function rynlib_git_update() {
   fi
 
   if [[ "$RYNLIB_PATH" == "" ]]; then
-    else
-      echo "RYNLIB_PATH needs to be set to know where to pull from";
-    fi
+    echo "RYNLIB_PATH needs to be set to know where to pull from";
   else
     cur=$PWD;
     cd $RYNLIB_PATH;
