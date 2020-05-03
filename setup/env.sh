@@ -124,7 +124,7 @@ function rynlib_update_singularity() {
     img="$PWD/$RYNLIB_IMAGE_NAME.sif";
   fi
 
-  $(rynlib_git_update);
+  rynlib_git_update;
 
   singularity pull $img docker://$RYNLIB_DOCKER_IMAGE-centos
   };
@@ -135,7 +135,7 @@ function rynlib_update_shifter() {
     img="$RYNLIB_SHIFTER_IMAGE:latest";
   fi
 
-  $(rynlib_git_update);
+  rynlib_git_update;
 
   shifterimg pull img;
   };
