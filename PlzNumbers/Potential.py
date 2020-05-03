@@ -107,6 +107,7 @@ class Potential:
         """
         src = potential_source
         self.name = name
+        self.function_name = function_name
 
         self._atoms = None
         self._args = ()
@@ -158,6 +159,13 @@ class Potential:
             vectorized_potential=vectorized_potential,
             error_value=error_value
         )
+    def __repr__(self):
+        return "Potential('{}', function={}, atoms={}, args={})".format(
+            self.name,
+            self.function_name,
+            self._atoms,
+            self._args
+        )
 
     @property
     def caller(self):
@@ -181,9 +189,11 @@ class Potential:
     def __call__(self, coordinates, *extra_args):
         if self._atoms is not None:
             atoms = self._atoms
-        else:
+        elif len(extra_args) > 0:
             atoms = extra_args[0]
             extra_args = extra_args[1:]
+        else:
+            atoms = []
         if len(extra_args) == 0:
             extra_args = self._args
         return self.caller(coordinates, atoms, *extra_args)

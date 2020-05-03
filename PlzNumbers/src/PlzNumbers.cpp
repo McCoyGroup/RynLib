@@ -45,30 +45,25 @@ int _LoadExtraArgs(
 
 PyObject *PlzNumbers_callPot(PyObject* self, PyObject* args ) {
 
-    PyObject* atoms;
-    PyObject* coords;
+    PyObject* atoms, *coords;
     PyObject* pot_function;
     PyObject* ext_bool, *ext_int, *ext_float;
-    const char* bad_walkers_str;
+    PyObject* bad_walkers_str;
     double err_val;
-    bool raw_array_pot;
+    int raw_array_pot;
 
     if (
-         !PyArg_ParseTuple(args, "OOOOdpOOO",
-           &atoms, &coords, &pot_function, &bad_walkers_str, &err_val, &raw_array_pot,
-           &ext_bool, &ext_int, &ext_float
+         !PyArg_ParseTuple(args,
+                 "OOOOdpOOO",
+                 &coords, &atoms, &pot_function, &bad_walkers_str,
+                 &err_val, &raw_array_pot,
+                 &ext_bool, &ext_int, &ext_float
            )
         ) return NULL;
 
     // Assumes we get n atom type names
     Py_ssize_t num_atoms = PyObject_Length(atoms);
     Names mattsAtoms = _getAtomTypes(atoms, num_atoms);
-
-//    PyObject *coordString = PyObject_Repr(coords);
-//    PyObject *str;
-//    printf("%s", _GetPyString(coordString, str));
-//    Py_XDECREF(coordString);
-//    Py_XDECREF(str);
 
     // Assumes number of walkers X number of atoms X 3
     double* raw_data = _GetDoubleDataArray(coords);
@@ -83,7 +78,9 @@ PyObject *PlzNumbers_callPot(PyObject* self, PyObject* args ) {
 
     PotentialFunction pot_f = (PotentialFunction) PyCapsule_GetPointer(pot_function, "_potential");
 
-    std::string bad_walkers_file = bad_walkers_str;
+    PyObject* str = NULL;
+    std::string bad_walkers_file =  _GetPyString(bad_walkers_str, str);
+    Py_XDECREF(str);
 
     Real_t pot = _doopAPot(
             walker_coords,
@@ -107,37 +104,34 @@ PyObject *PlzNumbers_callPot(PyObject* self, PyObject* args ) {
 PyObject *PlzNumbers_callPotVec( PyObject* self, PyObject* args ) {
     // vector version of callPot
 
-    PyObject* atoms;
-    PyObject* coords;
-    PyObject* pot_function;
-    PyObject* bad_walkers_file;
-    PyObject* ext_bool, *ext_int, *ext_float;
-    PyObject* manager;
+    PyObject* coords, *atoms, *pot_function, *extra_args, *bad_walkers_file;
     double err_val;
-    bool raw_array_pot, vectorized_potential;
-    bool use_openMP;
+    int raw_array_pot, vectorized_potential;
+    PyObject* manager;
+    int use_openMP;
+
     if ( !PyArg_ParseTuple(
             args,
-            "OOOOOOOOdppp",
-            &manager,
-            &atoms,
+            "OOOOOdppOp",
             &coords,
+            &atoms,
             &pot_function,
+            &extra_args,
             &bad_walkers_file,
-            &ext_bool,
-            &ext_int,
-            &ext_float,
             &err_val,
             &raw_array_pot,
             &vectorized_potential,
+            &manager,
             &use_openMP
             )
     ) return NULL;
 
     // Assumes we get n atom type names
+
     Py_ssize_t num_atoms = PyObject_Length(atoms);
     if (PyErr_Occurred()) return NULL;
     Names mattsAtoms = _getAtomTypes(atoms, num_atoms);
+
 
     // we'll assume we have number of walkers X ncalls X number of atoms X 3
     PyObject *shape = PyObject_GetAttrString(coords, "shape");
@@ -161,6 +155,10 @@ PyObject *PlzNumbers_callPotVec( PyObject* self, PyObject* args ) {
      // we load in the extra arguments that the potential can pass -- this bit of flexibility makes every
      // call a tiny bit slower, but allows us to not have to change this code constantly and recompile
 
+
+    PyObject* ext_bool = PyTuple_GetItem(extra_args, 0);
+    PyObject* ext_int = PyTuple_GetItem(extra_args, 1);
+    PyObject* ext_float = PyTuple_GetItem(extra_args, 2);
     ExtraBools extra_bools; ExtraInts extra_ints; ExtraFloats extra_floats;
     if (!_LoadExtraArgs(
         extra_bools, extra_ints, extra_floats,
@@ -171,29 +169,7 @@ PyObject *PlzNumbers_callPotVec( PyObject* self, PyObject* args ) {
     PotentialFunction pot = (PotentialFunction) PyCapsule_GetPointer(pot_function, "_potential");
     PotentialArray pot_vals;
 
-//    printf("?___? %s\n", use_openMP ? "true" : "false");
-//    PyObject* managerRepr = PyObject_Repr(bad_walkers_file);
-//    PyObject* str;
-//    printf("%s\n", _GetPyString(managerRepr, str));
-//
-//    PyObject* newR1 = PyObject_Repr(ext_bool);
-//    PyObject* newS1;
-//    printf("%s\n", _GetPyString(newR1, newS1));
-//    PyObject* newR2 = PyObject_Repr(ext_int);
-//    PyObject* newS2;
-//    printf("%s\n", _GetPyString(newR2, newS2));
-//    PyObject* newR3 = PyObject_Repr(ext_float);
-//    PyObject* newS3;
-//    printf("%s\n", _GetPyString(newR3, newS3));
-//
-//    printf("%p %p %p\n", manager, Py_None, coords);
-//
-//    PyObject* newNewRepr = PyObject_Repr(manager);
-//    printf("-_____-\n");
-//    PyObject* newnewStr;
-//    printf("%s\n", _GetPyString(newNewRepr, newnewStr));
-
-    if (manager == Py_None) {
+    if (manager==Py_None) {
         pot_vals = _noMPIGetPot(
                 pot,
                 raw_data,

@@ -1,0 +1,60 @@
+#
+#   CORE:
+#       Defines how to build the core that RynLib will require inside the Dockerized environment
+#       This version of the core builds off of a CentOS backend, which is what we need to run on Hyak
+#
+FROM nvidia/cuda:10.1-devel-centos7
+
+# Python
+RUN \
+    yum install -y \
+        python2 \
+        python3 &&\
+    rm -rf /var/cache/yum/*
+
+# GNU compiler runtime
+RUN \
+    yum install -y \
+        libgfortran \
+        libgomp &&\
+    rm -rf /var/cache/yum/*
+
+# Centos Development Tools
+RUN \
+    yum groupinstall -y 'Development Tools'
+
+# OPA
+RUN \
+    yum install -y \
+        hwloc-libs \
+        infinipath-psm \
+        libfabric \
+        libhfil \
+        libibverbs \
+        libibverbs-devel \
+        libpsm2 \
+        libsysfs-devel \
+        numactl-libs \
+        opa-basic-tools \
+        rdma-core
+
+# OpenMPI
+RUN \
+    yum install -y \
+        hwloc \
+        openssh-clients &&\
+    rm -rf /var/cache/yum/*
+
+# RynLib
+RUN \
+ yum install -y\
+    g++\
+    git && \
+  rm -rf /var/cache/yum/*  &&\
+ yum install -y\
+    python3-devel\
+    python3-pip\
+    gcc-gfortran  &&\
+  pip3 install numpy &&\
+  pip3 install scipy &&\
+  pip3 install wget

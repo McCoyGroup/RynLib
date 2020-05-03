@@ -6,8 +6,8 @@ config = dict(
         name="HarmonicOscillator",
         parameters=[.9, 1.0]#re and k
     ),
-    trial_wavefunction=dict(
-        name="HarmonicOscillator",
+    importance_sampler=dict(
+        name="HOSampler",
         parameters=[.9, 1.0]#re and k
     ),
     walker_set=dict(

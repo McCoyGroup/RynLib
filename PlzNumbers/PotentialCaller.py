@@ -1,9 +1,52 @@
-import numpy as np, os, multiprocessing as mp
+import numpy as np, os, multiprocessing as mp, itertools as it, sys
 from ..RynUtils import CLoader
 
 __all__ = [
     "PotentialCaller"
 ]
+
+class PoolPotential:
+    rooot_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    def __init__(self, potential, block_size):
+        self.block_size = block_size
+        self.pot = potential
+        try:
+            self.pot_type = "dynamic"
+            mod = sys.modules["DynamicImports." + potential.__module__]
+        except KeyError:
+            self.pot_type = "normal"
+            mod = sys.modules[potential.__module__]
+
+        self.pot_dir = os.path.dirname(mod.__file__)
+        self._pool = None
+
+    @property
+    def pool(self):
+        if self._pool is None:
+            self._pool = self._get_pool()
+        return self._pool
+    def _init_pool(self, *path):
+        import sys
+        sys.path.extend(path)
+    def _get_pool(self):
+        pool = mp.Pool(initializer=self._init_pool, initargs=[self.rooot_dir, self.pot_dir])
+        # print(" Making pooooooool >>>>>", self.pot_type, self.pot.__module__)
+        if self.pot_type == "dynamic":
+            # hack to handle the fact that our trial wavefunctions are dynamically loaded and pickle doesn't like it
+            mod_spec = "DynamicImports." + self.pot.__module__
+            mod = sys.modules[mod_spec]
+            sys.modules[mod_spec.split(".", 1)[1]] = mod
+        self._init_pool()
+        return pool
+
+    def call_pot(self, walkers, atoms, extra_bools=(), extra_ints=(), extra_floats=()):
+        blocks = np.array_split(walkers, self.block_size)
+        a = atoms,
+        e = (extra_bools, extra_ints, extra_floats)
+        res = self.pool.starmap(self.pot, zip(blocks, it.repeat(a), it.repeat(e)))
+        return np.concatenate(res)
+    def __call__(self, walkers, atoms, extra_bools=(), extra_ints=(), extra_floats=()):
+        return self.call_pot(walkers, atoms, extra_bools=extra_bools, extra_ints=extra_ints, extra_floats=extra_floats)
 
 class PotentialCaller:
     """
@@ -28,7 +71,7 @@ class PotentialCaller:
             raise ValueError("Only one positional argument (for the potential) accepted")
         self.potential = potential
         self.bad_walkers_file = bad_walker_file
-        self.mpi_manager = mpi_manager
+        self._mpi_manager = mpi_manager
         self.vectorized_potential = vectorized_potential
         self.raw_array_potential = raw_array_potential
         self.error_value = error_value
@@ -78,13 +121,14 @@ class PotentialCaller:
         if self._py_pot:
             return self.potential(walker, atoms, (extra_bools, extra_ints, extra_floats))
         else:
+            coords = np.ascontiguousarray(walker).astype(float)
             return self.lib.rynaLovesPoots(
+                coords,
                 atoms,
-                np.ascontiguousarray(walker).astype(float),
                 self.potential,
                 self.bad_walkers_file,
-                self.error_value,
-                self.raw_array_potential,
+                float(self.error_value),
+                bool(self.raw_array_potential),
                 extra_bools,
                 extra_ints,
                 extra_floats
@@ -111,17 +155,21 @@ class PotentialCaller:
                 world_size = 0 # should throw an error if we try to compute the block_size
 
         if hybrid_p:
-            pool = mp.Pool()
-            block_size = np.math.ceil(num_walkers/world_size)
-            def potential(walkers, atoms, extra_bools=(), extra_ints=(), extra_floats=()):
-                blocks = np.array_split(walkers, block_size)
-                p = lambda w, a=atoms, e=(extra_bools, extra_ints, extra_floats): p(a, e)
-                res = pool.map(p, blocks)
-                return np.concatenate(res)
+            block_size = np.math.ceil(num_walkers / world_size)
+            potential = PoolPotential(pot, block_size)
         else:
             potential = pot
 
         return potential
+
+    @property
+    def mpi_manager(self):
+        return self._mpi_manager
+    @mpi_manager.setter
+    def mpi_manager(self, m):
+        # if m is not None:
+        #     print(m)
+        self._mpi_manager = m
 
     def call_multiple(self, walker, atoms, extra_bools=(), extra_ints=(), extra_floats=()):
         """
@@ -162,27 +210,17 @@ class PotentialCaller:
             else:
                 from ..Interface import RynLib
                 hp = RynLib.use_MP
-            print("asdasd asd",
-                  extra_bools,
-                  extra_ints,
-                  extra_floats,
-                  self.mpi_manager is None,
-                  self.potential
-                  )
             coords = np.ascontiguousarray(walker).astype(float)
-            pot = self.potential
             poots = self.lib.rynaLovesPootsLots(
-                self.mpi_manager,
-                atoms,
                 coords,
-                pot,
+                atoms,
+                self.potential,
+                (extra_bools, extra_ints, extra_floats),
                 self.bad_walkers_file,
-                extra_bools,
-                extra_ints,
-                extra_floats,
                 float(self.error_value),
                 bool(self.raw_array_potential),
                 bool(self.vectorized_potential),
+                self.mpi_manager,
                 bool(hp)
             )
             if poots is not None:

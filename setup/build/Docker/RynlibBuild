@@ -1,8 +1,6 @@
 
-# If not building on top of entos, build DockerfileCore as rynlibcore
-# otherwise use DockerfileEntos and build from that
+# We've changed up the build process. Now we never build on top of Entos and instead we link that in at runtime.
 
-# FROM rynlibcore
 FROM rynlibcore
 
 #

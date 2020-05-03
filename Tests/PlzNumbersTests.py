@@ -29,9 +29,10 @@ class PotentialTests(TestCase):
 
     @validationTest
     def test_ConfigureEntos(self):
-        PotentialInterface.configure_entos()
+        if os.path.exists("/entos"):
+            PotentialInterface.configure_entos()
 
-    # @validationTest
-    # def test_Entos(self):
-    #     if os.path.exists("/entos"):
-    #         RynLib.test_entos()
+    @validationTest
+    def test_Entos(self):
+        if os.path.exists("/entos"):
+            RynLib.test_entos()

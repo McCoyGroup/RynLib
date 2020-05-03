@@ -87,10 +87,10 @@ class WalkerSet:
         # return np.broadcast_to(self.coords, (n,) + self.coords.shape) + accum_disp # hoping the broadcasting makes this work...
 
         # this is a kinda crummy way to get this, but it allows us to get our n sets of displacements
-        crds = np.empty((n,) + self.coords.shape, dtype='float')
+        crds = np.empty((n,) + self.coords.shape, dtype=float)
         if importance_sampler is not None:
             importance_sampler.setup_psi(crds)
-        bloop = self.coords
+        bloop = self.coords.astype(float)
         disps = self.get_displacements(n, in_AU=in_AU)
         for i, d in enumerate(disps): # loop over steps
             if importance_sampler is not None:

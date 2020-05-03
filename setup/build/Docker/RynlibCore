@@ -13,7 +13,6 @@
 #   DEFAULT CONFIG FOR ENTOS
 #       Defines the base configuration needed in case we want to link in a version of Entos to use
 #
-#testing distro
 FROM ubuntu:eoan-20200410
 
 ARG DEBIAN_FRONTEND=noninteractive
@@ -65,7 +64,7 @@ ENV MKL_THREADING_LAYER=TBB
 
 # libecpint
 RUN \
-  apt-get -y install git python &&\
+  apt-get -y install git python3.7-dev &&\
   git clone https://github.com/moritzBens/libecpint /libecpint &&\
   cd /libecpint &&\
   git checkout 2d40bce92f229c9a477e618c6008c0622e241d48 &&\

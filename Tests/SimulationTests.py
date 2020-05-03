@@ -33,6 +33,8 @@ class SimulationTests(TestCase):
 
     @validationTest
     def test_ImportanceSampling(self):
+        if "HOSampler" in self.im.list_samplers():
+            self.im.remove_sampler("HOSampler")
         SimulationInterface.add_sampler(
             "HOSampler",
             source=os.path.join(RynLib.test_data, "HOSimulation", "HOTrialWavefunction")

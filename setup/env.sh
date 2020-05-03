@@ -3,11 +3,16 @@
 #                   COMMON FUNCTIONS
 ######################################################################
 
-RYNLIB_ENTOS_PATH=""
-RYNLIB_CONIFG_PATH=""
-RYNLIB_IMAGE=""
-RYNLIB_DOCKER_IMAGE="McCoyGroup/RynLib"
-RYNLIB_SHIFTER_IMAGE="McCoyGroup/RynLib"
+# These three are proper environment variables that I expect people to set
+#RYNLIB_ENTOS_PATH=""
+#RYNLIB_CONIFG_PATH=""
+#RYNLIB_IMAGE=""
+
+# These three are probably never going to be changed, unless we want to change something about how
+#  we're distributing the image
+RYNLIB_IMAGE_NAME="rynimg"
+RYNLIB_DOCKER_IMAGE="mccoygroup/rynlib:$RYNLIB_IMAGE_NAME"
+RYNLIB_SHIFTER_IMAGE="registry.services.nersc.gov/b3m2a1/$RYNLIB_IMAGE_NAME"
 
 function rynlib_git_update() {
   local cur;
@@ -81,29 +86,24 @@ function mcoptvalue {
 #                   SYSTEM-SPECIFIC FUNCTIONS
 ######################################################################
 
-
-RYNLIB_OPT_PATTERN=":V:";
-
 function rynlib_update_singularity() {
   local img="$RYNLIB_IMAGE";
 
   module load singularity
 
   if [[ "$img" = "" ]]; then
-    img="$PWD/rynlib.sif";
+    img="$PWD/$RYNLIB_IMAGE_NAME.sif";
   fi
 
   $(rynlib_git_update);
 
-  singularity pull $RYNLIB_DOCKER_IMAGE $img
+  singularity pull docker://$RYNLIB_DOCKER_IMAGE-centos:latest $img
   };
-
-RYNLIB_OPT_PATTERN=":V:";
 
 function rynlib_update_shifter() {
   local img="$RYNLIB_IMAGE";
   if [[ "$img" = "" ]]; then
-    img="$RYNLIB_SHIFTER_IMAGE";
+    img="$RYNLIB_SHIFTER_IMAGE:latest";
   fi
 
   $(rynlib_git_update);
@@ -115,7 +115,7 @@ RYNLIB_OPT_PATTERN=":V:";
 function rynlib_shifter() {
 
     local entos="$RYNLIB_ENTOS_PATH";
-    local config="$RYNLIB_CONIFG_PATH";
+    local config="$RYNLIB_CONFIG_PATH";
     local img="$RYNLIB_IMAGE";
     local vols="";
 
@@ -130,7 +130,7 @@ function rynlib_shifter() {
     fi
 
     if [[ "$img" = "" ]]; then
-      img="$RYNLIB_SHIFTER_IMAGE";
+      img="$RYNLIB_SHIFTER_IMAGE:latest";
     fi
 
     if [[ "$vols" = "" ]]; then
@@ -149,7 +149,7 @@ function rynlib_shifter() {
 function rynlib_singularity() {
 
     local entos="$RYNLIB_ENTOS_PATH";
-    local config="$RYNLIB_CONIFG_PATH";
+    local config="$RYNLIB_CONFIG_PATH";
     local img="$RYNLIB_IMAGE";
     local vols="";
 
@@ -164,7 +164,7 @@ function rynlib_singularity() {
     fi
 
     if [[ "$img" = "" ]]; then
-      img="$PWD/rynlib.sif";
+      img="$PWD/$RYNLIB_IMAGE_NAME.sif";
     fi
 
     if [[ "$vols" = "" ]]; then
@@ -184,7 +184,7 @@ function rynlib_singularity() {
 function rynlib_docker() {
 
     local entos="$RYNLIB_ENTOS_PATH";
-    local config="$RYNLIB_CONIFG_PATH";
+    local config="$RYNLIB_CONFIG_PATH";
     local img="$RYNLIB_IMAGE";
     local vols="";
 
@@ -201,7 +201,7 @@ function rynlib_docker() {
     mkdir -p $config;
 
     if [[ "$img" = "" ]]; then
-      img="rynlib";
+      img="$RYNLIB_IMAGE_NAME";
     fi
 
 

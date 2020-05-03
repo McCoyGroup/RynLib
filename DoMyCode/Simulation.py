@@ -271,7 +271,7 @@ class SimulationLogger:
                     core = ""
                 file = file.format(core=core, n=n)
                 f = os.path.abspath(file)
-                if not os.path.isfile(f):
+                if file != f:
                     f = os.path.join(self.output_folder, file)
                 out_dir = os.path.dirname(f)
                 if not os.path.isdir(out_dir):
@@ -523,6 +523,7 @@ class Simulation:
             if 'parameters' in potential:
                 pot.bind_arguments(potential['parameters'])
             potential = pot
+
         potential.mpi_manager = mpi_manager
         self.potential = potential
         self.atomic_units = atomic_units
@@ -561,7 +562,6 @@ class Simulation:
             params = None
         if isinstance(importance_sampler, str):
             importance_sampler = ImportanceSamplerManager().load_sampler(importance_sampler)
-            importance_sampler.init_params(self.walkers.sigmas, self.time_step)
         self.imp_samp = importance_sampler
         if self.imp_samp is not None:
             if params is None:
@@ -577,9 +577,6 @@ class Simulation:
     @property
     def config_string(self):
         header = "RynLib DMC SIMULATION: {}\n{}\n".format(self.name, self.description)
-        params_props = "\n".join([
-            "{}: {}".format(k, v) for k, v in self.params.items()
-        ])
         logger_props = "\n".join([
             "{}: {}".format(k, getattr(self.logger, k)) for k in [
                 'verbosity'
@@ -587,16 +584,22 @@ class Simulation:
         ])
         sim_props = "\n".join([
             "{}: {}".format(k, getattr(self, k)) for k in [
+                "potential",
+                "imp_samp",
                 'mpi_manager'
             ]
         ])
         walk_props = "\n".join([
             "{}: {}".format(k, getattr(self.walkers, k)) for k in [
+                'atoms',
                 'masses',
                 'sigmas'
             ]
         ])
-        c_string = "\n".join([header, params_props, logger_props, sim_props, walk_props])
+        params_props = "\n".join([
+            "{}: {}".format(k, v) for k, v in self.params.items()
+        ])
+        c_string = "\n".join([header, logger_props, sim_props, walk_props, "-"*50, params_props])
         return c_string
 
     def checkpoint(self, test = True):
@@ -662,8 +665,8 @@ class Simulation:
         try:
             if not self.dummied:
                 self.log_print(self.config_string)
+                self.log_print("-"*50)
                 self.log_print("Starting simulation")
-                # TODO: print out log properties
             if self.mpi_manager is not None:
                 # self.log_print("waiting for friends", verbosity=self.logger.LOG_STATUS)
                 self.mpi_manager.wait()
@@ -705,12 +708,14 @@ class Simulation:
             coord_sets = self.walkers.displace(nsteps, importance_sampler=self.imp_samp, atomic_units = self.atomic_units)
             self.log_print("Computing potential energy", verbosity=self.logger.LOG_STATUS)
             start = time.time()
-            self.log_print(self.potential)
             energies = self.potential(coord_sets)
             if self.imp_samp is not None:
                 imp = self.imp_samp #type: ImportanceSampler
                 ke = imp.local_kin(coord_sets)
-                self.log_print("Min/Max local kinetic energy: {}/{}", np.min(ke), np.max(ke), verbosity=self.logger.LOG_STATUS)
+                self.log_print("    Local KE: Min {} | Max {} | Mean {}",
+                               np.min(ke), np.max(ke), np.average(ke),
+                               verbosity=self.logger.LOG_DATA
+                               )
                 energies += ke
             end = time.time()
             self.log_print("    took {}s", end-start, verbosity=self.logger.LOG_STATUS)
@@ -778,7 +783,7 @@ class Simulation:
         :rtype: np.ndarray
         """
         for e in energies: # this is basically a reduce call, but there's no real reason not to keep it like this
-            self.log_print("Min Energy: {} Max Energy: {} Mean Energy {}",
+            self.log_print("    Energy: Min {} | Max {} | Mean {}",
                            np.min(e), np.max(e), np.average(e),
                            verbosity=self.logger.LOG_DATA
                            )
@@ -787,7 +792,7 @@ class Simulation:
             new_wts = np.nan_to_num(np.exp(-1.0 * (e - Vref) * self.time_step))
             weights *= new_wts
             self.log_print(
-                "Min Weight: {} Max Weight: {} Mean Weight {}",
+                "    Weight: Min {} | Max {} | Mean {}",
                 np.min(weights), np.max(weights), np.average(weights),
                 verbosity=self.logger.LOG_DATA
             )

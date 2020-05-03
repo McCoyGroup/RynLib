@@ -161,6 +161,8 @@ class Config:
                 if ConfigSerializer.get_serialization_mode(self.conf) == "dict":
                     if self.loader is None:
                         self.loader = ModuleLoader(rootpkg="Configs")
+                    if not os.path.exists(self.conf):
+                        raise IOError("Config file {} doesn't exist".format(self.conf))
                     self._conf_mod = self.loader.load(self.conf) # why lose the reference?
                     try:
                         self._conf_obj = self._conf_mod.config

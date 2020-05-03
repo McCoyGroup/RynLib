@@ -67,7 +67,7 @@ class PotentialLoader:
                 loader = ModuleLoader()
                 remade = False
                 try:
-                    self._lib = loader.load(self.c_loader.lib_dir, self.c_loader.lib_name+"Lib")
+                    self._lib = loader.load(self.c_loader.lib_dir)#, self.c_loader.lib_name+"Lib")
                 except ImportError:
                     if self.c_loader.requires_make:
                         remade = True

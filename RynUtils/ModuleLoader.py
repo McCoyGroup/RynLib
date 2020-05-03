@@ -1,4 +1,4 @@
-import importlib.abc, os, importlib.util
+import importlib.abc, os, importlib.util, sys
 
 __all__ = [
     "ModuleLoader"
@@ -44,7 +44,10 @@ class ModuleLoader(importlib.abc.SourceLoader):
             pkg = self._pkg
         if pkg is None:
             raise ImportError("{}: package name required to load file".format(type(self)))
-        package_name = pkg + "." + base_name
+        if pkg == "":
+            package_name = base_name
+        else:
+            package_name = pkg + "." + base_name
         spec = importlib.util.spec_from_loader(
             package_name,
             self,
@@ -72,6 +75,7 @@ class ModuleLoader(importlib.abc.SourceLoader):
             if module is None:
                 module = importlib.util.module_from_spec(None)
             self.exec_module(module)
+            sys.modules["DynamicImports."+module.__name__] = module
         finally:
             self._dir = d
         return module

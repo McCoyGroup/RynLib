@@ -13,7 +13,8 @@ class ImportanceSampler:
     A general-purpose importance sampler that applies acceptance/rejection criteria and computes local energies
     """
 
-    def __init__(self, trial_wavefunctions, derivs=None):
+    def __init__(self, trial_wavefunctions, derivs=None, name=None):
+        self.name = name
         self.trial_wvfn=trial_wavefunctions
         self.derivs=derivs
         self._psi=None
@@ -23,8 +24,29 @@ class ImportanceSampler:
         self.caller = Potential(
             python_potential=trial_wavefunctions
         )
+    def __repr__(self):
+        return "ImportanceSampler('{}', trial_wavefunction={}, derivs={})".format(
+            self.name,
+            self.trial_wvfn,
+            self.derivs
+        )
 
-    def init_params(self, sigmas, time_step, atoms, mpi_manager, *extra_args):
+    def init_params(self, sigmas, time_step, mpi_manager, atoms, *extra_args):
+        """
+
+        :param sigmas:
+        :type sigmas:
+        :param time_step:
+        :type time_step:
+        :param mpi_manager:
+        :type mpi_manager: None | MPIMangerObject
+        :param atoms:
+        :type atoms: Iterable[str]
+        :param extra_args:
+        :type extra_args:
+        :return:
+        :rtype:
+        """
         self.sigmas = np.broadcast_to(sigmas[:, np.newaxis], sigmas.shape + (3,))
         self.time_step = time_step
         self.caller.mpi_manager = mpi_manager
@@ -37,7 +59,7 @@ class ImportanceSampler:
 
     def setup_psi(self, crds):
         if self._psi is None:
-            self._psi = np.empty(crds.shape[:2] + (3,) + crds.shape[2:])
+            self._psi = np.empty(crds.shape[:2] + (3,) + crds.shape[2:], dtype=float)
 
     def accept(self, coords, disp):
         """
@@ -218,7 +240,7 @@ class ImportanceSamplerManager:
         try:
             os.chdir(os.path.join(self.manager.config_loc(name), name))
             if isinstance(mod, str):
-                mod = ModuleLoader().load(mod, "ImportanceSamplers")
+                mod = ModuleLoader().load(mod, "")
         finally:
             os.chdir(cur_dir)
 
@@ -235,7 +257,7 @@ class ImportanceSamplerManager:
             except AttributeError:
                 derivs = None
 
-        return ImportanceSampler(trial_wfs, derivs=derivs)
+        return ImportanceSampler(trial_wfs, derivs=derivs, name=name)
 
     def test_sampler(self, name, input_file=None):
         from .WalkerSet import WalkerSet
@@ -281,7 +303,7 @@ class ImportanceSamplerManager:
 
             mpi_manager = None
 
-            sampler.init_params(sigmas, time_step, walkers.atoms, mpi_manager, *parameters)
+            sampler.init_params(sigmas, time_step, mpi_manager, walkers.atoms, *parameters)
 
             # print(walkers.coords.shape)
 
