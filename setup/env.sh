@@ -172,7 +172,7 @@ function rynlib_shifter() {
       vols="$vols --mount type=bind,source=$entos,target=/entos";
     fi
 
-    echo $(shifter --volume=$vols --image=$img python3.7 /home/RynLib/CLI.py)
+    shifter --volume=$vols --image=$img python3.7 /home/RynLib/CLI.py
 }
 
 function rynlib_singularity() {
@@ -206,7 +206,7 @@ function rynlib_singularity() {
       vols="$vols,$entos:/entos";
     fi
 
-    echo $(singularity run --bind $vols $img)
+    singularity run --bind $vols $img
 
 }
 
@@ -244,6 +244,35 @@ function rynlib_docker() {
       vols="$vols --mount type=bind,source=$entos,target=/entos";
     fi
 
-    echo docker run --rm $vols -it $img
+    docker run --rm $vols -it $img
+
+}
+
+function rynlib() {
+  local img="$RYNLIB_IMAGE";
+  local cmd;
+
+  if [[ -x "shifter" ]]; then
+    cmd="rynlib_shifter"
+  fi
+
+
+  if [[ "$img" == "*.sif" ]]; then
+    if [[ "$cmd" == "" ]]; then
+      cmd="rynlib_singularity";
+    fi
+  fi
+
+  if [[ "$img" = "" ]] && [[ -f "$PWD/$RYNLIB_IMAGE_NAME.sif" ]]; then
+    if [[ "$cmd" == "" ]]; then
+      cmd="rynlib_singularity";
+    fi
+  fi
+
+  if [[ "$cmd" == "" ]]; then
+    cmd="rynlib_docker";
+  fi
+
+  $cmd $@
 
 }
