@@ -126,7 +126,7 @@ function rynlib_update_singularity() {
 
   $(rynlib_git_update);
 
-  singularity pull docker://$RYNLIB_DOCKER_IMAGE-centos:latest $img
+  singularity pull $img docker://$RYNLIB_DOCKER_IMAGE-centos:latest
   };
 
 function rynlib_update_shifter() {
