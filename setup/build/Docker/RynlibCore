@@ -64,7 +64,7 @@ ENV MKL_THREADING_LAYER=TBB
 
 # libecpint
 RUN \
-  apt-get -y install git python3.7-dev &&\
+  apt-get -y install git python &&\
   git clone https://github.com/moritzBens/libecpint /libecpint &&\
   cd /libecpint &&\
   git checkout 2d40bce92f229c9a477e618c6008c0622e241d48 &&\
@@ -97,6 +97,22 @@ RUN \
   cd / &&\
   rm -r /libcint*
 
+# libOpenMM.so (Entos uses it but we never will)
+RUN \
+  apt-get -y install graphviz &&\
+  apt-get -y install doxygen
+RUN \
+  wget https://github.com/openmm/openmm/archive/7.4.1.tar.gz --content-disposition &&\
+  tar xf openmm-7.4.1.tar.gz
+RUN \
+  mkdir openmm_build &&\
+  cd openmm_build &&\
+  cmake -DOPENMM_BUILD_C_AND_FORTRAN_WRAPPERS=OFF -DOPENMM_BUILD_PYTHON_WRAPPERS=OFF /openmm-7.4.1/ &&\
+  make -j $(nproc) &&\
+  make install &&\
+  cd / &&\
+  rm -r /openmm*
+
 #
 #   RynLib Config:
 #       Defines core utilities that RynLib will want to use and which we don't want to have to link in later
@@ -108,5 +124,7 @@ RUN \
   pip3 install wget
 
 RUN \
+  apt-get -y install g++ &&\
   apt-get -y install gfortran &&\
+  apt-get -y install git &&\
   apt-get clean

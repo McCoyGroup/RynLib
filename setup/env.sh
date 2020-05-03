@@ -82,6 +82,33 @@ function mcoptvalue {
 
 }
 
+function extract_entos {
+
+  local img;
+  local cid;
+  local out;
+
+  img=$(mcoptvalue ":e:" "e" $@);
+  if [[ "$img" == "" ]]; then
+    img="entos";
+  fi
+
+  out="$1";
+  if [[ "$out" == "-e" ]]; then
+    out="$3";
+  fi
+  if [[ "$out" == "" ]]; then
+    out=$PWD;
+  fi
+
+  cid=$(docker run -d --entrypoint=touch $img);
+  docker cp $cid:/entos $out;
+  docker rm $cid;
+
+  echo "Extracted Entos to $out";
+
+}
+
 ######################################################################
 #                   SYSTEM-SPECIFIC FUNCTIONS
 ######################################################################
@@ -139,7 +166,7 @@ function rynlib_shifter() {
       vols="$vols --mount type=bind,source=$config,target=/config";
     fi
 
-    if [[ -f "$entos" ]]; then
+    if [[ -d "$entos" ]]; then
       vols="$vols --mount type=bind,source=$entos,target=/entos";
     fi
 
@@ -173,7 +200,7 @@ function rynlib_singularity() {
       vols="$vols,$config:/config";
     fi
 
-    if [[ -f "$entos" ]]; then
+    if [[ -d "$entos" ]]; then
       vols="$vols,$entos:/entos";
     fi
 
@@ -211,7 +238,7 @@ function rynlib_docker() {
       vols="$vols --mount type=bind,source=$config,target=/config";
     fi
 
-    if [[ -f "$entos" ]]; then
+    if [[ -d "$entos" ]]; then
       vols="$vols --mount type=bind,source=$entos,target=/entos";
     fi
 

@@ -20,6 +20,10 @@ class PoolPotential:
         self.pot_dir = os.path.dirname(mod.__file__)
         self._pool = None
 
+    def __del__(self):
+        if isinstance(self._pool, mp.pool.Pool):
+            self._pool.terminate()
+
     @property
     def pool(self):
         if self._pool is None:

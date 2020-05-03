@@ -13,7 +13,8 @@ fi
 
 if [[ "$build_type" = "docker" ]]; then
   docker build -t $RYNLIB_IMAGE_NAME -f $RYNLIB_PATH/setup/build/Docker/RynlibUpdate $RYNLIB_PATH
-  docker push $RYNLIB_IMAGE_NAME
+  docker tag $RYNLIB_IMAGE_NAME $RYNLIB_DOCKER_IMAGE
+  docker push $RYNLIB_DOCKER_IMAGE
 fi
 if [[ "$build_type" = "shifter" ]]; then
   docker build -t $RYNLIB_IMAGE_NAME -f $RYNLIB_PATH/setup/build/Docker/RynlibUpdate $RYNLIB_PATH
@@ -23,5 +24,5 @@ fi
 if [[ "$build_type" = "singularity" ]]; then
   docker build -t $RYNLIB_IMAGE_NAME-centos -f $RYNLIB_PATH/setup/build/Docker/RynlibUpdateCentOS $RYNLIB_PATH
   docker tag $RYNLIB_IMAGE_NAME-centos $RYNLIB_DOCKER_IMAGE-centos
-  docker push $RYNLIB_IMAGE_NAME-centos
+  docker push $RYNLIB_DOCKER_IMAGE-centos
 fi
