@@ -30,7 +30,7 @@ class SimulationLogger:
                  simulation,
                  output_folder = None,
                  log_file = None,
-                 log_level = 'STEPS',
+                 log_level = 'DATA',
                  checkpoint_folder = "checkpoints",
                  wavefunctions_folder = 'wavefunctions'
                  ):

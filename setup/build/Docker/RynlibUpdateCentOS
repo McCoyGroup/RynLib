@@ -8,6 +8,6 @@ ADD . /home/RynLib
 RUN mkdir -p /tests
 
 RUN python3 /home/RynLib/CLI.py config build-libs --rebuild=True
-# RUN python3 /home/RynLib/CLI.py config run-tests --debug=True
+RUN python3 /home/RynLib/CLI.py config run-tests --debug=True
 
 WORKDIR /home

@@ -18,8 +18,12 @@ function rynlib_git_update() {
   local cur;
 
   if [[ "$RYNLIB_PATH" == "" ]]; then
-    if [[ -f ~/RynLib ]]; then
+    if [[ -d ~/RynLib ]]; then
       RYNLIB_PATH=~/RynLib;
+    fi
+  fi
+
+  if [[ "$RYNLIB_PATH" == "" ]]; then
     else
       echo "RYNLIB_PATH needs to be set to know where to pull from";
     fi
