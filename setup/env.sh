@@ -172,7 +172,7 @@ function rynlib_shifter() {
       vols="$vols --mount type=bind,source=$entos,target=/entos";
     fi
 
-    shifter --volume=$vols --image=$img python3.7 /home/RynLib/CLI.py
+    shifter --volume=$vols --image=$img python3.7 /home/RynLib/CLI.py $@
 }
 
 function rynlib_singularity() {
@@ -206,7 +206,7 @@ function rynlib_singularity() {
       vols="$vols,$entos:/entos";
     fi
 
-    singularity run --bind $vols $img
+    singularity run --bind $vols $img $@
 
 }
 
@@ -244,7 +244,7 @@ function rynlib_docker() {
       vols="$vols --mount type=bind,source=$entos,target=/entos";
     fi
 
-    docker run --rm $vols -it $img
+    docker run --rm $vols -it $img $@
 
 }
 
