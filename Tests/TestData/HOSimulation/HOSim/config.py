@@ -18,5 +18,6 @@ config = dict(
     checkpoint_every=6,
     equilibration_steps=30,
     descendent_weight_every=30,
-    descendent_weighting_steps=9
+    descendent_weighting_steps=9,
+    log_level="ALL"
 )

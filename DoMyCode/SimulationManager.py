@@ -50,14 +50,14 @@ class SimulationManager:
         return os.path.isdir(self.simulation_output_folder(name))
 
     def load_simulation(self, name):
+
         self.check_simulation(name)
+        conf = self.manager.load_config(name)
+        params = SimulationParameters(**conf.opt_dict)
+        params.output_folder = self.simulation_output_folder(name)
+        sim = Simulation(params)
         if self.simulation_ran(name):
-            sim = Simulation.reload(output_folder=self.simulation_output_folder(name))
-        else:
-            conf = self.manager.load_config(name)
-            params = SimulationParameters(**conf.opt_dict)
-            params.output_folder = self.simulation_output_folder(name)
-            sim = Simulation(params)
+            sim.reload()
 
         return sim
 

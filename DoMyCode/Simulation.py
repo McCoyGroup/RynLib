@@ -1,9 +1,10 @@
-import os, numpy as np, time, enum
+import os, numpy as np, time
 from .WalkerSet import WalkerSet
 from .ImportanceSampler import ImportanceSampler, ImportanceSamplerManager
-from ..RynUtils import Logger, ParameterManager, Constants
+from ..RynUtils import ParameterManager
 from ..Dumpi import *
 from ..PlzNumbers import PotentialManager
+from .SimulationUtils import *
 
 __all__ = [
     "Simulation",
@@ -14,421 +15,6 @@ __all__ = [
 #
 #                                       Simulation Classes
 #
-
-class SimulationStepCounter:
-    """
-    A class that manages knowing what timestep it is and what that means we need to do
-    """
-    __props__ = [
-        "step_num", "num_time_steps", "checkpoint_every",
-        "equilibration_steps", "descendent_weight_every", "descendent_weighting_steps"
-    ]
-    def __init__(self,
-                 sim,
-                 step_num = 0,
-                 num_time_steps = None,
-                 checkpoint_every=None,
-                 equilibration_steps=None,
-                 descendent_weight_every = None,
-                 descendent_weighting_steps = None
-                 ):
-        """
-        :param step_num: the step number we're starting at
-        :type step_num: int
-        :param num_time_steps: the total number of timesteps we're running
-        :type num_time_steps:
-        :param checkpoint_every: how often to checkpoint the simulation
-        :type checkpoint_every:
-        :param equilibration_steps: the number of equilibration timesteps
-        :type equilibration_steps: int
-        :param descendent_weight_every: how often to calculate descendent weights
-        :type descendent_weight_every: int
-        :param descendent_weighting_steps: the number of steps taken in descendent weighting
-        :type descendent_weighting_steps:
-        """
-        self.simulation = sim
-        self.step_num = step_num
-        self.num_time_steps = num_time_steps
-
-        self._previous_checkpoint = step_num
-        if isinstance(checkpoint_every, int):
-            # bind a little lambda to check whether we've gone `checkpoint_every` steps further
-            checkpoint_every = lambda s, c=checkpoint_every: s.step_num - s._previous_checkpoint >= c
-        elif checkpoint_every is None:
-            checkpoint_every = lambda *a: False
-        self._checkpoint = checkpoint_every
-        self._cached_checkpoint = None
-
-        self._equilibrated = False
-        if isinstance(equilibration_steps, (int, np.integer)):
-            equilibration_steps = lambda s, e=equilibration_steps: s.step_num > e  # classic lambda parameter binding
-        self.equilibration_check = equilibration_steps
-
-        self._dw_delay = descendent_weight_every
-        self._dw_steps = descendent_weighting_steps
-        self._last_dw_step = 0
-        self._dw_initialized_step = None
-
-    @property
-    def checkpoint(self):
-        if self._cached_checkpoint is None:
-            self._cached_checkpoint = self._checkpoint(self)
-            if self._cached_checkpoint:
-                self._previous_checkpoint = self.step_num
-        return self._cached_checkpoint
-
-    def increment(self, n):
-        self._cached_checkpoint = None
-        self.step_num+=n
-
-    @property
-    def equilibrated(self):
-        if not self._equilibrated:
-            self._equilibrated = self.equilibration_check(self)
-        return self._equilibrated
-
-    @property
-    def done(self):
-        return self.step_num >= self.num_time_steps
-
-    class DescendentWeightingStatus(enum.Enum):
-        Waiting = "Waiting"
-        Beginning = "Beginning"
-        Complete = "Complete"
-        Ongoing = "Ongoing"
-
-    @property
-    def descendent_weighting_status(self):
-        """
-        Keeps track of when descendent weighting started/was last done/whether we are currently doing it
-
-        :return:
-        :rtype:
-        """
-        step = self.step_num
-        if self._dw_initialized_step is None:
-            if step - self._last_dw_step >= self._dw_delay:
-                status = self.DescendentWeightingStatus.Beginning
-                self._dw_initialized_step = step
-                self._dw_initialized_step = step
-                self._last_dw_step = step
-            else:
-                status = self.DescendentWeightingStatus.Waiting
-        elif step - self._dw_initialized_step >= self._dw_steps:
-            status = self.DescendentWeightingStatus.Complete
-            self._dw_initialized_step = None
-        else:
-            status = self.DescendentWeightingStatus.Ongoing
-        return status
-
-
-class SimulationTimer:
-    """
-    Super simple timer that does some formatting and shit
-    """
-    __props__ = [ "simulation_times" ]
-    def __init__(self, simulation, simulation_times = None):
-        self.simulation = simulation
-        if simulation_times is None:
-            simulation_times = []
-        self.simulation_times = simulation_times
-        self.start_time = None
-
-    def start(self):
-        self.start_time = time.time()
-    def stop(self):
-        if self.start_time is not None:
-            self.simulation_times.append((self.start_time, time.time()))
-            self.start_time = None
-    @property
-    def elapsed(self):
-        if self.start_time is not None:
-            return time.time() - self.start_time
-        else:
-            return 0
-
-class SimulationLogger:
-    """
-    A class for saving simulation data
-    """
-
-    LOG_BASIC = 1
-    LOG_STATUS = 3
-    LOG_STEPS = 5
-    LOG_DATA = 6
-    LOG_MPI = 7
-    LOG_ALL = 10
-    LOG_DEBUG = 100
-
-    __props__ = [
-        "output_folder",
-        "log_file",
-        "verbosity"
-    ]
-    def __init__(self,
-                 simulation,
-                 output_folder = None,
-                 log_file = None,
-                 verbosity = 100
-                 ):
-        """
-
-        :param simulation:
-        :type simulation: Simulation
-        :param output_folder:
-        :type output_folder: str
-        :param log_file:
-        :type log_file: str
-        :param verbosity:
-        :type verbosity: int
-        """
-        self.sim = simulation
-        self.output_folder = output_folder
-
-        if output_folder is None:
-            output_folder = os.path.join(os.path.abspath("dmc_data"), self.sim.name)
-        self.output_folder = output_folder
-
-        if log_file is None:
-            log_file = os.path.join(self.output_folder, "log.txt")
-        self.log_file = log_file
-
-        self.verbosity = verbosity
-
-        self.logger = Logger(self.log_file, verbosity = self.verbosity)
-
-    def log_print(self, *args, **kwargs):
-        self.logger.log_print(*args, **kwargs)
-
-    def snapshot(self, file="snapshot.pickle"):
-        """Saves a snapshot of the simulation to file
-
-        :param file:
-        :type file:
-        :return:
-        :rtype:
-        """
-        raise NotImplementedError("Turns out pickle doesn't like this")
-
-        # import pickle
-        #
-        # f = os.path.abspath(file)
-        # if not os.path.isfile(f):
-        #     if not os.path.isdir(self.output_folder):
-        #         os.makedirs(self.output_folder)
-        #     f = os.path.join(self.output_folder, file)
-        # with open(f, "w+") as binary:
-        #     pickle.dump(self, binary)
-
-    def snapshot_params(self, file="params.pickle"):
-        """Saves a snapshot of the params to a pickle
-
-        :return:
-        :rtype:
-        """
-
-        f = os.path.abspath(file)
-        if not os.path.isfile(f):
-            f = os.path.join(self.output_folder, file)
-        out_dir = os.path.dirname(f)
-        if not os.path.isdir(out_dir):
-            os.makedirs(out_dir)
-        self.sim.params.serialize(self.sim, f)
-
-    def snapshot_walkers(self, file="walkers{core}_{n}.npz", save_stepnum = True):
-        """Saves a snapshot of the walkers to a pickle
-
-        :return:
-        :rtype:
-        """
-
-        n = "" if not save_stepnum else self.sim.counter.step_num
-        core = self.sim.world_rank
-        if core == 0:
-            core = ""
-        file = file.format(core=core, n=n)
-        f = os.path.abspath(file)
-        if not os.path.isfile(f):
-            f = os.path.join(self.output_folder, file)
-        out_dir = os.path.dirname(f)
-        if not os.path.isdir(out_dir):
-            os.makedirs(out_dir)
-        self.sim.walkers.snapshot(f)
-
-    def snapshot_trial_wavefunction(self, file="psit{core}_{n}.npz", save_stepnum = True):
-        """Saves a snapshot of the walkers to a pickle
-
-        :return:
-        :rtype:
-        """
-
-        if self.sim.imp_samp is not None:
-            psi = self.sim.imp_samp.psi
-            if psi is not None:
-                n = "" if not save_stepnum else self.sim.counter.step_num
-                core = self.sim.world_rank
-                if core == 0:
-                    core = ""
-                file = file.format(core=core, n=n)
-                f = os.path.abspath(file)
-                if file != f:
-                    f = os.path.join(self.output_folder, file)
-                out_dir = os.path.dirname(f)
-                if not os.path.isdir(out_dir):
-                    os.makedirs(out_dir)
-                np.save(f, psi)
-
-    def save_wavefunction(self, wf, file = 'wavefunction{core}_{n}.npz'):
-        """Save wavefunctions to a numpy binary
-
-        :return:
-        :rtype:
-        """
-
-        core = self.sim.world_rank
-        if core == 0:
-            core = ""
-        n = self.sim.num_wavefunctions
-        file = file.format(core=core, n=n)
-        file = os.path.join(self.output_folder, file)
-        # if not os.path.isdir(wf_dir):
-        #     os.makedirs(wf_dir)
-        # file = os.path.join(wf_dir, file)
-        if not self.sim.dummied:
-            self.log_print("Saving wavefunction to {}", file, verbosity=self.LOG_STEPS)
-        np.savez(file, **wf)
-        return file
-
-    def snapshot_energies(self, file="energies{core}.npy"):
-        """Saves a snapshot of the energies to a numpy binary
-
-        :param file:
-        :type file:
-        :return:
-        :rtype:
-        """
-
-        core = self.sim.world_rank
-        if core == 0:
-            core = ""
-        file = file.format(core=core)
-
-        f = os.path.abspath(file)
-        if not os.path.isfile(f):
-            if not os.path.isdir(self.output_folder):
-                os.makedirs(self.output_folder)
-            f = os.path.join(self.output_folder, file)
-
-        np.save(f, np.array(self.sim.reference_potentials))
-        return f
-
-    def checkpoint(self, save_stepnum = True):
-        # if not self.sim.dummied:
-        self.log_print("Checkpointing simulation", verbosity=self.LOG_STEPS)
-        # self.snapshot("checkpoint.pickle")
-        self.snapshot_energies()
-        self.snapshot_params()
-        self.snapshot_walkers(save_stepnum=save_stepnum)
-        self.snapshot_trial_wavefunction(save_stepnum=save_stepnum)
-
-
-class SimulationAnalyzer:
-    __props__ = [ "zpe_averages" ]
-    def __init__(self, simulation, zpe_averages = 5000):
-        self.sim = simulation
-        self.zpe_averages = zpe_averages
-
-    @property
-    def zpe(self):
-        return self.get_zpe()
-
-    def get_zpe(self, n=None):
-        import itertools
-        if n is None:
-            n = self.zpe_averages
-        if len(self.sim.reference_potentials) > n:
-            vrefs = list(
-                itertools.islice(
-                    self.sim.reference_potentials,
-                    len(self.sim.reference_potentials) - n,
-                    None,
-                    1
-                )
-            )
-        else:
-            vrefs = self.sim.reference_potentials
-        return Constants.convert(np.average(np.array(vrefs)), "wavenumbers", in_AU=False)
-
-    class Plotter:
-        _mpl_loaded = False
-
-        @classmethod
-        def load_mpl(cls):
-            if not cls._mpl_loaded:
-                import matplotlib as mpl
-                # mpl.use('Agg')
-                cls._mpl_loaded = True
-
-        @classmethod
-        def plot_vref(cls, sim):
-            """
-
-            :param sim:
-            :type sim: Simulation
-            :return:
-            :rtype:
-            """
-            from ..RynUtils.Constants import Constants
-
-            import matplotlib.pyplot as plt
-            e = np.array(sim.reference_potentials)
-            n = np.arange(len(e))
-            fig, axes = plt.subplots()
-            e = Constants.convert(e, 'wavenumbers', in_AU=False)
-            axes.plot(n, e)
-            # axes.set_ylim([-3000,3000])
-            plt.show()
-
-        @classmethod
-        def plot_psi(cls, sim):
-            """
-
-            :param sim:
-            :type sim: Simulation
-            :return:
-            :rtype:
-            """
-            # assumes 1D psi...
-            import matplotlib.pyplot as plt
-            w = sim.walkers
-            fig, axes = plt.subplots()
-
-            hist, bins = np.histogram(w.coords.flatten(), weights=(w.weights), bins=20, density=True)
-            bins -= (bins[1] - bins[0]) / 2
-            axes.plot(bins[:-1], hist)
-            plt.show()
-
-        @classmethod
-        def plot_psi2(cls, sim):
-            """
-
-            :param sim:
-            :type sim: Simulation
-            :return:
-            :rtype:
-            """
-            # assumes 1D psi...
-            import matplotlib.pyplot as plt
-            w = sim.walkers
-            fig, axes = plt.subplots()
-            coord, dw, ow = sim.wavefunctions[-1]
-            coord = coord.flatten()
-
-            hist, bins = np.histogram(coord, weights=dw, bins=20, density=True)
-            bins -= (bins[1] - bins[0]) / 2
-            axes.plot(bins[:-1], hist)
-            plt.show()
-
 
 class Simulation:
     """
@@ -501,7 +87,6 @@ class Simulation:
         self.name = name
         self.description = description
 
-        # basically we don't let it not use MPI...
         if mpi_manager is True:
             mpi_manager = MPIManager()
         # elif isinstance(mpi_manager, str) and mpi_manager == "serial":
@@ -538,6 +123,14 @@ class Simulation:
 
         self.reference_potentials = deque() # just a convenient data structure to push into
 
+        # if we want to log everything we can
+        if self.logger.verb_int >= self.logger.LogLevel.ALL.value:
+            self.full_energies = deque()
+            self.full_weights = deque()
+        else:
+            self.full_energies = None
+            self.full_weights = None
+
         self.walkers.initialize(time_step)
         self.time_step = time_step
 
@@ -550,7 +143,7 @@ class Simulation:
             # self.log_print("Testing MPI validity on {}: {}".format(self.world_rank, self.mpi_manager.test()))
         except:
             import traceback as tb
-            self.log_print("Error Occurred in configuring MPI\n  {}", tb.format_exc(), self.logger.LOG_MPI)
+            self.log_print("Error Occurred in configuring MPI\n  {}", tb.format_exc(), self.logger.LogLevel.MPI)
             mpi_manager.abort()
             raise
         self.dummied = self.world_rank != 0
@@ -604,18 +197,25 @@ class Simulation:
 
     def checkpoint(self, test = True):
         can_check = self.counter.checkpoint
-        # self.log_print("Checkpoint? {}", can_check, verbosity=self.logger.LOG_STATUS)
+        # self.log_print("Checkpoint? {}", can_check, verbosity=self.logger.LogLevel.STATUS)
         if (not test) or can_check:
             self.logger.checkpoint()
 
-    @classmethod
-    def reload(cls,
-               output_folder = None,
-               params_file = "params.pickle",
+    # @property
+    # def checkpoint_params(self):
+    #     # anything that isn't stored in config.py
+    #     return {
+    #         'step_num':self.counter.step_num
+    #     }
+
+    def reload(self,
+               # params_file = "checkpoint.json",
                energies_file = 'energies.npy',
-               walkers_file="walkers.npz"
+               walkers_file="walkers_{n}.npz",
+               weights_file="weights.npy",
+               full_energies_file='full_energies.npy'
                ):
-        """Reloads a Simulation object from a director with specified params file
+        """Reloads the core data in a Simulation object from a checkpoint file
 
         :param core_dir:
         :type core_dir:
@@ -625,28 +225,56 @@ class Simulation:
 
         from collections import deque
 
-        if not os.path.exists(os.path.abspath(params_file)):
-            if output_folder is None:
-                raise IOError("{}.{}: needs a 'params.py' file to reload from".format(
-                    cls.__name__,
-                    "reload"
-                ))
-            elif not os.path.isdir(output_folder):
-                output_folder = os.path.join(os.path.abspath("dmc_data"), output_folder)
-                params_file = os.path.join(output_folder, params_file)
+        # if not os.path.exists(os.path.abspath(params_file)):
+        #     if output_folder is None:
+        #         raise IOError("{}.{}: needs a 'params.py' file to reload from".format(
+        #             cls.__name__,
+        #             "reload"
+        #         ))
+        #     elif not os.path.isdir(output_folder):
+        #         output_folder = os.path.join(os.path.abspath("dmc_data"), output_folder)
+        #         params_file = os.path.join(output_folder, params_file)
+        # params = SimulationParameters.deserialize(params_file)
 
-        params = SimulationParameters.deserialize(params_file)
-        output_folder = params.output_folder # this is what's gonna be fed into the simulation at the end of the day anyway...
+        output_folder = self.logger.output_folder
 
+        # LOAD ENERGIES
         energies_file = os.path.join(output_folder, energies_file) if not os.path.isfile(energies_file) else energies_file
-        energies = np.load(energies_file)
-
-        walkers_file = os.path.join(output_folder, walkers_file) if not os.path.isfile(walkers_file) else walkers_file
-        walkers = WalkerSet.load(walkers_file)
-        params.update(walker_set = walkers)
-
-        self = cls(params)
+        energies = np.load(energies_file) # this implicitly tells us how many steps we made it forward
         self.reference_potentials = deque(energies)
+
+        # LOAD WALKERS
+        step_num = len(energies)
+        self.counter.step_num = step_num
+        if not os.path.isfile(walkers_file):
+            walkers_file = os.path.join(self.logger.checkpoint_folder, walkers_file.format(n=step_num))
+        walkers = WalkerSet.load(walkers_file)
+        self.walkers=walkers
+
+        # LOAD WAVEFUNCTIONS
+        wavefunctions_directory=self.logger.wavefunctions_folder
+        if not os.path.isdir(wavefunctions_directory):
+            wavefunctions_directory = os.path.join(output_folder, wavefunctions_directory)
+            wfs = []
+            for f in os.listdir(wavefunctions_directory):
+                if f.endswith(".npy"):
+                    wfs.append(
+                        ( int(f.split("_")[-1].split(".")[0]), np.load(os.path.join(wavefunctions_directory, f)))
+                    )
+                wfs = sorted(wfs, key=lambda a:a[0])
+            self.wavefunctions = deque(wfs)
+
+        # LOAD WEIGHTS (if saved)
+        if not os.path.isfile(weights_file):
+            weights_file = os.path.join(output_folder, weights_file)
+        if os.path.isfile(weights_file):
+            self.full_weights = deque(np.load(weights_file))
+
+        # LOAD FULL ENERGIES (if saved)
+        if not os.path.isfile(full_energies_file):
+            full_energies_file = os.path.join(output_folder, full_energies_file)
+        if os.path.isfile(full_energies_file):
+            self.full_energies = deque(np.load(full_energies_file))
 
         return self
 
@@ -668,18 +296,18 @@ class Simulation:
                 self.log_print("-"*50)
                 self.log_print("Starting simulation")
             if self.mpi_manager is not None:
-                # self.log_print("waiting for friends", verbosity=self.logger.LOG_STATUS)
+                # self.log_print("waiting for friends", verbosity=self.logger.LogLevel.STATUS)
                 self.mpi_manager.wait()
             self.timer.start()
             self._prop()
         except Exception as e:
             import traceback as tb
             if not self.dummied:
-                self.log_print("Error Occurred\n  {}", tb.format_exc().replace("\n", "\n  "), verbosity=self.logger.LOG_STATUS)
+                self.log_print("Error Occurred\n  {}", tb.format_exc().replace("\n", "\n  "), verbosity=self.logger.LogLevel.STATUS)
             else:
                 self.log_print("Error Occurred on core {}\n  {}",
                                self.world_rank, tb.format_exc().replace("\n", "\n  "),
-                               verbosity=self.logger.LOG_STATUS
+                               verbosity=self.logger.LogLevel.STATUS
                                )
             if not self.ignore_errors:
                 raise
@@ -703,10 +331,10 @@ class Simulation:
             nsteps = self.steps_per_propagation
 
         if not self.dummied:
-            self.log_print("Starting step {}", self.counter.step_num, verbosity=self.logger.LOG_STATUS)
-            self.log_print("Moving coordinates {} steps", nsteps, verbosity=self.logger.LOG_STEPS)
+            self.log_print("Starting step {}", self.counter.step_num, verbosity=self.logger.LogLevel.STATUS)
+            self.log_print("Moving coordinates {} steps", nsteps, verbosity=self.logger.LogLevel.STEPS)
             coord_sets = self.walkers.displace(nsteps, importance_sampler=self.imp_samp, atomic_units = self.atomic_units)
-            self.log_print("Computing potential energy", verbosity=self.logger.LOG_STATUS)
+            self.log_print("Computing potential energy", verbosity=self.logger.LogLevel.STATUS)
             start = time.time()
             energies = self.potential(coord_sets)
             if self.imp_samp is not None:
@@ -714,30 +342,34 @@ class Simulation:
                 ke = imp.local_kin(coord_sets)
                 self.log_print("    Local KE: Min {} | Max {} | Mean {}",
                                np.min(ke), np.max(ke), np.average(ke),
-                               verbosity=self.logger.LOG_DATA
+                               verbosity=self.logger.LogLevel.DATA
                                )
                 energies += ke
             end = time.time()
-            self.log_print("    took {}s", end-start, verbosity=self.logger.LOG_STATUS)
+            self.log_print("    took {}s", end-start, verbosity=self.logger.LogLevel.STATUS)
             self.counter.increment(nsteps)
-            self.log_print("Updating walker weights", verbosity=self.logger.LOG_STEPS)
+            self.log_print("Updating walker weights", verbosity=self.logger.LogLevel.STEPS)
             weights = self.update_weights(energies, self.walkers.weights)
             self.walkers.weights = weights
-            self.log_print("Branching", verbosity=self.logger.LOG_STEPS)
+            self.log_print("Branching", verbosity=self.logger.LogLevel.STEPS)
             self.branch()
-            self.log_print("Applying descendent weighting", verbosity=self.logger.LOG_STEPS)
+            self.log_print("Applying descendent weighting", verbosity=self.logger.LogLevel.STEPS)
             self.descendent_weight()
+            if self.full_energies is not None:
+                self.full_energies.append(energies)
+            if self.full_weights is not None:
+                self.full_weights.append(weights)
             self.checkpoint()
-            if self.logger.verbosity >= self.logger.LOG_STATUS:
+            if self.logger.verb_int >= self.logger.LogLevel.STATUS.value:
                 # we do the check here so as to not waste time computing ZPE... even though that waste is effectively 0
-                self.log_print("Zero-point Energy: {}", self.analyzer.zpe, verbosity=self.logger.LOG_STATUS)
-            self.log_print("Runtime: {}s", round(self.timer.elapsed), verbosity=self.logger.LOG_STATUS)
-            self.log_print("-" * 50, verbosity=self.logger.LOG_STATUS)
+                self.log_print("Zero-point Energy: {}", self.analyzer.zpe, verbosity=self.logger.LogLevel.STATUS)
+            self.log_print("Runtime: {}s", round(self.timer.elapsed), verbosity=self.logger.LogLevel.STATUS)
+            self.log_print("-" * 50, verbosity=self.logger.LogLevel.STATUS)
         else:
             self.log_print(
                 "    computing potential energy on core {}",
                 self.mpi_manager.world_rank,
-                verbosity=self.logger.LOG_MPI
+                verbosity=self.logger.LogLevel.MPI
             )
             try:
                 walk = self._dummy_walkers
@@ -748,7 +380,7 @@ class Simulation:
             self.counter.step_num += nsteps
 
         if self.mpi_manager is not None:
-            # self.log_print("waiting for friends", verbosity=self.logger.LOG_STATUS)
+            # self.log_print("waiting for friends", verbosity=self.logger.LogLevel.STATUS)
             self.mpi_manager.wait()
 
     def _compute_vref(self, energies, weights):
@@ -785,7 +417,7 @@ class Simulation:
         for e in energies: # this is basically a reduce call, but there's no real reason not to keep it like this
             self.log_print("    Energy: Min {} | Max {} | Mean {}",
                            np.min(e), np.max(e), np.average(e),
-                           verbosity=self.logger.LOG_DATA
+                           verbosity=self.logger.LogLevel.DATA
                            )
             Vref = self._compute_vref(e, weights)
             self.reference_potentials.append(Vref) # a constant time operation
@@ -794,7 +426,7 @@ class Simulation:
             self.log_print(
                 "    Weight: Min {} | Max {} | Mean {}",
                 np.min(weights), np.max(weights), np.average(weights),
-                verbosity=self.logger.LOG_DATA
+                verbosity=self.logger.LogLevel.DATA
             )
         return weights
 
@@ -812,8 +444,8 @@ class Simulation:
         threshold = self.branching_threshold / self.walkers.num_walkers
 
         eliminated_walkers = np.argwhere(weights < threshold).flatten()
-        self.log_print('Walkers being removed: {}', len(eliminated_walkers), verbosity=self.logger.LOG_STATUS)
-        # self.log_print('Min/Max weight in ensemble: {}/{}', np.min(weights), np.max(weights), verbosity=self.logger.LOG_STATUS)
+        self.log_print('Walkers being removed: {}', len(eliminated_walkers), verbosity=self.logger.LogLevel.STATUS)
+        # self.log_print('Min/Max weight in ensemble: {}/{}', np.min(weights), np.max(weights), verbosity=self.logger.LogLevel.STATUS)
 
         for dying in eliminated_walkers:  # gotta do it iteratively to get the max_weight_walker right...
             cloning = np.argmax(weights)
@@ -831,18 +463,18 @@ class Simulation:
         """
         if self.counter.equilibrated:
             status = self.counter.descendent_weighting_status
-            self.log_print("Descendent Weighting Status: {}", status, verbosity=self.logger.LOG_STATUS)
+            self.log_print("Descendent Weighting Status: {}", status, verbosity=self.logger.LogLevel.STATUS)
             if status == self.counter.DescendentWeightingStatus.Complete:
-                self.log_print("Collecting descendent weights", verbosity=self.logger.LOG_STATUS)
+                self.log_print("Collecting descendent weights", verbosity=self.logger.LogLevel.STATUS)
                 dw = self.walkers.descendent_weight() # not sure where I want to cache these...
                 self.wavefunctions.append(dw)
                 self.num_wavefunctions += 1
                 self.logger.save_wavefunction(dw)
             elif status == self.counter.DescendentWeightingStatus.Beginning:
-                self.log_print("Starting descendent weighting propagation", verbosity=self.logger.LOG_STATUS)
+                self.log_print("Starting descendent weighting propagation", verbosity=self.logger.LogLevel.STATUS)
                 self.walkers._setup_dw()
         else:
-            self.log_print("Equilibration not complete", verbosity=self.logger.LOG_STATUS)
+            self.log_print("Equilibration not complete", verbosity=self.logger.LogLevel.STATUS)
 
 class SimulationParameters(ParameterManager):
     """

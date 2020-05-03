@@ -7,19 +7,22 @@ import os
 class SimulationTests(TestCase):
 
     def setUp(self):
-        self.cm = SimulationManager()
+        self.sm = SimulationManager()
         self.im = ImportanceSamplerManager()
 
     @debugTest
     def test_SimpleHO(self):
         SimulationInterface.test_HO()
-        f = SimulationManager().simulation_output_folder("test_HO")
+        f = self.sm.simulation_output_folder("test_HO")
         with open(os.path.join(f, "log.txt")) as out:
             out_stuff = out.read()
         clean_end = 'Ending simulation' in out_stuff and 'Zero-point Energy' in out_stuff
         if not clean_end:
             print(out_stuff)
         self.assertTrue(clean_end)
+        sim = self.sm.load_simulation("test_HO")
+        zpe = sim.analyzer.zpe
+        self.assertTrue(1000 < zpe and zpe < 4000)
         SimulationInterface.archive_simulation("test_HO")
 
     @validationTest
