@@ -28,48 +28,14 @@ If you just want to pull the latest updates, you can use `git pull`.
 
 At this point, the specifics of the build process depend on whether you are on in a local compute environment in which case you'll want to use Docker, whether you're on a standard HPC in which case you're likely using Singularity, or if you're on NeRSC in which case you use Shifter. 
 
+## Manual Build
+
 Instructions for all of these environments are provided, with build files in the `setup` subdirectory of RynLib.
 
 You can make this all work without a container, but it will be much more work and I'm not going to write up general instructions for that at this point.
 
-### Docker
+In general, we build using `docker` in a local environment then push the container to [Docker Hub](https://hub.docker.com/). Integration with [Singularity Hub](https://singularity-hub.org/) might come at some point in the future, but for now we're just using docker.
 
-RynLib with Docker can generally be configured using  `setup/build_docker.sh`
-
-If building on top of the Entos container, take `RynLib/setup/DockerfileEntosTemplate` and replace `<ENTOS-COMMIT>` with the specific entos commit to build off of and call this new file `RynLib/setup/DockerfileEntos`
-
-If not, take the `Dockerfile` and change it so that it will build off of `DockerfileCore` instead.
-
-After that run 
-
-```
-bash RynLib/setup/build_docker.sh
-```
-
-### Singularity
-
-*Note:* _you might need to load singularity first by getting on a build node and running `module load singularity`_
-
-RynLib with Singularity can generally be configured using  `setup/build_docker.sh`
-
-Take `RynLib/setup/SingularityEntosTemplate.def` and replace `<ENTOS-COMMIT>` with the specific entos commit to build off of and call this new file `RynLib/setup/SingularityEntos.def`. 
-
-After that run 
-
-```
-bash RynLib/setup/build_singularity.sh
-```
-
-### Shifter
-
-RynLib with Shifter can be configured using  `setup/build_shifter.sh` and `setup/update_shifter.sh`. These just build with Docker and then push that to the NeRSC private registry. 
-To use these you'll want to either ask me for my registry API key or follow the instructions [here](https://docs.nersc.gov/programming/shifter/how-to-use/).
-
-You'll then pull in the image like so 
-
-```ignorelang
-shifterimg pull registry.services.nersc.gov/b3m2a1/rynimg:latest
-```
 
 ## Running
 
@@ -106,44 +72,17 @@ pot -- anything involved in configuring a potential for use in the DMC
     remove NAME: removes the potential NAME
 ```
 
-### Docker
+### The `rynlib` command
 
-Here's the way you might alias RynLib for use with Docker:
+`rynlib` is provided as a general purpose Bash function in `setup/env.sh` along with some useful environment variables.
 
-```ignorelang
-rynlib="docker run --rm --mount source=simdata,target=/config -it rynimg"
-```
+`RYNLIB_CONFIG_PATH` - where on the file-system to store results
+`RYNLIB_ENTOS_PATH` - where on the file-system the `entos` folder extracted from an entos container lives (if we're using entos)
 
-one thing to note is that if we want to get data into Docker, say for `rynlib sim add` we'll need to temporarily mount that as a volume, using the `-v` flag, e.g.
+Update functions for Singularity and Shifter are also provided as `rynlib_update_singularity` and `rynlib_update_shifter`
 
-```ignorelang
-function ryndata() { echo "docker run --rm --mount source=simdata,target=/config -it -v $1:rw rynimg"; }
-$(ryndata config_dir:/cf) sim add test /cf/config.py 
-```
 
-### Singularity
-
-If we've ported the Docker container up we can use it directly, like
-
-```ignorelang
-rynlib="singularity run --bind .:/config docker://rynimg"
-```
-
-Otherwise we can use `Singularity.def` to build a `rynlib` SIF image that can be used like
-
-```ignorelang
-rynlib="singularity run --bind .:/config rynlib"
-```
-
-### Shifter
-
-With Shifter, like Singularity, we directly bind directories, so we might have
-
-```ignorelang
-rynlib="shifter --volume=$PWD:/config --image=registry.services.nersc.gov/b3m2a1/rynimg:latest python3.7 /home/RynLib/CLI.py"
-```
-
-Keep in mind that with Shifter the `sbatch` process is [slightly different](https://docs.nersc.gov/programming/shifter/how-to-use/#running-jobs-in-shifter-images)
+Do keep in mind that with Shifter the `sbatch` process is [slightly different](https://docs.nersc.gov/programming/shifter/how-to-use/#running-jobs-in-shifter-images)
 
 ### Config Files
 
@@ -341,7 +280,10 @@ Docker shouldn't be used on an HPC system
 
 # <number of cores> will be close to 28 * <number of nodes>
 module load icc_19-ompi_3.1.4 # or whatever MPI module is available--must be 3.1.4 or in line with what is inside the container
-mpirun -n <number of cores> ./rynlib sim run <name of simulation>
+
+RYNLIB_PATH=<path-to-the-RynLib-folder>
+. $RYNLIB_PATH/setup/env.sh
+mpirun -n <number of cores> rynlib sim run <name of simulation>
 ```
 
 ### Shifter
@@ -352,7 +294,9 @@ mpirun -n <number of cores> ./rynlib sim run <name of simulation>
 #--SBATCH ... blah blah blah
 #--SBATCH ... blah blah blah
 
-rynlib="shifter --volume=$PWD:/config --image=registry.services.nersc.gov/b3m2a1/rynimg:latest python3.7 /home/RynLib/CLI.py"
+RYNLIB_PATH=<path-to-the-RynLib-folder>
+#RYNLIB_ENTOS_PATH=... if we're using entos
+. $RYNLIB_PATH/setup/env.sh
 # <number of cores> will be close to 28 * <number of nodes>
-srun -n <number of cores> $rynlib sim run <name of simulation>
+srun -n <number of cores> rynlib sim run <name of simulation>
 ```
