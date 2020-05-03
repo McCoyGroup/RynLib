@@ -340,12 +340,24 @@ class CLI:
 
 
 def run_command(parse):
-    interact = parse.interact or (len(sys.argv) == 1 and not parse.help)
+    interact = parse.interact or (len(sys.argv) == 1 and not parse.help and not parse.script)
     if parse.nomp:
         RynLib.use_MP = False
-    if parse.help:
+    root = parse.root
+    if isinstance(root, str) and len(root) > 0:
+        RynLib.root = root
+    if parse.script or interact:
+         import RynLib.DoMyCode as DMC, RynLib.PlzNumbers as Potentials
+         interactive_env = {
+                'DMC': DMC, 'SimulationManager': DMC.SimulationManager,
+                'Potentials': Potentials, 'PotentialManager': Potentials.PotentialManager,
+            }
+    if parse.script:
+        with open(parse.script) as script:
+            exec(script.read(), interactive_env, interactive_env)
+    elif parse.help:
         if len(sys.argv) == 1:
-            print("$rynlib [--update|--rebuild] GRP CMD [ARGS] runs RynLib with the specified command")
+            print("rynlib [--output|--error|--script|--root|--nomp|--interact] GRP CMD [ARGS] runs RynLib with the specified command")
         group = sys.argv[1] if len(sys.argv) > 1 else ""
         command = sys.argv[2] if len(sys.argv) > 2 else ""
         CLI(group=group, command=command).help()
@@ -353,16 +365,30 @@ def run_command(parse):
         CLI().run()
     if interact:
         import code
-        code.interact(banner="RynLib Interactive Session", readfunc=None, local=None, exitmsg=None)
+        code.interact(banner="RynLib Interactive Session", readfunc=None, local=interactive_env, exitmsg=None)
 
 def run():
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--update", default=False, action='store_const', const=True, dest="update")
     parser.add_argument("--rebuild", default=False, action='store_const', const=True, dest="rebuild")
-    parser.add_argument("--nomp", default=False, action='store_const', const=True, dest="nomp")
-    parser.add_argument("--output", default="", type=str, dest="output")
-    parser.add_argument("--error", default="", type=str, dest="error")
-    parser.add_argument("--interact", default=False, action='store_const', const=True, dest="interact")
+    parser.add_argument("--nomp", default=False, action='store_const', const=True, dest="nomp",
+                        help='turn off non-MPI parallelism'
+                        )
+    parser.add_argument("--output", default="", type=str, dest="output",
+                        help='stdout file to write to'
+                        )
+    parser.add_argument("--error", default="", type=str, dest="error",
+                        help='stderr file to write to'
+                        )
+    parser.add_argument("--script", default="", type=str, dest="script",
+                        help='a script to run'
+                        )
+    parser.add_argument("--root", default="", type=str, dest="root",
+                        help='the path relative to use as the root directory for config lookup'
+                        )
+    parser.add_argument("--interact", default=False, action='store_const', const=True, dest="interact",
+                        help='start an interactive session after running'
+                        )
     parser.add_argument("--help", default=False, action='store_const', const=True, dest="help")
     parser.add_argument("--pass", default=False, action='store_const', const=True, dest="ignore")
     new_argv = []

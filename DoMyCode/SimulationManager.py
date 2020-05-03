@@ -107,7 +107,7 @@ class SimulationManager:
 
         self.check_simulation(name)
         old_loc = self.manager.config_loc(name)
-        new_name = dt.datetime.now().isoformat()
+        new_name = dt.datetime.now().isoformat().split(".")[0].replace("/", "_").replace(":", "_")
         new_loc = self.archiver.config_loc(name+"_"+new_name)
         os.rename(old_loc, new_loc)
     def archive_config(self, name):
@@ -115,11 +115,18 @@ class SimulationManager:
     def archive_output_folder(self, name):
         loc = self.archiver.config_loc(name)
         return os.path.join(loc, "output")
+    def check_archive(self, name):
+        if not self.archiver.check_config(name):
+            raise IOError("No archived simulation {}".format(name))
+    def archived_simulation_ran(self, name):
+        self.check_archive(name)
+        return os.path.isdir(self.archive_output_folder(name))
     def load_archive(self, name):
+        self.check_archive(name)
         conf = self.archiver.load_config(name)
         params = SimulationParameters(**conf.opt_dict)
         params.output_folder = self.archive_output_folder(name)
         sim = Simulation(params)
-        if self.simulation_ran(name):
+        if self.archived_simulation_ran(name):
             sim.reload()
         return sim
