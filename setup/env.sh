@@ -178,7 +178,7 @@ function rynlib_shifter() {
     if [[ "$do_echo" = "" ]]; then
       shifter --volume=$vols --image=$img python3.7 /home/RynLib/CLI.py $@
     else
-      shift;
+      shift; shift;
       echo "shifter --volume=$vols --image=$img python3.7 /home/RynLib/CLI.py $@"
     fi
 }
@@ -211,7 +211,7 @@ function rynlib_singularity() {
     if [[ "$vols" = "" ]]; then
       vols="$config:/config";
     else
-      shift;
+      shift; shift;
       vols="$vols,$config:/config";
     fi
 
@@ -256,7 +256,7 @@ function rynlib_docker() {
     if [[ "$vols" == "" ]]; then
       vols="--mount type=bind,source=$config,target=/config";
     else
-      shift;
+      shift; shift;
       vols="$vols --mount type=bind,source=$config,target=/config";
     fi
 
