@@ -212,7 +212,7 @@ class CLI:
         parse_dict = self.get_parse_dict(
             ("name",)
         )
-        SimulationInterface.add_sampler(**parse_dict)
+        SimulationInterface.archive_simulation(**parse_dict)
 
     def sim_add_sampler(self):
         """Adds an importance sampler. Args: NAME SRC --config=CONFIG_FILE"""

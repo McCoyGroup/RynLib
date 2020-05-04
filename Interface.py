@@ -59,9 +59,9 @@ class SimulationInterface:
 
     @classmethod
     def run_simulation(self, name=None):
-        print("Running simulation {}".format(name))
+        # print("Running simulation {}".format(name))
         SimulationManager().run_simulation(name)
-        print("Finished running simulation {}".format(name))
+        # print("Finished running simulation {}".format(name))
 
     @classmethod
     def test_add_HO(cls):

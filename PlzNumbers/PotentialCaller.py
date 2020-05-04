@@ -34,6 +34,7 @@ class PoolPotential:
         sys.path.extend(path)
         # print(sys.path)
     def _get_pool(self):
+        mp.set_start_method('spawn')
         pool = mp.Pool(
             initializer=self._init_pool,
             initargs=[self.rooot_dir] + self.pot_path
