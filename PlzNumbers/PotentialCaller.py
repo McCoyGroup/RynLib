@@ -140,9 +140,10 @@ class PotentialCaller:
                 self.pot = pot
                 self._started = False
                 self.procs = [
-                    ctx.Process(target=self.drain_queue_and_call,
-                                args=(self.arg_queue, self.res_queue, self.pot)
-                                ) for i in range(nprocs)
+                    ctx.Process(
+                        target=self.drain_queue_and_call,
+                        args=(self.arg_queue, self.res_queue, self.pot)
+                    ) for i in range(nprocs)
                 ]
 
             @staticmethod
@@ -277,19 +278,20 @@ class PotentialCaller:
 
         smol_guy = walker.ndim == 3
         if smol_guy:
-            walker = np.reshape(walker, walker.shape[:1] + (1,) + walker.shape[1:])
+            walker = np.reshape(walker, (1,) + walker.shape[:1] + walker.shape[1:])
 
         if self._py_pot and self._wrapped_pot is None:
             num_walkers = int(np.product(walker.shape[:-2]))
-            self._wrapped_pot = self._mp_wrap(self.potential, num_walkers, self.mpi_manager)
 
+            self._wrapped_pot = self._mp_wrap(self.potential, num_walkers, self.mpi_manager)
         if self._py_pot and self.mpi_manager is None:
-            poots =  self._wrapped_pot(walker, atoms, (extra_bools, extra_ints, extra_floats))
+            poots = self._wrapped_pot(walker, atoms, (extra_bools, extra_ints, extra_floats))
         elif self._py_pot:
             walker = walker.transpose((1, 0, 2, 3))
+            coords = np.ascontiguousarray(walker).astype(float)
             poots = self.lib.rynaLovesPyPootsLots(
-                atoms,
-                np.ascontiguousarray(walker).astype(float),
+                coords,
+                tuple(atoms),
                 self._wrapped_pot,
                 self.mpi_manager,
                 (extra_bools, extra_ints, extra_floats)

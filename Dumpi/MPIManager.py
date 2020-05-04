@@ -57,20 +57,25 @@ class MPIManagerObject:
     def hybrid_parallelization(self):
         if self._hybrid_parallelization is None:
             # import multiprocessing as mp, platform
-            # from ..Interface import RynLib
-            #world_size is smaller than the number of cores on a given node
-            # or not divisible
-            world_size = self.world_size
-            cores_per_node = mp.cpu_count()
-            hybrid = world_size < cores_per_node or (world_size % cores_per_node != 0)
-            # if hybrid:
-            #     # means we need to see how many "nodes" we've got
-            #     cf = RynLib.get_conf()
-            #     try:
-            #         arch_min_processors = cf.min_processors
-            #     except AttributeError:
-            #         node = platform.node()
-            #         if
+            from ..Interface import RynLib
+
+            if not RynLib.use_MP:
+                # we want the --nomp flag to really do what it's supposed to...
+                hybrid = False
+            else:
+                #world_size is smaller than the number of cores on a given node
+                # or not divisible
+                world_size = self.world_size
+                cores_per_node = mp.cpu_count()
+                hybrid = world_size < cores_per_node or (world_size % cores_per_node != 0)
+                # if hybrid:
+                #     # means we need to see how many "nodes" we've got
+                #     cf = RynLib.get_conf()
+                #     try:
+                #         arch_min_processors = cf.min_processors
+                #     except AttributeError:
+                #         node = platform.node()
+                #         if
             self._hybrid_parallelization = hybrid
         return self._hybrid_parallelization
 

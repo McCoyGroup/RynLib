@@ -218,7 +218,7 @@ PotentialArray _mpiGetPot(
     if (use_openMP) {
         #ifdef _OPENMP
         #pragma omp parallel \
-                                    shared (raw_data, atoms, pot, bad_file)
+          shared (raw_data, atoms, pot, bad_file)
         #pragma omp for
         #endif
         for (int i = 0; i < walkers_to_core; i++) {
@@ -255,7 +255,6 @@ PotentialArray _mpiGetPot(
             );
             pots[i] = pot_val;
         }
-
     }
     //   [
     //      pot_i(t=0), pot_i(t=1), ... pot_i(t=n),
@@ -305,6 +304,7 @@ PotentialArray _mpiGetPot(
     }
 
     return potVals;
+
 }
 
 PotentialArray _noMPIGetPot(

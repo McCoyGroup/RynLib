@@ -211,8 +211,10 @@ PyObject *PlzNumbers_callPotVec( PyObject* self, PyObject* args ) {
         main_core = (_FromInt(rank) == 0);
         Py_XDECREF(rank);
     }
+
     if ( main_core ){
-        return _fillNumPyArray(pot_vals, num_walkers, ncalls);
+        PyObject* new_array = _fillNumPyArray(pot_vals, num_walkers, ncalls);
+        return new_array;
     } else {
         Py_RETURN_NONE;
     }
@@ -228,8 +230,8 @@ PyObject *PlzNumbers_callPyPotVec( PyObject* self, PyObject* args ) {
     PyObject* ext_args;
     PyObject* manager;
     if ( !PyArg_ParseTuple(args, "OOOOO",
-                           &atoms,
                            &coords,
+                           &atoms,
                            &pot_function,
                            &manager,
                            &ext_args

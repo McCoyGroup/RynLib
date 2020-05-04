@@ -235,10 +235,10 @@ class PotentialManager:
         #
         potential.mpi_manager = mpi_manager
         test_results_for_real = np.zeros((test_iterations, nsteps, num_walkers))
-        for ttt in range(test_iterations):
+        for ttt in range(1):#test_iterations):
             t0 = time.time()
             # call the potential
-            print(testAtoms)
+            # print(testAtoms)
             test_result = potential(
                 testWalkersss,
                 testAtoms,
