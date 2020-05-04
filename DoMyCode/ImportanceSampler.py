@@ -22,6 +22,7 @@ class ImportanceSampler:
         self.time_step = None
         self.parameters = None
         self.caller = Potential(
+            name=name,
             python_potential=trial_wavefunctions
         )
     def __repr__(self):

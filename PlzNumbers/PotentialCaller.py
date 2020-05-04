@@ -17,7 +17,7 @@ class PoolPotential:
             self.pot_type = "normal"
             mod = sys.modules[potential.__module__]
 
-        self.pot_dir = os.path.dirname(mod.__file__)
+        self.pot_path = [os.path.dirname(mod.__file__), os.path.dirname(os.path.dirname(mod.__file__))]
         self._pool = None
 
     def __del__(self):
@@ -32,8 +32,12 @@ class PoolPotential:
     def _init_pool(self, *path):
         import sys
         sys.path.extend(path)
+        # print(sys.path)
     def _get_pool(self):
-        pool = mp.Pool(initializer=self._init_pool, initargs=[self.rooot_dir, self.pot_dir])
+        pool = mp.Pool(
+            initializer=self._init_pool,
+            initargs=[self.rooot_dir] + self.pot_path
+        )
         # print(" Making pooooooool >>>>>", self.pot_type, self.pot.__module__)
         if self.pot_type == "dynamic":
             # hack to handle the fact that our trial wavefunctions are dynamically loaded and pickle doesn't like it

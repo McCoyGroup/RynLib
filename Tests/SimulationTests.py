@@ -2,6 +2,7 @@ from Peeves.TestUtils import *
 from unittest import TestCase
 from RynLib.DoMyCode import *
 from RynLib.Interface import *
+from RynLib.PlzNumbers import PotentialManager
 import os
 
 class SimulationTests(TestCase):
@@ -9,8 +10,9 @@ class SimulationTests(TestCase):
     def setUp(self):
         self.sm = SimulationManager()
         self.im = ImportanceSamplerManager()
+        self.pm = PotentialManager()
 
-    @debugTest
+    @validationTest
     def test_SimpleHO(self):
         SimulationInterface.test_HO()
         f = self.sm.simulation_output_folder("test_HO")
@@ -26,9 +28,22 @@ class SimulationTests(TestCase):
         SimulationInterface.archive_simulation("test_HO")
 
     @validationTest
+    def test_SimpleHOPy(self):
+        if 'PythonHO' not in self.pm.list_potentials():
+            PotentialInterface.add_potential("PythonHO", src=TestManager.test_data("HOSimulation/HOPyPot"))
+        if 'test_HO_py' in self.sm.list_simulations():
+            self.sm.archive_simulation('test_HO_py')
+        SimulationInterface.add_simulation("test_HO_py", src=TestManager.test_data("HOSimulation/HOSimPy"))
+        self.sm.run_simulation('test_HO_py')
+        f = self.sm.simulation_output_folder("test_HO_py")
+        with open(os.path.join(f, "log.txt")) as out:
+            out_stuff = out.read()
+        self.assertTrue('Ending simulation' in out_stuff and 'Zero-point Energy' in out_stuff)
+
+    @validationTest
     def test_SimpleHOImp(self):
         SimulationInterface.test_HO_imp()
-        f = SimulationManager().simulation_output_folder("test_HO_imp")
+        f = self.sm.simulation_output_folder("test_HO_imp")
         with open(os.path.join(f, "log.txt")) as out:
             out_stuff = out.read()
         self.assertTrue('Ending simulation' in out_stuff and 'Zero-point Energy' in out_stuff)

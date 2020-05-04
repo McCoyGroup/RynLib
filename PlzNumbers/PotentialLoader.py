@@ -39,22 +39,22 @@ class PotentialLoader:
                  pointer_name=None
                  ):
         self.python_potential = python_potential
-        if python_potential is False:
-            self.c_loader = CLoader(name, src,
-                                  src_ext=src_ext,
-                                  description=description,
-                                  version=version,
-                                  include_dirs=include_dirs,
-                                  linked_libs=linked_libs,
-                                  macros=macros,
-                                  source_files=source_files,
-                                  build_script=build_script,
-                                  requires_make=requires_make,
-                                  out_dir=out_dir,
-                                  cleanup_build=cleanup_build
-                                  )
-        else:
-            self.c_loader = None
+        # if python_potential is False:
+        self.c_loader = CLoader(name, src,
+                              src_ext=src_ext,
+                              description=description,
+                              version=version,
+                              include_dirs=include_dirs,
+                              linked_libs=linked_libs,
+                              macros=macros,
+                              source_files=source_files,
+                              build_script=build_script,
+                              requires_make=requires_make,
+                              out_dir=out_dir,
+                              cleanup_build=cleanup_build
+                              )
+        # else:
+        #     self.c_loader = None
         self._lib = None
         if pointer_name is None:
             pointer_name = "_potential"
@@ -67,7 +67,7 @@ class PotentialLoader:
                 loader = ModuleLoader()
                 remade = False
                 try:
-                    self._lib = loader.load(self.c_loader.lib_dir)#, self.c_loader.lib_name+"Lib")
+                    self._lib = loader.load(self.c_loader.lib_dir, "")#, self.c_loader.lib_name+"Lib")
                 except ImportError:
                     if self.c_loader.requires_make:
                         remade = True
@@ -75,7 +75,7 @@ class PotentialLoader:
                     else:
                         raise
                 if remade:
-                    self._lib = loader.load(self.c_loader.lib_dir, self.c_loader.lib_name + "Lib")
+                    self._lib = loader.load(self.c_loader.lib_dir, "")#self.c_loader.lib_name + "Lib")
             elif self.python_potential is False:
                 self._lib = self.c_loader.load()
         return self._lib
