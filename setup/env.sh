@@ -164,9 +164,10 @@ function rynlib_shifter() {
       img="$RYNLIB_SHIFTER_IMAGE:latest";
     fi
 
-    if [[ "$vols" = "" ]]; then
+    if [[ "$vols" == "" ]]; then
       vols="$config type=bind,source=$config,target=/config";
     else
+      shift;
       vols="$vols --mount type=bind,source=$config,target=/config";
     fi
 
@@ -177,6 +178,7 @@ function rynlib_shifter() {
     if [[ "$do_echo" = "" ]]; then
       shifter --volume=$vols --image=$img python3.7 /home/RynLib/CLI.py $@
     else
+      shift;
       echo "shifter --volume=$vols --image=$img python3.7 /home/RynLib/CLI.py $@"
     fi
 }
@@ -209,6 +211,7 @@ function rynlib_singularity() {
     if [[ "$vols" = "" ]]; then
       vols="$config:/config";
     else
+      shift;
       vols="$vols,$config:/config";
     fi
 
@@ -217,6 +220,7 @@ function rynlib_singularity() {
     fi
 
     if [[ "$do_echo" == "" ]]; then
+      shift;
       singularity run --bind $vols $img $@
     else
       echo "singularity run --bind $vols $img $@"
@@ -234,8 +238,6 @@ function rynlib_docker() {
     vols=$(mcoptvalue "$RYNLIB_OPT_PATTERN" "V" $@);
     do_echo=$(mcoptvalue "$RYNLIB_OPT_PATTERN" "e" $@);
 
-    vols=$(mcoptvalue "$RYNLIB_OPT_PATTERN" "V" $@);
-
     if [[ "$entos" = "" ]]; then
       entos="$PWD/entos";
     fi
@@ -251,9 +253,10 @@ function rynlib_docker() {
     fi
 
 
-    if [[ "$vols" = "" ]]; then
+    if [[ "$vols" == "" ]]; then
       vols="--mount type=bind,source=$config,target=/config";
     else
+      shift;
       vols="$vols --mount type=bind,source=$config,target=/config";
     fi
 
@@ -262,6 +265,7 @@ function rynlib_docker() {
     fi
 
     if [[ "$do_echo" == "" ]]; then
+      shift;
       docker run --rm $vols -it $img $@
     else
       echo "docker run --rm $vols -it $img $@"
