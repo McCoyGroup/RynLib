@@ -83,7 +83,7 @@ class SimulationInterface:
     @classmethod
     def test_HO_imp(cls):
         sm = SimulationManager()
-        if "test_HO" in sm.list_simulations():
+        if "test_HO_imp" in sm.list_simulations():
             sm.remove_simulation("test_HO_imp")
         pm = PotentialManager()
         if 'HarmonicOscillator' not in pm.list_potentials():

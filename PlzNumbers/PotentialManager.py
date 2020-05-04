@@ -94,6 +94,7 @@ class PotentialManager:
 
         pdir = self.manager.config_loc(name)
         curdir = os.getcwd()
+        pot = None
         try:
             os.chdir(pdir)
 
@@ -122,6 +123,8 @@ class PotentialManager:
 
             return pot(walkers, atoms, *params)
         finally:
+            if pot is not None:
+                pot.clean_up()
             os.chdir(curdir)
 
     def test_potential_mpi(self, name,
@@ -135,6 +138,7 @@ class PotentialManager:
 
         pdir = self.manager.config_loc(name)
         curdir = os.getcwd()
+        pot = None
         try:
             os.chdir(pdir)
             if input_file is None:
@@ -171,6 +175,8 @@ class PotentialManager:
 
             return self._test_potential_mpi(pot, walkers, atoms, *params, **opts)
         finally:
+            if pot is not None:
+                pot.clean_up()
             os.chdir(curdir)
 
     def _test_potential_mpi(cls,

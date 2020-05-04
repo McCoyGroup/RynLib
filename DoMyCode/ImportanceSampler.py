@@ -53,6 +53,8 @@ class ImportanceSampler:
         self.caller.mpi_manager = mpi_manager
         self.caller.bind_atoms(atoms)
         self.caller.bind_arguments(extra_args)
+    def clean_up(self):
+        self.caller.clean_up()
 
     @property
     def psi(self):
@@ -265,6 +267,7 @@ class ImportanceSamplerManager:
 
         pdir = self.manager.config_loc(name)
         curdir = os.getcwd()
+        sampler = None
         try:
             os.chdir(pdir)
             if input_file is None:
@@ -311,4 +314,6 @@ class ImportanceSamplerManager:
             disp_walks = walkers.displace(steps_per_propagation, importance_sampler=sampler)
             return sampler.local_kin(disp_walks)
         finally:
+            if sampler is not None:
+                sampler.clean_up()
             os.chdir(curdir)

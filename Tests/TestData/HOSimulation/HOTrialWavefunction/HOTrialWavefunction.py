@@ -5,6 +5,7 @@ m=1
 hbar=1
 
 def trial_wavefunction(coords, atoms, extra_args):
+    coords = np.asarray(coords)
     floats = extra_args[2]
     if len(floats) > 0:
         re = floats[0]

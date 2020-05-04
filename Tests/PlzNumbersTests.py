@@ -19,7 +19,7 @@ class PotentialTests(TestCase):
         except:
             pass
 
-    @debugTest
+    @validationTest
     def test_HarmonicOscillator(self):
         RynLib.test_HO()
 

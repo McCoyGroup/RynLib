@@ -56,7 +56,9 @@ class SimulationManager:
         params = SimulationParameters(**conf.opt_dict)
         params.output_folder = self.simulation_output_folder(name)
         sim = Simulation(params)
-        if self.simulation_ran(name):
+        mpi_manager = sim.mpi_manager
+        main = (mpi_manager is None) or (mpi_manager.world_rank == 0)
+        if main and self.simulation_ran(name):
             sim.reload()
 
         return sim

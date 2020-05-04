@@ -27,7 +27,7 @@ class SimulationTests(TestCase):
         self.assertTrue(1000 < zpe and zpe < 4000)
         SimulationInterface.archive_simulation("test_HO")
 
-    @validationTest
+    @debugTest
     def test_SimpleHOPy(self):
         if 'PythonHO' not in self.pm.list_potentials():
             PotentialInterface.add_potential("PythonHO", src=TestManager.test_data("HOSimulation/HOPyPot"))
@@ -38,7 +38,10 @@ class SimulationTests(TestCase):
         f = self.sm.simulation_output_folder("test_HO_py")
         with open(os.path.join(f, "log.txt")) as out:
             out_stuff = out.read()
-        self.assertTrue('Ending simulation' in out_stuff and 'Zero-point Energy' in out_stuff)
+        clean_end = 'Ending simulation' in out_stuff and 'Zero-point Energy' in out_stuff
+        if not clean_end:
+            print(out_stuff)
+        self.assertTrue(clean_end)
 
     @validationTest
     def test_SimpleHOImp(self):
@@ -59,8 +62,8 @@ class SimulationTests(TestCase):
         )
         self.im.test_sampler("HOSampler")
 
-    @validationTest
-    def test_SimulationArchiving(self):
-        SimulationInterface.test_add_HO()
-        SimulationInterface.archive_simulation("test_HO")
-        self.assertTrue(len(SimulationManager().list_archive()) > 0 )
+    # @validationTest
+    # def test_SimulationArchiving(self):
+    #     SimulationInterface.test_add_HO()
+    #     SimulationInterface.archive_simulation("test_HO")
+    #     self.assertTrue(len(SimulationManager().list_archive()) > 0 )

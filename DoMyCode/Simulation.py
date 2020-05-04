@@ -3,7 +3,7 @@ from .WalkerSet import WalkerSet
 from .ImportanceSampler import ImportanceSampler, ImportanceSamplerManager
 from ..RynUtils import ParameterManager
 from ..Dumpi import *
-from ..PlzNumbers import PotentialManager
+from ..PlzNumbers import PotentialManager, Potential
 from .SimulationUtils import *
 
 __all__ = [
@@ -318,6 +318,10 @@ class Simulation:
             self.checkpoint(test=False)
             if self.mpi_manager is not None:
                 self.mpi_manager.finalize_MPI()
+            if isinstance(self.potential, Potential):
+                self.potential.clean_up()
+            if isinstance(self.imp_samp, ImportanceSampler):
+                self.imp_samp.clean_up()
             self.timer.stop()
 
     def propagate(self, nsteps = None):

@@ -94,8 +94,8 @@ class PotentialCaller:
     class PoolPotential:
         rooot_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 
-        def __init__(self, potential, block_size):
-            self.block_size = block_size
+        def __init__(self, potential, nprocs):
+            self.nprocs = nprocs
             self.pot = potential
             try:
                 self.pot_type = "dynamic"
@@ -108,10 +108,11 @@ class PotentialCaller:
             self._pool = None
 
         def __del__(self):
-            from multiprocessing.pool import Pool
-            if isinstance(self._pool, Pool):
-                self._pool.terminate()
+            self.terminate()
 
+        def terminate(self):
+            if self._pool is not None:
+                self._pool.terminate()
         @property
         def pool(self):
             if self._pool is None:
@@ -123,6 +124,76 @@ class PotentialCaller:
             sys.path.extend(path)
             # print(sys.path)
 
+        class FakePool:
+            def __init__(self, ctx, pot, nprocs):
+                """
+
+                :param ctx:
+                :type ctx: SpawnContext
+                :param pot:
+                :type pot:
+                :param nprocs:
+                :type nprocs:
+                """
+                self.arg_queue = ctx.Queue()
+                self.res_queue = ctx.Queue()
+                self.pot = pot
+                self._started = False
+                self.procs = [
+                    ctx.Process(target=self.drain_queue_and_call,
+                                args=(self.arg_queue, self.res_queue, self.pot)
+                                ) for i in range(nprocs)
+                ]
+
+            @staticmethod
+            def drain_queue_and_call(arg_queue, res_queue, pot):
+                """
+
+                :param arg_queue:
+                :type arg_queue: mp.Queue
+                :param res_queue:
+                :type res_queue: mp.Queue
+                :param pot:
+                :type pot: function
+                :return:
+                :rtype:
+                """
+                listening = True
+                while listening:
+                    block_num, data = arg_queue.get()
+                    if block_num == -1:
+                        break
+                    try:
+                        pot_val = pot(*data)
+                    except:
+                        res_queue.put((block_num, None))
+                        raise
+                    else:
+                        res_queue.put((block_num, pot_val))
+
+            def start(self):
+                if not self._started:
+                    for p in self.procs:
+                        p.start()
+                    self._started = True
+
+            def terminate(self):
+                for p in self.procs:
+                    self.arg_queue.put((-1, -1))
+                    p.terminate()
+
+            def map_pot(self, coords, atoms, extra):
+                self.start()
+                i=0
+                for i, block in enumerate(coords):
+                    self.arg_queue.put((i, (block, atoms, extra)))
+                block_lens = i + 1
+                blocks = [None]*block_lens
+                for j in range(block_lens):
+                    k, data = self.res_queue.get()
+                    blocks[k] = data
+                return np.concatenate(blocks)
+
         def _get_pool(self):
 
             if self.pot_type == "dynamic":
@@ -132,20 +203,23 @@ class PotentialCaller:
                 mod = sys.modules[mod_spec]
                 sys.modules[mod_spec.split(".", 1)[1]] = mod
 
-            mp.set_start_method('spawn')
-            pool = mp.Pool(
-                initializer=self._init_pool,
-                initargs=[self.rooot_dir] + self.pot_path
-            )
-
+            # it turns out Pool is managed using some kind of threaded interface so we'll try to work around that...
+            np = mp.cpu_count()-1
+            if np > self.nprocs:
+                np = self.nprocs
+            pool = self.FakePool(mp.get_context("spawn"), self.pot, np)
             return pool
 
         def call_pot(self, walkers, atoms, extra_bools=(), extra_ints=(), extra_floats=()):
-            blocks = np.array_split(walkers, self.block_size)
-            a = atoms,
+
+            main_shape = walkers.shape[:-2]
+            num_walkers = int(np.prod(main_shape))
+            walkers = walkers.reshape((num_walkers,) + walkers.shape[-2:])
+            blocks = np.array_split(walkers, min(self.nprocs, num_walkers))
+            a = atoms
             e = (extra_bools, extra_ints, extra_floats)
-            res = self.pool.starmap(self.pot, zip(blocks, it.repeat(a), it.repeat(e)))
-            return np.concatenate(res)
+            res = self.pool.map_pot(blocks, a, e)
+            return res.reshape(main_shape)
 
         def __call__(self, walkers, atoms, extra_bools=(), extra_ints=(), extra_floats=()):
             return self.call_pot(walkers, atoms, extra_bools=extra_bools, extra_ints=extra_ints,
@@ -172,8 +246,8 @@ class PotentialCaller:
                 world_size = 0 # should throw an error if we try to compute the block_size
 
         if hybrid_p:
-            block_size = np.math.ceil(num_walkers / world_size)
-            potential = self.PoolPotential(pot, block_size)
+            num_blocks = num_walkers if num_walkers < world_size else world_size
+            potential = self.PoolPotential(pot, num_blocks)
         else:
             potential = pot
 
@@ -184,10 +258,12 @@ class PotentialCaller:
         return self._mpi_manager
     @mpi_manager.setter
     def mpi_manager(self, m):
-        # if m is not None:
-        #     print(m)
         self._mpi_manager = m
 
+    def clean_up(self):
+        if self._wrapped_pot is not None:
+            self._wrapped_pot.terminate()
+            self._wrapped_pot = None
     def call_multiple(self, walker, atoms, extra_bools=(), extra_ints=(), extra_floats=()):
         """
 
@@ -204,7 +280,7 @@ class PotentialCaller:
             walker = np.reshape(walker, walker.shape[:1] + (1,) + walker.shape[1:])
 
         if self._py_pot and self._wrapped_pot is None:
-            num_walkers = walker.shape[1]
+            num_walkers = int(np.product(walker.shape[:-2]))
             self._wrapped_pot = self._mp_wrap(self.potential, num_walkers, self.mpi_manager)
 
         if self._py_pot and self.mpi_manager is None:

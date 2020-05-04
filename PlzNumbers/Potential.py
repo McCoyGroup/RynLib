@@ -182,6 +182,9 @@ class Potential:
     def mpi_manager(self, manager):
         self.caller.mpi_manager = manager
 
+    def clean_up(self):
+        self.caller.clean_up()
+
     def bind_atoms(self, atoms):
         self._atoms = atoms
     def bind_arguments(self, args):
