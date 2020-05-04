@@ -5,58 +5,6 @@ __all__ = [
     "PotentialCaller"
 ]
 
-class PoolPotential:
-    rooot_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-    def __init__(self, potential, block_size):
-        self.block_size = block_size
-        self.pot = potential
-        try:
-            self.pot_type = "dynamic"
-            mod = sys.modules["DynamicImports." + potential.__module__]
-        except KeyError:
-            self.pot_type = "normal"
-            mod = sys.modules[potential.__module__]
-
-        self.pot_path = [os.path.dirname(mod.__file__), os.path.dirname(os.path.dirname(mod.__file__))]
-        self._pool = None
-
-    def __del__(self):
-        if isinstance(self._pool, mp.pool.Pool):
-            self._pool.terminate()
-
-    @property
-    def pool(self):
-        if self._pool is None:
-            self._pool = self._get_pool()
-        return self._pool
-    def _init_pool(self, *path):
-        import sys
-        sys.path.extend(path)
-        # print(sys.path)
-    def _get_pool(self):
-        mp.set_start_method('spawn')
-        pool = mp.Pool(
-            initializer=self._init_pool,
-            initargs=[self.rooot_dir] + self.pot_path
-        )
-        # print(" Making pooooooool >>>>>", self.pot_type, self.pot.__module__)
-        if self.pot_type == "dynamic":
-            # hack to handle the fact that our trial wavefunctions are dynamically loaded and pickle doesn't like it
-            mod_spec = "DynamicImports." + self.pot.__module__
-            mod = sys.modules[mod_spec]
-            sys.modules[mod_spec.split(".", 1)[1]] = mod
-        self._init_pool()
-        return pool
-
-    def call_pot(self, walkers, atoms, extra_bools=(), extra_ints=(), extra_floats=()):
-        blocks = np.array_split(walkers, self.block_size)
-        a = atoms,
-        e = (extra_bools, extra_ints, extra_floats)
-        res = self.pool.starmap(self.pot, zip(blocks, it.repeat(a), it.repeat(e)))
-        return np.concatenate(res)
-    def __call__(self, walkers, atoms, extra_bools=(), extra_ints=(), extra_floats=()):
-        return self.call_pot(walkers, atoms, extra_bools=extra_bools, extra_ints=extra_ints, extra_floats=extra_floats)
-
 class PotentialCaller:
     """
     Takes a pointer to a C++ potential calls this potential on a set of geometries / atoms / whatever
@@ -143,6 +91,66 @@ class PotentialCaller:
                 extra_floats
             )
 
+    class PoolPotential:
+        rooot_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+
+        def __init__(self, potential, block_size):
+            self.block_size = block_size
+            self.pot = potential
+            try:
+                self.pot_type = "dynamic"
+                mod = sys.modules["DynamicImports." + potential.__module__]
+            except KeyError:
+                self.pot_type = "normal"
+                mod = sys.modules[potential.__module__]
+
+            self.pot_path = [os.path.dirname(mod.__file__), os.path.dirname(os.path.dirname(mod.__file__))]
+            self._pool = None
+
+        def __del__(self):
+            from multiprocessing.pool import Pool
+            if isinstance(self._pool, Pool):
+                self._pool.terminate()
+
+        @property
+        def pool(self):
+            if self._pool is None:
+                self._pool = self._get_pool()
+            return self._pool
+
+        def _init_pool(self, *path):
+            import sys
+            sys.path.extend(path)
+            # print(sys.path)
+
+        def _get_pool(self):
+
+            if self.pot_type == "dynamic":
+                # hack to handle the fact that our trial wavefunctions are dynamically loaded and pickle doesn't like it
+                self._init_pool(self.rooot_dir, *self.pot_path)
+                mod_spec = "DynamicImports." + self.pot.__module__
+                mod = sys.modules[mod_spec]
+                sys.modules[mod_spec.split(".", 1)[1]] = mod
+
+            mp.set_start_method('spawn')
+            pool = mp.Pool(
+                initializer=self._init_pool,
+                initargs=[self.rooot_dir] + self.pot_path
+            )
+
+            return pool
+
+        def call_pot(self, walkers, atoms, extra_bools=(), extra_ints=(), extra_floats=()):
+            blocks = np.array_split(walkers, self.block_size)
+            a = atoms,
+            e = (extra_bools, extra_ints, extra_floats)
+            res = self.pool.starmap(self.pot, zip(blocks, it.repeat(a), it.repeat(e)))
+            return np.concatenate(res)
+
+        def __call__(self, walkers, atoms, extra_bools=(), extra_ints=(), extra_floats=()):
+            return self.call_pot(walkers, atoms, extra_bools=extra_bools, extra_ints=extra_ints,
+                                 extra_floats=extra_floats)
+
     def _mp_wrap(self,
                  pot,
                  num_walkers,
@@ -165,7 +173,7 @@ class PotentialCaller:
 
         if hybrid_p:
             block_size = np.math.ceil(num_walkers / world_size)
-            potential = PoolPotential(pot, block_size)
+            potential = self.PoolPotential(pot, block_size)
         else:
             potential = pot
 

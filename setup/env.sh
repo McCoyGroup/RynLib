@@ -177,14 +177,14 @@ function rynlib_shifter() {
     fi
 
     if [[ "$vols" == "" ]]; then
-      vols="$config type=bind,source=$config,target=/config";
+      vols="$config:/config";
     else
       shift;
-      vols="$vols --mount type=bind,source=$config,target=/config";
+      vols="$vols;$config:/config";
     fi
 
     if [[ -d "$entos" ]]; then
-      vols="$vols --mount type=bind,source=$entos,target=/entos";
+      vols="$vols;$entos:/entos";
     fi
 
     if [[ "$do_echo" = "" ]]; then
@@ -291,7 +291,13 @@ function rynlib_docker() {
       vols="--mount type=bind,source=$config,target=/config";
     else
       shift; shift;
-      vols="$vols --mount type=bind,source=$config,target=/config";
+      local escaped=",";
+      local real=" --mount type=bind,source=";
+      vols=${vols//$escaped/$real}
+      escaped=":";
+      real=",target="
+      vols=${vols//$escaped/$real}
+      vols="--mount type=bind,source=$vols --mount type=bind,source=$config,target=/config";
     fi
 
     if [[ -d "$entos" ]]; then
