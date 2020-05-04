@@ -279,7 +279,7 @@ Docker shouldn't be used on an HPC system
 #--SBATCH ... blah blah blah
 
 # <number of cores> will be close to 28 * <number of nodes>
-module load icc_19-ompi_3.1.4 # or whatever MPI module is available--must be 3.1.4 or in line with what is inside the container
+module load gcc_19-ompi_3.1.4 # or whatever MPI module is available--must be 3.1.4 or in line with what is inside the container
 
 RYNLIB_PATH=<path-to-the-RynLib-folder>
 . $RYNLIB_PATH/setup/env.sh

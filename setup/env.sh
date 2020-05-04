@@ -140,15 +140,17 @@ function rynlib_update_shifter() {
   shifterimg pull img;
   };
 
-RYNLIB_OPT_PATTERN=":V:";
+RYNLIB_OPT_PATTERN=":eV:";
 function rynlib_shifter() {
 
     local entos="$RYNLIB_ENTOS_PATH";
     local config="$RYNLIB_CONFIG_PATH";
     local img="$RYNLIB_IMAGE";
     local vols="";
+    local do_echo="";
 
     vols=$(mcoptvalue "$RYNLIB_OPT_PATTERN" "V" $@);
+    do_echo=$(mcoptvalue "$RYNLIB_OPT_PATTERN" "e" $@);
 
     if [[ "$entos" = "" ]]; then
       entos="$PWD/entos";
@@ -172,7 +174,11 @@ function rynlib_shifter() {
       vols="$vols --mount type=bind,source=$entos,target=/entos";
     fi
 
-    shifter --volume=$vols --image=$img python3.7 /home/RynLib/CLI.py $@
+    if [[ "$do_echo" = "" ]]; then
+      shifter --volume=$vols --image=$img python3.7 /home/RynLib/CLI.py $@
+    else
+      echo "shifter --volume=$vols --image=$img python3.7 /home/RynLib/CLI.py $@"
+    fi
 }
 
 function rynlib_singularity() {
@@ -181,6 +187,10 @@ function rynlib_singularity() {
     local config="$RYNLIB_CONFIG_PATH";
     local img="$RYNLIB_IMAGE";
     local vols="";
+    local do_echo="";
+
+    vols=$(mcoptvalue "$RYNLIB_OPT_PATTERN" "V" $@);
+    do_echo=$(mcoptvalue "$RYNLIB_OPT_PATTERN" "e" $@);
 
     vols=$(mcoptvalue "$RYNLIB_OPT_PATTERN" "V" $@);
 
@@ -206,8 +216,11 @@ function rynlib_singularity() {
       vols="$vols,$entos:/entos";
     fi
 
-    singularity run --bind $vols $img $@
-
+    if [[ "$do_echo" == "" ]]; then
+      singularity run --bind $vols $img $@
+    else
+      echo "singularity run --bind $vols $img $@"
+    fi
 }
 
 function rynlib_docker() {
@@ -216,6 +229,10 @@ function rynlib_docker() {
     local config="$RYNLIB_CONFIG_PATH";
     local img="$RYNLIB_IMAGE";
     local vols="";
+    local do_echo="";
+
+    vols=$(mcoptvalue "$RYNLIB_OPT_PATTERN" "V" $@);
+    do_echo=$(mcoptvalue "$RYNLIB_OPT_PATTERN" "e" $@);
 
     vols=$(mcoptvalue "$RYNLIB_OPT_PATTERN" "V" $@);
 
@@ -244,8 +261,11 @@ function rynlib_docker() {
       vols="$vols --mount type=bind,source=$entos,target=/entos";
     fi
 
-    docker run --rm $vols -it $img $@
-
+    if [[ "$do_echo" == "" ]]; then
+      docker run --rm $vols -it $img $@
+    else
+      echo "docker run --rm $vols -it $img $@"
+    fi
 }
 
 function rynlib() {
@@ -273,6 +293,6 @@ function rynlib() {
     cmd="rynlib_docker";
   fi
 
-  $cmd $@
+  $cmd $@;
 
 }
