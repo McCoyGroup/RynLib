@@ -149,8 +149,20 @@ function rynlib_shifter() {
     local vols="";
     local do_echo="";
 
-    vols=$(mcoptvalue "$RYNLIB_OPT_PATTERN" "V" $@);
-    do_echo=$(mcoptvalue "$RYNLIB_OPT_PATTERN" "e" $@);
+    if [[ "$1" == "-V" ]]; then
+      vols="$2";
+    else
+      if [[ "$2" == "-V" ]]; then
+        vols="$3";
+      fi
+    fi;
+    if [[ "$1" == "-e" ]]; then
+      do_echo="true";
+    else
+      if [[ "$2" == "-e" ]]; then
+        do_echo="true";
+      fi
+    fi;
 
     if [[ "$entos" = "" ]]; then
       entos="$PWD/entos";
@@ -191,10 +203,20 @@ function rynlib_singularity() {
     local vols="";
     local do_echo="";
 
-    vols=$(mcoptvalue "$RYNLIB_OPT_PATTERN" "V" $@);
-    do_echo=$(mcoptvalue "$RYNLIB_OPT_PATTERN" "e" $@);
-
-    vols=$(mcoptvalue "$RYNLIB_OPT_PATTERN" "V" $@);
+    if [[ "$1" == "-V" ]]; then
+      vols="$2";
+    else
+      if [[ "$2" == "-V" ]]; then
+        vols="$3";
+      fi
+    fi;
+    if [[ "$1" == "-e" ]]; then
+      do_echo="true";
+    else
+      if [[ "$2" == "-e" ]]; then
+        do_echo="true";
+      fi
+    fi;
 
     if [[ "$entos" = "" ]]; then
       entos="$PWD/entos";
@@ -235,8 +257,20 @@ function rynlib_docker() {
     local vols="";
     local do_echo="";
 
-    vols=$(mcoptvalue "$RYNLIB_OPT_PATTERN" "V" $@);
-    do_echo=$(mcoptvalue "$RYNLIB_OPT_PATTERN" "e" $@);
+    if [[ "$1" == "-V" ]]; then
+      vols="$2";
+    else
+      if [[ "$2" == "-V" ]]; then
+        vols="$3";
+      fi
+    fi;
+    if [[ "$1" == "-e" ]]; then
+      do_echo="true";
+    else
+      if [[ "$2" == "-e" ]]; then
+        do_echo="true";
+      fi
+    fi;
 
     if [[ "$entos" = "" ]]; then
       entos="$PWD/entos";
