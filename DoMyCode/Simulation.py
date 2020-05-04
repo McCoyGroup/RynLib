@@ -184,6 +184,7 @@ class Simulation:
         ])
         walk_props = "\n".join([
             "{}: {}".format(k, getattr(self.walkers, k)) for k in [
+                'num_walkers',
                 'atoms',
                 'masses',
                 'sigmas'

@@ -220,9 +220,9 @@ function rynlib_singularity() {
     fi
 
     if [[ "$do_echo" == "" ]]; then
-      shift;
       singularity run --bind $vols $img $@
     else
+      shift;
       echo "singularity run --bind $vols $img $@"
     fi
 }
@@ -265,9 +265,9 @@ function rynlib_docker() {
     fi
 
     if [[ "$do_echo" == "" ]]; then
-      shift;
       docker run --rm $vols -it $img $@
     else
+      shift;
       echo "docker run --rm $vols -it $img $@"
     fi
 }

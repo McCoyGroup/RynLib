@@ -21,11 +21,18 @@ class WalkerSet:
 
         if num_walkers is None:
             if mpi_manager is None:
-                raise TypeError("MPIManager is None (meaning MPI isn't configured) but 'num_walkers' not passed")
-            if mpi_manager.world_rank == 0:
-                num_walkers = walkers_per_core*mpi_manager.world_size
+                from ..Interface import RynLib
+                if RynLib.use_MP:
+                    import multiprocessing as mp
+                    world_size = mp.cpu_count()
+                else:
+                    world_size = 1
+                # raise TypeError("MPIManager is None (meaning MPI isn't configured) but 'num_walkers' not passed")
+            elif mpi_manager.world_rank == 0:
+                world_size = mpi_manager.hybrid_world_size
             else:
-                num_walkers = walkers_per_core
+                world_size = mpi_manager.cpu_world_size
+            num_walkers = walkers_per_core*world_size
 
         self.num_walkers = num_walkers
 

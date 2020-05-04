@@ -77,7 +77,16 @@ class MPIManagerObject:
     @property
     def hybrid_world_size(self):
         # we assume the "world_size" is the number of nodes
-        return self.world_size * mp.cpu_count()
+        return self.world_size * self.cpu_world_size
+
+    @property
+    def cpu_world_size(self):
+        # if hybrid parallelization, we return the CPUs, otherwise 1
+        if self.hybrid_parallelization:
+            per_core = mp.cpu_count()
+        else:
+            per_core = 1
+        return per_core
 
     def test(self, timeout=5):
         import threading
