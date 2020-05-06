@@ -340,21 +340,35 @@ class CLI:
 
 
 def run_command(parse):
+    # detect whether interactive run or not
     interact = parse.interact or (len(sys.argv) == 1 and not parse.help and not parse.script)
-    if parse.nomp:
-        RynLib.use_MP = False
+
+    # handle runtime flags
+    if parse.noomp:
+        RynLib.flags['OpenMP'] = False
+    if parse.pyp:
+        RynLib.flags['multiprocessing'] = True
+
+    # set root directory
     root = parse.root
     if isinstance(root, str) and len(root) > 0:
         RynLib.root = root
+
+    # in interactive/script envs we expose stuff
     if parse.script or interact:
-         import RynLib.DoMyCode as DMC, RynLib.PlzNumbers as Potentials
+         import RynLib.DoMyCode as DMC, RynLib.PlzNumbers as Potentials, RynLib.Dumpi as MPI
          interactive_env = {
-                'DMC': DMC, 'SimulationManager': DMC.SimulationManager,
-                'Potentials': Potentials, 'PotentialManager': Potentials.PotentialManager,
+             "__name__": "RynLib.script",
+             'DMC': DMC, 'SimulationManager': DMC.SimulationManager,
+             'Potentials': Potentials, 'PotentialManager': Potentials.PotentialManager,
+             'MPI' : MPI, 'MPIManager': MPI.MPIManager
             }
+    # in a script environment we just read in the script and run it
     if parse.script:
         with open(parse.script) as script:
-            exec(script.read(), interactive_env, interactive_env)
+            src = script.read()
+        interactive_env["__file__"] = parse.script
+        exec(src, interactive_env, interactive_env)
     elif parse.help:
         if len(sys.argv) == 1:
             print("rynlib [--output|--error|--script|--root|--nomp|--interact] GRP CMD [ARGS] runs RynLib with the specified command")
@@ -371,8 +385,11 @@ def run():
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--update", default=False, action='store_const', const=True, dest="update")
     parser.add_argument("--rebuild", default=False, action='store_const', const=True, dest="rebuild")
-    parser.add_argument("--nomp", default=False, action='store_const', const=True, dest="nomp",
-                        help='turn off non-MPI parallelism'
+    parser.add_argument("--pyp", default=False, action='store_const', const=True, dest="pyp",
+                        help='turn on multiprocessing.Pool parallelism'
+                        )
+    parser.add_argument("--noomp", default=False, action='store_const', const=True, dest="noomp",
+                        help='turn off OpenMP parallelism'
                         )
     parser.add_argument("--output", default="", type=str, dest="output",
                         help='stdout file to write to'

@@ -22,7 +22,7 @@ class WalkerSet:
         if num_walkers is None:
             if mpi_manager is None:
                 from ..Interface import RynLib
-                if RynLib.use_MP:
+                if RynLib.flags["OpenMP"] or RynLib.flags["multiprocessing"]:
                     import multiprocessing as mp
                     world_size = mp.cpu_count()
                 else:

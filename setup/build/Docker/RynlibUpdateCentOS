@@ -1,7 +1,8 @@
 
 # Since we're updating, we build off the existing image
 
-FROM rynimg-centos
+#FROM rynimg-centos
+FROM 5b3ac9909805
 
 RUN rm -rf /home/RynLib
 ADD . /home/RynLib

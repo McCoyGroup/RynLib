@@ -2,6 +2,7 @@
 # Since we're updating, we build off the existing image
 
 FROM rynimg
+#FROM 6ea03d9529fb
 
 RUN rm -rf /home/RynLib
 ADD . /home/RynLib

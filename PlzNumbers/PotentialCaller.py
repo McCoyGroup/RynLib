@@ -237,16 +237,20 @@ class PotentialCaller:
         # based on Pool.map
         # The wrapper will first check to make sure that we _are_ using a hybrid parallelization model
 
-        if mpi_manager is None:
-            from ..Interface import RynLib
-            hybrid_p = RynLib.use_MP
-            world_size = mp.cpu_count()
-        else:
-            hybrid_p = mpi_manager.hybrid_parallelization
-            if hybrid_p:
-                world_size = mpi_manager.hybrid_world_size
+        from ..Interface import RynLib
+        hybrid_p = RynLib.flags['multiprocessing']
+
+        if hybrid_p:
+            if mpi_manager is None:
+                world_size = mp.cpu_count()
             else:
-                world_size = 0 # should throw an error if we try to compute the block_size
+                hybrid_p = mpi_manager.hybrid_parallelization
+                if hybrid_p:
+                    world_size = mpi_manager.hybrid_world_size
+                else:
+                    world_size = 0 # should throw an error if we try to compute the block_size
+        else:
+            world_size = 0
 
         if hybrid_p:
             num_blocks = num_walkers if num_walkers < world_size else world_size
@@ -264,7 +268,7 @@ class PotentialCaller:
         self._mpi_manager = m
 
     def clean_up(self):
-        if self._wrapped_pot is not None:
+        if isinstance(self._wrapped_pot, self.PoolPotential):
             self._wrapped_pot.terminate()
             self._wrapped_pot = None
     def call_multiple(self, walker, atoms, extra_bools=(), extra_ints=(), extra_floats=()):
@@ -284,7 +288,6 @@ class PotentialCaller:
 
         if self._py_pot and self._wrapped_pot is None:
             num_walkers = int(np.product(walker.shape[:-2]))
-
             self._wrapped_pot = self._mp_wrap(self.potential, num_walkers, self.mpi_manager)
         if self._py_pot and self.mpi_manager is None:
             poots = self._wrapped_pot(walker, atoms, (extra_bools, extra_ints, extra_floats))
@@ -301,12 +304,11 @@ class PotentialCaller:
             if poots is not None:
                 poots = poots.transpose()
         else:
-            walker = walker.transpose((1, 0, 2, 3))
-            if self.mpi_manager is not None:
+            from ..Interface import RynLib
+            hp = RynLib.flags['OpenMP']
+            if hp:
                 hp = self.mpi_manager.hybrid_parallelization
-            else:
-                from ..Interface import RynLib
-                hp = RynLib.use_MP
+            walker = walker.transpose((1, 0, 2, 3))
             coords = np.ascontiguousarray(walker).astype(float)
             poots = self.lib.rynaLovesPootsLots(
                 coords,

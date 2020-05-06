@@ -234,7 +234,11 @@ class RynLib:
     config_file = "config.py"
     mpi_dir = "/usr/lib/mpi"
     test_data = os.path.join(os.path.dirname(__file__), "Tests", "TestData")
-    use_MP = True
+
+    flags = dict(
+        multiprocessing = False,
+        OpenMP = True
+    )
 
     @classmethod
     def get_default_env(cls):
