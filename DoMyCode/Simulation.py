@@ -379,13 +379,16 @@ class Simulation:
 
             # need to compute local KE on the cores, too, to make sure the MPI gets there
             crds = self.walkers.coords
-            walk = self.walkers.displace(nsteps, importance_sampler=self.imp_samp, atomic_units = self.atomic_units)
+            walk = self.walkers.displace(nsteps,
+                                         importance_sampler=self.imp_samp,
+                                         atomic_units = self.atomic_units
+                                         )
             self.walkers.coords = crds
             # we reassign the old geometries so that this dummied version can't walk itself off a cliff
             pe = self.potential(walk)
-            if self.imp_samp is not None:
-                imp = self.imp_samp #type: ImportanceSampler
-                ke = imp.local_kin(walk)
+            # if self.imp_samp is not None:
+            #     imp = self.imp_samp #type: ImportanceSampler
+            #     ke = imp.local_kin(walk)
             self.counter.step_num += nsteps
 
         if self.mpi_manager is not None:

@@ -40,6 +40,15 @@ class MPIManagerObject:
                          )
         return loader.load()
 
+    def __repr__(self):
+        return "{}(rank={}, world_size={}, hybrid={}, hybrid_world_size={})".format(
+            type(self).__name__,
+            self.world_rank,
+            self.world_size,
+            self.hybrid_parallelization,
+            self.hybrid_world_size
+        )
+
     @classmethod
     def _remove_lib(cls):
         dump_lib = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Dumpi.so")

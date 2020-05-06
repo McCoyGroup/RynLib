@@ -21,6 +21,7 @@ class ImportanceSampler:
         self.sigmas = None
         self.time_step = None
         self.parameters = None
+        self.dummied = False
         self.caller = Potential(
             name=name,
             python_potential=trial_wavefunctions
@@ -50,6 +51,9 @@ class ImportanceSampler:
         """
         self.sigmas = np.broadcast_to(sigmas[:, np.newaxis], sigmas.shape + (3,))
         self.time_step = time_step
+        if mpi_manager is not None:
+            world_rank = mpi_manager.world_rank
+            self.dummied = world_rank > 0
         self.caller.mpi_manager = mpi_manager
         self.caller.bind_atoms(atoms)
         self.caller.bind_arguments(extra_args)
@@ -76,21 +80,27 @@ class ImportanceSampler:
         :rtype:
         """
 
-        fx, psi1 = self.drift(coords)
-        sigma = self.sigmas
-        d = sigma**2/2.*fx
-        new = coords + disp + d
-        fy, psi2 = self.drift(new)
-        a = self.metropolis(fx, fy, coords, new, psi1, psi2)
-        check = np.random.random(size=len(coords))
-        accept = np.argwhere(a > check)
-        coords[accept] = new[accept]
-        psi1[accept] = psi2[accept]
+        if self.dummied:
+            # gotta do the appropriate number of MPI calls, but don't want to actually compute anything
+            fx, psi1 = self.drift(coords)
+            fx, psi1 = self.drift(coords)
+        else:
+            fx, psi1 = self.drift(coords)
+            sigma = self.sigmas
+            d = sigma**2/2.*fx
+            new = coords + disp + d
+            fy, psi2 = self.drift(new)
+            a = self.metropolis(fx, fy, coords, new, psi1, psi2)
+            check = np.random.random(size=len(coords))
+            accept = np.argwhere(a > check)
+            coords[accept] = new[accept]
+            psi1[accept] = psi2[accept]
         return coords, psi1
 
     def accept_step(self, step_no, coords, disp):
         coords, psi = self.accept(coords, disp)
-        self._psi[step_no] = psi
+        if not self.dummied:
+            self._psi[step_no] = psi
         return coords
 
     def drift(self, coords, dx=1e-3):
