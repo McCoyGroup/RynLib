@@ -203,7 +203,6 @@ PyObject *PlzNumbers_callPotVec( PyObject* self, PyObject* args ) {
                 use_openMP
         );
     }
-
     bool main_core = true;
     if ( manager != Py_None ){
         PyObject *rank = PyObject_GetAttrString(manager, "world_rank");
@@ -281,6 +280,7 @@ PyObject *PlzNumbers_callPyPotVec( PyObject* self, PyObject* args ) {
         );
     }
 
+//    _printObject("wtf ??? %s\n", pot_vals);
     return pot_vals;
 
 //    bool main_core = true;

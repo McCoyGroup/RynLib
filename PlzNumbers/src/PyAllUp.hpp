@@ -42,6 +42,8 @@ PyObject *_fillWalkersNumPyArray(
         const int natoms
 );
 
+void _printObject(const char* fmtString, PyObject *obj);
+
 #define RYNLIB_PYALLUP_HPP
 
 #endif //RYNLIB_PYALLUP_HPP

@@ -189,3 +189,11 @@ PyObject *_fillWalkersNumPyArray(
     memcpy(data, coords, sizeof(double)  * num_walkers * natoms * 3);
     return walkers;
 }
+
+void _printObject(const char* fmtString, PyObject *obj) {
+    PyObject *str=NULL;
+    PyObject *repr=PyObject_Repr(obj);
+    printf(fmtString, _GetPyString(repr, str));
+    Py_XDECREF(repr);
+    Py_XDECREF(str);
+}

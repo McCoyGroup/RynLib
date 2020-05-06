@@ -175,7 +175,9 @@ class PotentialCaller:
             def start(self):
                 if not self._started:
                     for p in self.procs:
+                        print("Starting : {}".format(p))
                         p.start()
+                        print("Finished starting it...")
                     self._started = True
 
             def terminate(self):
@@ -193,7 +195,7 @@ class PotentialCaller:
                 for j in range(block_lens):
                     k, data = self.res_queue.get()
                     blocks[k] = data
-                return np.concatenate(blocks)
+                return blocks
 
         def _get_pool(self):
 
@@ -219,7 +221,7 @@ class PotentialCaller:
             blocks = np.array_split(walkers, min(self.nprocs, num_walkers))
             a = atoms
             e = (extra_bools, extra_ints, extra_floats)
-            res = self.pool.map_pot(blocks, a, e)
+            res = np.concatenate(self.pool.map_pot(blocks, a, e))
             return res.reshape(main_shape)
 
         def __call__(self, walkers, atoms, extra_bools=(), extra_ints=(), extra_floats=()):

@@ -465,7 +465,7 @@ PyObject* _mpiGetPyPot(
 
     RawPotentialBuffer pots = _GetDoubleDataArray(pot_vals);
 
-    Py_XDECREF(args);
+//    Py_XDECREF(args);
     Py_XDECREF(walkers);
 
     //   [
