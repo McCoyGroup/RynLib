@@ -12,6 +12,7 @@
 #  we're distributing the image
 RYNLIB_IMAGE_NAME="rynimg"
 RYNLIB_DOCKER_IMAGE="mccoygroup/rynlib:$RYNLIB_IMAGE_NAME"
+RYNLIB_SINGULARITY_EXTENSION="-centos"
 RYNLIB_SHIFTER_IMAGE="registry.services.nersc.gov/b3m2a1/$RYNLIB_IMAGE_NAME"
 
 function rynlib_git_update() {
@@ -126,7 +127,8 @@ function rynlib_update_singularity() {
 
   rynlib_git_update;
 
-  singularity pull $img docker://$RYNLIB_DOCKER_IMAGE-centos
+  singularity pull $img docker://$RYNLIB_DOCKER_IMAGE$RYNLIB_SINGULARITY_EXTENSION
+
   };
 
 function rynlib_update_shifter() {
@@ -321,7 +323,7 @@ function rynlib() {
     cmd="rynlib_shifter"
   fi
 
-  if [[ "$img" == "*.sif" ]]; then
+  if [[ "$img" == *".sif" ]]; then
     if [[ "$cmd" == "" ]]; then
       cmd="rynlib_singularity";
     fi

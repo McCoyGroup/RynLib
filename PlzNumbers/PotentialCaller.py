@@ -313,7 +313,7 @@ class PotentialCaller:
         else:
             from ..Interface import RynLib
             hp = RynLib.flags['OpenMP']
-            if hp:
+            if hp and (self.mpi_manager is not None):
                 hp = self.mpi_manager.hybrid_parallelization
             walker = walker.transpose((1, 0, 2, 3))
             if self.fortran_potential:

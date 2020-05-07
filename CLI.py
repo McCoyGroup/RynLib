@@ -357,6 +357,8 @@ def run_command(parse):
     # in interactive/script envs we expose stuff
     if parse.script or interact:
          import RynLib.DoMyCode as DMC, RynLib.PlzNumbers as Potentials, RynLib.Dumpi as MPI
+
+         sys.path.insert(0, os.getcwd())
          interactive_env = {
              "__name__": "RynLib.script",
              'DMC': DMC, 'SimulationManager': DMC.SimulationManager,
