@@ -11,6 +11,8 @@ class TemplateWriter:
     Very unsophisticated but workable
     """
 
+    ignored_files = [".DS_Store"]
+
     def __init__(self, template_dir, replacements = None, file_filter = None, **opts):
         if replacements is not None:
             opts = replacements
@@ -18,7 +20,7 @@ class TemplateWriter:
         self._reps = None
 
         if file_filter is None:
-            file_filter = FileMatcher(MatchList(".DS_Store", negative_match=True), use_basename=True)
+            file_filter = FileMatcher(MatchList(*self.ignored_files, negative_match=True), use_basename=True)
         self.filter = FileMatcher(file_filter) if not isinstance(file_filter, StringMatcher) else file_filter
         self.template_dir = os.path.abspath(template_dir)
 
@@ -64,7 +66,10 @@ class TemplateWriter:
 
         if apply_template:
             with open(template_file) as tf:
-                content = tf.read()
+                try:
+                    content = tf.read()
+                except:
+                    raise IOError("Couldn't read content from {}".format(template_file))
                 with open(new_file, "w+") as out:
                     out.write(self.apply_replacements(content))
         else:

@@ -42,7 +42,10 @@ class MatchList(StringMatcher):
     """
 
     def __init__(self, *matches, negative_match = False):
-        super().__init__(lambda f, m=set(matches): f in m, negative_match = negative_match)
+        self.match_list = set(matches)
+        super().__init__(lambda f, m=self.test_match: m(f), negative_match = negative_match)
+    def test_match(self, f):
+        return f in self.match_list
 
 class FileMatcher(StringMatcher):
     """
@@ -54,4 +57,5 @@ class FileMatcher(StringMatcher):
         self.use_basename = use_basename
 
     def matches(self, f):
-        return super().matches(f if not self.use_basename else os.path.basename(f)[0])
+        f_name = f if not self.use_basename else os.path.basename(f)
+        return super().matches(f_name)
