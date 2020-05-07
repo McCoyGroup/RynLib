@@ -13,6 +13,7 @@ class CLoader:
     def __init__(self,
                  lib_name,
                  lib_dir,
+                 load_path=None,
                  src_ext = 'src',
                  description = "An extension module",
                  version = "1.0.0",
@@ -34,6 +35,7 @@ class CLoader:
         self.lib_description = description
         self.lib_version = version
 
+        self.load_path = [self.lib_dir] if load_path is None else load_path
         self.include_dirs = () if include_dirs is None else tuple(include_dirs)
         self.runtime_dirs = runtime_dirs
         self.linked_libs = () if linked_libs is None else tuple(linked_libs)
@@ -64,7 +66,7 @@ class CLoader:
             try:
                 sys.path.insert(0, os.path.dirname(ext))
                 module = os.path.splitext(os.path.basename(ext))[0]
-                self._lib = importlib.import_module(module, self.lib_name+"Lib")
+                self._lib = importlib.import_module(module, self.lib_name)#+"Lib")
             finally:
                 sys.path.pop(0)
 
@@ -78,7 +80,10 @@ class CLoader:
         :rtype:
         """
 
-        return self.locate_lib(self.lib_dir)[0]
+        for l in self.load_path:
+            r = self.locate_lib(l)[0]
+            if r is not None:
+                return r
 
     def compile_extension(self):
         """

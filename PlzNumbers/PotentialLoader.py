@@ -25,6 +25,7 @@ class PotentialLoader:
                  name,
                  src,
                  src_ext='src',
+                 load_path=None,
                  description="A compiled potential",
                  version="1.0.0",
                  include_dirs=None,
@@ -40,7 +41,9 @@ class PotentialLoader:
                  ):
         self.python_potential = python_potential
         # if python_potential is False:
+
         self.c_loader = CLoader(name, src,
+                              load_path=load_path,
                               src_ext=src_ext,
                               description=description,
                               version=version,

@@ -82,8 +82,16 @@ class ImportanceSampler:
 
         if self.dummied:
             # gotta do the appropriate number of MPI calls, but don't want to actually compute anything
-            fx, psi1 = self.drift(coords)
-            fx, psi1 = self.drift(coords)
+            if self.derivs is None:
+                psi1 = self.psi_calc(coords)
+            else:
+                psi1 = None
+                der = self.derivs[0](coords)
+            if self.derivs is None:
+                psi1 = self.psi_calc(coords)
+            else:
+                psi1 = None
+                der = self.derivs[0](coords)
         else:
             fx, psi1 = self.drift(coords)
             sigma = self.sigmas

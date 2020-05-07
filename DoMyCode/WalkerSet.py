@@ -57,6 +57,14 @@ class WalkerSet:
         self._parents = self.coords.copy()
         self._parent_weights = self.weights.copy()
 
+    def __repr__(self):
+        return "{}(num_walkers={}, atoms={}, time_step={})".format(
+            type(self).__name__,
+            self.num_walkers,
+            self.atoms,
+            self.deltaT
+        )
+
     @classmethod
     def from_file(cls, file, **opts):
         npz = np.load(file)

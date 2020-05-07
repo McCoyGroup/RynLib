@@ -22,10 +22,13 @@ class Potential:
                  name = None,
                  potential_source = None,
 
+                 #Call Validation Options
+
+
                  #Template Options
                  wrap_potential = None,
                  function_name=None,
-                 raw_array_potential=False,
+                 raw_array_potential=None,
                  arguments=(),
                  potential_directory = None,
                  static_source = False,
@@ -45,6 +48,7 @@ class Potential:
                  cleanup_build=True,
                  python_potential=False,
                  pointer_name=None,
+                 fortran_potential=False,
 
                  #Caller Options
                  bad_walker_file="bad_walkers.txt",
@@ -126,16 +130,22 @@ class Potential:
                     potential_source=pot_src,
                     function_name=function_name,
                     raw_array_potential=raw_array_potential,
+                    fortran_potential=fortran_potential,
                     arguments=arguments,
                     static_source=static_source,
                     extra_functions=extra_functions
                 ).apply(potential_directory)
-
         self.src = src
+
+        if potential_directory is None:
+            from ..Interface import RynLib
+            potential_directory = RynLib.potential_directory()
+        main_path = os.path.join(potential_directory, name) # I can't remember why I thought we'd want anything else...?
 
         self.loader = PotentialLoader(
             name,
             src,
+            load_path=[main_path, src],
             src_ext=src_ext,
             description=description,
             version=verion,
@@ -157,7 +167,8 @@ class Potential:
             mpi_manager=mpi_manager,
             raw_array_potential=raw_array_potential,
             vectorized_potential=vectorized_potential,
-            error_value=error_value
+            error_value=error_value,
+            fortran_potential=fortran_potential
         )
     def __repr__(self):
         return "Potential('{}', function={}, atoms={}, args={})".format(

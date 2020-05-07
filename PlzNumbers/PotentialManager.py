@@ -185,18 +185,20 @@ class PotentialManager:
                            testAtoms,
                            *extra_args,
                            walkers_per_core=8,
-                           displacement_radius=.5,
+                           time_step=1,
+                           # displacement_radius=.5,
                            iterations=5,
                            steps_per_call=5,
                            print_walkers=False
                            ):
         import numpy as np, time
         from ..Dumpi import MPIManager, MPIManagerObject
+        from ..DoMyCode import WalkerSet
 
         mpi_manager = MPIManager()
 
         if mpi_manager is None:
-            raise ImportError("MPI isn't installed. Use `container config install_mpi` first.")
+            raise ImportError("MPI isn't active?")
 
         mpi = mpi_manager  # type: MPIManagerObject
 
@@ -204,37 +206,32 @@ class PotentialManager:
         # set up MPI
         #
         who_am_i = mpi.world_rank
-        num_cores = mpi.world_size
-        num_walkers_per_core = walkers_per_core
-        if who_am_i == 0:
-            num_walkers = num_cores * num_walkers_per_core
-        else:
-            num_walkers = num_walkers_per_core
+        w = WalkerSet(
+            atoms=testAtoms,
+            initial_walker=testWalker,
+            mpi_manager=mpi_manager,
+            walkers_per_core=walkers_per_core
+        )
+        w.initialize(time_step)
 
         if who_am_i == 0:
-            print("Number of processors / walkers: {} / {}".format(num_cores, num_walkers))
+            print("MPIManager: {}".format(mpi))
+            print("Walkers: {}".format(w))
 
         #
         # randomly permute things
         #
-        testWalkersss = np.array([testWalker] * num_walkers).astype(float)
-        testWalkersss += np.random.uniform(
-            low=-displacement_radius,
-            high=displacement_radius,
-            size=testWalkersss.shape
-        )
+        testWalkersss = w.get_displaced_coords(steps_per_call)
         test_iterations = iterations
         test_results = np.zeros((test_iterations,))
         lets_get_going = time.time()
         nsteps = steps_per_call
-        # we compute the same walker for each of the nsteps, but that's okay -- gives a nice clean test that everything went right
-        testWalkersss = np.ascontiguousarray(np.broadcast_to(testWalkersss, (nsteps,) + testWalkersss.shape))
 
         #
         # run tests
         #
         potential.mpi_manager = mpi_manager
-        test_results_for_real = np.zeros((test_iterations, nsteps, num_walkers))
+        test_results_for_real = np.zeros((test_iterations, nsteps, w.num_walkers))
         for ttt in range(1):#test_iterations):
             t0 = time.time()
             # call the potential
@@ -274,7 +271,7 @@ class PotentialManager:
             print("Total time: {}s (over {} iterations)".format(gotta_go_fast, test_iterations))
             print("Average total: {}s Average time per walker: {}s".format(
                 np.average(test_results),
-                np.average(test_results) / num_walkers / nsteps)
+                np.average(test_results) / w.num_walkers / nsteps)
             )
             mpi_manager.finalize_MPI()
         return test_results

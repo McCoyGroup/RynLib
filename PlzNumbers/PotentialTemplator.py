@@ -143,16 +143,8 @@ class PotentialFunction:
         )
 
     old_style_block = """
-            // Copy data into a single array
-            int nels = coords.size() * coords[0].size();
-            std::vector<Real_t> long_vec (nels);
-            nels = 0;
-            std::vector<Real_t> sub_vec;
-            for (unsigned long v=0; v<coords.size(); v++) {
-                sub_vec = coords[v];
-                long_vec.insert(long_vec.end(), sub_vec.begin(), sub_vec.end());
-            }
-            RawWalkerBuffer raw_coords = long_vec.data();
+            // Get data as raw array
+            RawWalkerBuffer raw_coords = coords.data();
         
             std::string long_atoms;
             for (unsigned long v=0; v<atoms.size(); v++) {
@@ -164,7 +156,7 @@ class PotentialFunction:
     def get_wrapper(self):
         return """
         {return_type} {lib}_{name}(
-            Coordinates coords,
+            {coords_type} coords,
             Names atoms,
             ExtraBools extra_bools,
             ExtraInts extra_ints,
@@ -184,6 +176,7 @@ class PotentialFunction:
         """.format(
             lib = self.lib_name,
             name = self.name,
+            coords_type="Coordinates" if not self.old_style else "FlatCoordinates",
             return_type = self.return_type,
             load_bools = self.get_extra_args_call(bool),
             load_ints=self.get_extra_args_call(int),
@@ -196,7 +189,7 @@ class PotentialFunction:
     def get_declaration(self):
         return """
         {return_type} {lib}_{name}(
-            const Coordinates,
+            const {coords_type},
             const Names,
             const ExtraBools,
             const ExtraInts,
@@ -204,6 +197,7 @@ class PotentialFunction:
             );
         {return_type} {declaration};""".format(
             return_type=self.return_type,
+            coords_type="Coordinates" if not self.old_style else "FlatCoordinates",
             lib=self.lib_name,
             name=self.name,
             declaration=self.get_potential_declaration()
@@ -230,7 +224,8 @@ class PotentialTemplate(TemplateWriter):
                  arguments = (),
                  linked_libs = None,
                  static_source = False,
-                 extra_functions = ()
+                 extra_functions = (),
+                 fortran_potential = False
                  ):
         """
 

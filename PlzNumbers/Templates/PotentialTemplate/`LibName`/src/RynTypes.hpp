@@ -12,6 +12,7 @@ typedef std::vector<Real_t> Point;
 typedef Point PotentialVector;
 typedef Point Weights;
 typedef std::vector< Point > Coordinates;
+typedef Point FlatCoordinates;
 typedef Coordinates PotentialArray;
 typedef std::vector< Coordinates > Configurations;
 typedef std::string Name;
@@ -22,7 +23,15 @@ typedef std::vector<int> ExtraInts;
 typedef std::vector<Real_t> ExtraFloats;
 
 typedef Real_t (*PotentialFunction)(
-        const Coordinates, const Names,
+        const Coordinates,
+        const Names,
+        const ExtraBools,
+        const ExtraInts,
+        const ExtraFloats
+);
+typedef Real_t (*FlatPotentialFunction)(
+        const FlatCoordinates,
+        const Names,
         const ExtraBools,
         const ExtraInts,
         const ExtraFloats

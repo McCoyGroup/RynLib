@@ -86,6 +86,44 @@ double _doopAPot(
 
     return pot;
 };
+double _doopAPot(
+        FlatCoordinates &walker_coords,
+        Names &atoms,
+        FlatPotentialFunction pot_func,
+        std::string &bad_walkers_file,
+        double err_val,
+        ExtraBools &extra_bools,
+        ExtraInts &extra_ints,
+        ExtraFloats &extra_floats,
+        int retries = 3
+) {
+    double pot;
+
+
+    try {
+        signal(SIGSEGV, _sigsevHandler);
+        signal(SIGILL, _sigillHandler);
+        pot = pot_func(walker_coords, atoms, extra_bools, extra_ints, extra_floats);
+
+    } catch (std::exception &e) {
+        if (retries > 0){
+            return _doopAPot(
+                    walker_coords, atoms, pot_func, bad_walkers_file, err_val,
+                    extra_bools, extra_ints, extra_floats,
+                    retries-1
+            );
+        } else {
+//            _printOutWalkerStuff(
+//                    walker_coords,
+//                    bad_walkers_file,
+//                    e.what()
+//            );
+            pot = err_val;
+        }
+    }
+
+    return pot;
+};
 
 
 inline int ind2d(int i, int j, int n, int m) {
@@ -106,6 +144,17 @@ Coordinates _getWalkerCoords(const double* raw_data, int i, Py_ssize_t num_atoms
     };
     return walker_coords;
 }
+FlatCoordinates _getWalkerFlatCoords(const double* raw_data, int i, Py_ssize_t num_atoms) {
+    FlatCoordinates walker_coords (num_atoms*3);
+    for (int j = 0; j<num_atoms; j++) {
+        for (int k = 0; k<3; k++) {
+            double crd = raw_data[int3d(i, j, k, num_atoms, 3)];
+//            printf("...%f\n", crd);
+            walker_coords[ind2d(j, k, num_atoms, 3)] = crd;
+        }
+    };
+    return walker_coords;
+}
 
 inline int int4d(int i, int j, int k, int a, int n, int m, int l, int o) {
     return (m*l*o) * i + (l*o*j) + o*k + a;
@@ -122,6 +171,15 @@ Coordinates _getWalkerCoords2(const double* raw_data, int n, int i, int ncalls, 
     };
     return walker_coords;
 }
+FlatCoordinates _getWalkerFlatCoords2(const double* raw_data, int n, int i, int ncalls, int num_walkers, Py_ssize_t num_atoms) {
+    FlatCoordinates walker_coords(num_atoms*3);
+    for (int j = 0; j<num_atoms; j++) {
+        for (int k = 0; k<3; k++) {
+            walker_coords[ind2d(j, k, num_atoms, 3)] = raw_data[int4d(n, i, j, k, ncalls, num_walkers, num_atoms, 3)];
+        }
+    };
+    return walker_coords;
+}
 
 // This is the first of a set of methods written so as to _directly_ communicate with the potential and things
 // based off of a set of current geometries and the atom names.
@@ -129,23 +187,15 @@ Coordinates _getWalkerCoords2(const double* raw_data, int n, int i, int ncalls, 
 // its own walker(s) directly and compute energies and all that without needing to be directed to by the main core
 // it'll propagate and compute on its own and only take updates from the parent when it needs to
 
-PotentialArray _mpiGetPot(
+RawWalkerBuffer _scatterWalkers(
         PyObject* manager,
-        PotentialFunction pot,
         RawWalkerBuffer raw_data,
-        Names &atoms,
         int ncalls,
         Py_ssize_t num_walkers,
         Py_ssize_t num_atoms,
-        PyObject* bad_walkers_file,
-        double err_val,
-        bool vectorized_potential,
-        ExtraBools &extra_bools,
-        ExtraInts &extra_ints,
-        ExtraFloats &extra_floats,
-        bool use_openMP
-) {
-
+        int& world_rank,
+        int& walkers_to_core
+        ) {
     //
     // The way this works is that we start with an array of data that looks like (ncalls, num_walkers, *walker_shape)
     // Then we have m cores such that num_walkers_per_core = num_walkers / m
@@ -159,7 +209,7 @@ PotentialArray _mpiGetPot(
     int world_size = _FromInt(ws);
     Py_XDECREF(ws);
     PyObject* wr = PyObject_GetAttrString(manager, "world_rank");
-    int world_rank = _FromInt(wr);
+    world_rank = _FromInt(wr);
     Py_XDECREF(wr);
 
     // we're gonna assume the former is divisible by the latter on world_rank == 0
@@ -172,7 +222,7 @@ PotentialArray _mpiGetPot(
 
     // create a buffer for the walkers to be fed into MPI
     int walker_cnum = num_atoms*3;
-    int walkers_to_core = ncalls * num_walkers_per_core;
+    walkers_to_core = ncalls * num_walkers_per_core;
 
     RawWalkerBuffer walker_buf = (RawWalkerBuffer) malloc(walkers_to_core * walker_cnum * sizeof(Real_t));
 
@@ -188,83 +238,17 @@ PotentialArray _mpiGetPot(
     );
     Py_XDECREF(scatter);
 
-    // Allocate a coordinate array to pull data into
-//    Coordinates walker_coords (num_atoms, Point(3));
+    return walker_buf;
+}
 
-    // Do the same with the potentials
-    // walkers_to_core is the number of calls * the number of walkers per core
-    // We initialize a _single_ potential vector to handle all of this junk because the data is coming out of python
-    // as a single vector
-
-    // The annoying thing is that the buffer is oriented like:
-    //   [
-    //      walker_0(t=0), walker_0(t=1), ... walker_0(t=n),
-    //      walker_1(t=0), walker_1(t=1), ... walker_1(t=n),
-    //      ...,
-    //      walker_m(t=0), walker_m(t=1), ... walker_m(t=n)
-    //   ]
-    // Each chunk looks like:
-    //   [
-    //      walker_i(t=0), walker_i(t=1), ... walker_i(t=n),
-    //      ...,
-    //      walker_(i+k)(t=0), walker_(i+k)(t=1), ... walker_(i+k)(t=n)
-    //   ]
-
-    PotentialVector pots(walkers_to_core, 0);
-    PyObject* pyStr = NULL;
-    std::string bad_file = _GetPyString(bad_walkers_file, pyStr);
-    Py_XDECREF(pyStr);
-
-    if (use_openMP) {
-        #ifdef _OPENMP
-        #pragma omp parallel \
-          shared (raw_data, atoms, pot, bad_file)
-        #pragma omp for
-        #endif
-        for (int i = 0; i < walkers_to_core; i++) {
-            // Some amount of wasteful copying but ah well
-            Coordinates walker_coords = _getWalkerCoords(walker_buf, i, num_atoms);
-            Real_t pot_val = _doopAPot(
-                    walker_coords,
-                    atoms,
-                    pot,
-                    bad_file,
-                    err_val,
-                    extra_bools,
-                    extra_ints,
-                    extra_floats
-            );
-            #ifdef _OPENMP
-            #pragma omp critical
-            #endif
-            pots[i] = pot_val;
-        }
-    } else {
-        for (int i = 0; i < walkers_to_core; i++) {
-            // Some amount of wasteful copying but ah well
-            Coordinates walker_coords = _getWalkerCoords(walker_buf, i, num_atoms);
-            Real_t pot_val = _doopAPot(
-                    walker_coords,
-                    atoms,
-                    pot,
-                    bad_file,
-                    err_val,
-                    extra_bools,
-                    extra_ints,
-                    extra_floats
-            );
-            pots[i] = pot_val;
-        }
-    }
-    //   [
-    //      pot_i(t=0), pot_i(t=1), ... pot_i(t=n),
-    //      ...,
-    //      pot_(i+k)(t=0), pot_(i+k)(t=1), ... pot_(i+k)(t=n)
-    //   ]
-
-    // we don't work with the walker data anymore?
-    free(walker_buf);
-
+PotentialArray _gatherPotentials(
+        PyObject* manager,
+        int world_rank,
+        int ncalls,
+        RawPotentialBuffer pot_data,
+        Py_ssize_t num_walkers,
+        int& walkers_to_core
+        ) {
     // receive buffer -- needs to be the number of walkers total in the system,
     // so we take the number of walkers and multiply it into the number of calls we make
     RawPotentialBuffer pot_buf = NULL;
@@ -275,12 +259,11 @@ PotentialArray _mpiGetPot(
     GatherFunction gather_walkers = (GatherFunction) PyCapsule_GetPointer(gather, "Dumpi._GATHER_WALKERS");
     gather_walkers(
             manager,
-            pots.data(),
+            pot_data,
             walkers_to_core, // number of walkers fed in
             pot_buf // buffer to get the potential values back
     );
     Py_XDECREF(gather);
-
 
     // convert double* to std::vector<double>
     // We currently have:
@@ -304,7 +287,274 @@ PotentialArray _mpiGetPot(
     }
 
     return potVals;
+}
 
+Real_t _getPotFlat(
+        RawWalkerBuffer walker_buf,
+        int n, int ncalls, int i, int num_walkers,
+        Py_ssize_t num_atoms,
+        Names &atoms,
+        FlatPotentialFunction pot,
+        std::string bad_file,
+        double err_val,
+        ExtraBools& extra_bools,
+        ExtraInts& extra_ints,
+        ExtraFloats& extra_floats
+        ) {
+
+    FlatCoordinates walker_coords;
+    if (ncalls == -1) {
+        walker_coords = _getWalkerFlatCoords(walker_buf, i, num_atoms);
+    } else {
+        walker_coords = _getWalkerFlatCoords2(walker_buf, n, i, ncalls, num_walkers, num_atoms);
+    }
+
+    return _doopAPot(
+            walker_coords,
+            atoms,
+            pot,
+            bad_file,
+            err_val,
+            extra_bools,
+            extra_ints,
+            extra_floats
+    );
+}
+Real_t _getPot(
+        RawWalkerBuffer walker_buf,
+        int n, int ncalls, int i, int num_walkers,
+        Py_ssize_t num_atoms,
+        Names& atoms,
+        PotentialFunction pot,
+        std::string bad_file,
+        double err_val,
+        ExtraBools& extra_bools,
+        ExtraInts& extra_ints,
+        ExtraFloats& extra_floats
+) {
+    Coordinates walker_coords;
+    if (ncalls == -1) {
+        walker_coords = _getWalkerCoords(walker_buf, i, num_atoms);
+    } else {
+        walker_coords = _getWalkerCoords2(walker_buf, n, i, ncalls, num_walkers, num_atoms);
+    }
+    return _doopAPot(
+            walker_coords,
+            atoms,
+            pot,
+            bad_file,
+            err_val,
+            extra_bools,
+            extra_ints,
+            extra_floats
+    );
+}
+
+PotentialArray _getLoopyPot(
+        RawWalkerBuffer walker_buf,
+        int ncalls, int walkers_to_core,
+        Names &atoms,
+        int num_atoms,
+        PotentialFunction pot,
+        ExtraBools& extra_bools, ExtraInts& extra_ints, ExtraFloats& extra_floats,
+        Real_t err_val, PyObject* bad_walkers_file,
+        bool use_openMP
+        ) {
+
+    int ncalls_loop;
+    if (ncalls > 0) {
+        ncalls_loop = ncalls;
+    } else {
+        ncalls_loop = 1;
+    }
+
+    PotentialArray pots(ncalls_loop, PotentialVector(walkers_to_core, 0));
+    PyObject* pyStr = NULL;
+    std::string bad_file = _GetPyString(bad_walkers_file, pyStr);
+
+    Py_XDECREF(pyStr);
+    if (use_openMP) {
+        #ifdef _OPENMP
+                #pragma omp parallel \
+                  shared (walker_buf, atoms, pot, bad_file)
+                #pragma omp for
+        #endif
+        for (int n=0; n < ncalls_loop; n++) {
+            for (int i = 0; i < walkers_to_core; i++) {
+                // Some amount of wasteful copying but ah well
+                Real_t pot_val = _getPot(
+                        walker_buf,
+                        n, ncalls, i, walkers_to_core,
+                        num_atoms, atoms,
+                        pot,
+                        bad_file, err_val,
+                        extra_bools, extra_ints, extra_floats
+                );
+                #ifdef _OPENMP
+                #pragma omp critical
+                #endif
+                pots[n][i] = pot_val;
+            }
+        }
+    } else {
+        for (int n=0; n < ncalls_loop; n++) {
+            for (int i = 0; i < walkers_to_core; i++) {
+                // Some amount of wasteful copying but ah well
+                Real_t pot_val = _getPot(
+                        walker_buf,
+                        n, ncalls, i, walkers_to_core,
+                        num_atoms, atoms,
+                        pot,
+                        bad_file, err_val,
+                        extra_bools, extra_ints, extra_floats
+                );
+                pots[n][i] = pot_val;
+            }
+        }
+    }
+
+    return pots;
+}
+PotentialArray _getLoopyPotFlat(
+        RawWalkerBuffer walker_buf,
+        int ncalls, int walkers_to_core,
+        Names &atoms,
+        int num_atoms,
+        FlatPotentialFunction pot,
+        ExtraBools& extra_bools, ExtraInts& extra_ints, ExtraFloats& extra_floats,
+        Real_t err_val, PyObject* bad_walkers_file,
+        bool use_openMP
+) {
+    int ncalls_loop;
+    if (ncalls > 0) {
+        ncalls_loop = ncalls;
+    } else {
+        ncalls_loop = 1;
+    }
+
+    PotentialArray pots(ncalls_loop, PotentialVector(walkers_to_core, 0));
+    PyObject* pyStr = NULL;
+    std::string bad_file = _GetPyString(bad_walkers_file, pyStr);
+
+    Py_XDECREF(pyStr);
+    if (use_openMP) {
+        #ifdef _OPENMP
+        #pragma omp parallel \
+                  shared (walker_buf, atoms, pot, bad_file)
+        #pragma omp for
+        #endif
+        for (int n=0; n < ncalls_loop; n++) {
+            for (int i = 0; i < walkers_to_core; i++) {
+                // Some amount of wasteful copying but ah well
+                Real_t pot_val = _getPotFlat(
+                        walker_buf,
+                        n, ncalls, i, walkers_to_core,
+                        num_atoms, atoms,
+                        pot,
+                        bad_file, err_val,
+                        extra_bools, extra_ints, extra_floats
+                );
+                #ifdef _OPENMP
+                #pragma omp critical
+                #endif
+                pots[n][i] = pot_val;
+            }
+        }
+    } else {
+        for (int n=0; n < ncalls_loop; n++) {
+            for (int i = 0; i < walkers_to_core; i++) {
+                // Some amount of wasteful copying but ah well
+                Real_t pot_val = _getPotFlat(
+                        walker_buf,
+                        n, ncalls, i, walkers_to_core,
+                        num_atoms, atoms,
+                        pot,
+                        bad_file, err_val,
+                        extra_bools, extra_ints, extra_floats
+                );
+                pots[n][i] = pot_val;
+            }
+        }
+    }
+
+    return pots;
+}
+
+// There are two flavors of this function which only differ in how they pass the coordinate data through to the
+// potential, i.e. for PotentialFunction and FlatPotentialFunction
+PotentialArray _mpiGetPot(
+        PyObject* manager,
+        PotentialFunction pot,
+        RawWalkerBuffer raw_data,
+        Names &atoms,
+        int ncalls,
+        Py_ssize_t num_walkers,
+        Py_ssize_t num_atoms,
+        PyObject* bad_walkers_file,
+        double err_val,
+        ExtraBools &extra_bools,
+        ExtraInts &extra_ints,
+        ExtraFloats &extra_floats,
+        bool use_openMP
+) {
+    int walkers_to_core, world_rank;
+    RawWalkerBuffer walker_buf = _scatterWalkers(manager, raw_data, ncalls, num_walkers, num_atoms, world_rank, walkers_to_core);
+
+    PotentialArray pots = _getLoopyPot(
+            walker_buf, -1, walkers_to_core,
+            atoms, num_atoms,
+            pot,
+            extra_bools, extra_ints, extra_floats,
+            err_val, bad_walkers_file, use_openMP
+            );
+
+    free(walker_buf);
+    PotentialArray potVals = _gatherPotentials(
+            manager,
+            world_rank,
+            ncalls,
+            pots[0].data(),
+            num_walkers,
+            walkers_to_core
+    );
+    return potVals;
+}
+PotentialArray _mpiGetPot(
+        PyObject* manager,
+        FlatPotentialFunction pot,
+        RawWalkerBuffer raw_data,
+        Names &atoms,
+        int ncalls,
+        Py_ssize_t num_walkers,
+        Py_ssize_t num_atoms,
+        PyObject* bad_walkers_file,
+        double err_val,
+        ExtraBools &extra_bools,
+        ExtraInts &extra_ints,
+        ExtraFloats &extra_floats,
+        bool use_openMP
+) {
+    int walkers_to_core, world_rank;
+    RawWalkerBuffer walker_buf = _scatterWalkers(manager, raw_data, ncalls, num_walkers, num_atoms, world_rank, walkers_to_core);
+
+    PotentialArray pots = _getLoopyPotFlat(
+            walker_buf, -1, walkers_to_core,
+            atoms, num_atoms,
+            pot,
+            extra_bools, extra_ints, extra_floats,
+            err_val, bad_walkers_file, use_openMP
+    );
+
+    free(walker_buf);
+    PotentialArray potVals = _gatherPotentials(
+            manager,
+            world_rank,
+            ncalls,
+            pots[0].data(),
+            num_walkers,
+            walkers_to_core
+    );
+    return potVals;
 }
 
 PotentialArray _noMPIGetPot(
@@ -316,62 +566,45 @@ PotentialArray _noMPIGetPot(
         Py_ssize_t num_atoms,
         PyObject* bad_walkers_file,
         double err_val,
-        bool vectorized_potential,
         ExtraBools &extra_bools,
         ExtraInts &extra_ints,
         ExtraFloats &extra_floats,
         bool use_openMP
 ) {
     // currently I have nothing to manage an independently vectorized potential but maybe someday I will
-    PotentialArray potVals(num_walkers, PotentialVector(ncalls, 0));
-    PyObject* pyStr = NULL;
-    std::string bad_file = _GetPyString(bad_walkers_file, pyStr);
-    Py_XDECREF(pyStr);
+    PotentialArray potVals = _getLoopyPot(
+            raw_data, ncalls, num_walkers,
+            atoms, num_atoms,
+            pot,
+            extra_bools, extra_ints, extra_floats,
+            err_val, bad_walkers_file, use_openMP
+    );
 
-    if (use_openMP) {
-        #ifdef _OPENMP
-            #pragma omp parallel \
-                        shared (raw_data, atoms, potVals, pot, bad_file)
-            #pragma omp for
-        #endif
-        for (int n = 0; n < ncalls; n++) {
-            for (int i = 0; i < num_walkers; i++) {
-                Coordinates walker_coords = _getWalkerCoords2(raw_data, n, i, ncalls, num_walkers, num_atoms);
-                Real_t pot_val = _doopAPot(
-                        walker_coords,
-                        atoms,
-                        pot,
-                        bad_file,
-                        err_val,
-                        extra_bools,
-                        extra_ints,
-                        extra_floats
-                );
-                #ifdef _OPENMP
-                #pragma omp critical
-                #endif
-                potVals[i][n] = pot_val;
-            }
-        }
-    } else {
-        for (int n = 0; n < ncalls; n++) {
-            for (int i = 0; i < num_walkers; i++) {
-                Coordinates walker_coords = _getWalkerCoords2(raw_data, n, i, ncalls, num_walkers, num_atoms);
-                Real_t pot_val = _doopAPot(
-                        walker_coords,
-                        atoms,
-                        pot,
-                        bad_file,
-                        err_val,
-                        extra_bools,
-                        extra_ints,
-                        extra_floats
-                );
-                potVals[i][n] = pot_val;
-            }
-        }
+    return potVals;
 
-    }
+}
+PotentialArray _noMPIGetPot(
+        FlatPotentialFunction pot,
+        double* raw_data,
+        Names &atoms,
+        int ncalls,
+        Py_ssize_t num_walkers,
+        Py_ssize_t num_atoms,
+        PyObject* bad_walkers_file,
+        double err_val,
+        ExtraBools &extra_bools,
+        ExtraInts &extra_ints,
+        ExtraFloats &extra_floats,
+        bool use_openMP
+) {
+    // currently I have nothing to manage an independently vectorized potential but maybe someday I will
+    PotentialArray potVals = _getLoopyPotFlat(
+            raw_data, ncalls, num_walkers,
+            atoms, num_atoms,
+            pot,
+            extra_bools, extra_ints, extra_floats,
+            err_val, bad_walkers_file, use_openMP
+    );
 
     return potVals;
 
@@ -388,59 +621,8 @@ PyObject* _mpiGetPyPot(
         Py_ssize_t num_atoms
 ) {
 
-    // UP UNTIL THE POTENTIAL CALL THIS IS THE SAME AS mpiGetPot
-
-    //
-    // The way this works is that we start with an array of data that looks like (ncalls, num_walkers, *walker_shape)
-    // Then we have m cores such that num_walkers_per_core = num_walkers / m
-    //
-    // We pass these in to MPI and allow them to get distributed out as blocks of ncalls * num_walkers_per_core walkers
-    // to a given core, which calculates the potential over all of them and then returns that
-    //
-    // At the end we have a potential array that is m * (ncalls * num_walkers_per_core) walkers and we need to make this
-    // back into the clean (ncalls, num_walkers) array we expect in the end
-    PyObject* ws = PyObject_GetAttrString(manager, "world_size");
-    int world_size = _FromInt(ws);
-    Py_XDECREF(ws);
-    PyObject* wr = PyObject_GetAttrString(manager, "world_rank");
-    int world_rank = _FromInt(wr);
-    Py_XDECREF(wr);
-
-    // we're gonna assume the former is divisible by the latter on world_rank == 0
-    // and that it's just plain `num_walkers` on every other world_rank
-    int num_walkers_per_core = (num_walkers / world_size);
-    if (world_rank > 0) {
-        // means we're only feeding in num_walkers because we're not on world_rank == 0
-        num_walkers_per_core = num_walkers;
-    }
-
-    // create a buffer for the walkers to be fed into MPI
-    int walker_cnum = num_atoms*3;
-    int walkers_to_core = ncalls * num_walkers_per_core;
-
-    RawWalkerBuffer walker_buf = (RawWalkerBuffer) malloc(walkers_to_core * walker_cnum * sizeof(Real_t));
-
-//    PyObject* dumpi = PyImport_ImportModule("Dumpi");
-
-    // Scatter data buffer to processors
-    PyObject* scatter = PyObject_GetAttrString(manager, "scatter");
-    ScatterFunction scatter_walkers = (ScatterFunction) PyCapsule_GetPointer(scatter, "Dumpi._SCATTER_WALKERS");
-    if (scatter_walkers == NULL) {
-        PyErr_SetString(PyExc_AttributeError, "Couldn't get scatter pointer");
-        return NULL;
-    };
-    if (scatter_walkers(
-            manager,
-            raw_data,  // raw data buffer to chunk up
-            walkers_to_core,
-            walker_cnum, // three coordinates per atom per num_atoms per walker
-            walker_buf // raw array to write into
-    ) == -1) {
-        return NULL;
-    }
-    Py_XDECREF(scatter);
-
-//    printf("filling walkers array...\n");
+    int walkers_to_core, world_rank;
+    RawWalkerBuffer walker_buf = _scatterWalkers(manager, raw_data, ncalls, num_walkers, num_atoms, world_rank, walkers_to_core);
 
     // We can just take the buffer and directly turn it into a NumPy array
     PyObject* walkers = _fillWalkersNumPyArray(walker_buf, walkers_to_core, num_atoms);
@@ -466,19 +648,11 @@ PyObject* _mpiGetPyPot(
     RawPotentialBuffer pots = _GetDoubleDataArray(pot_vals);
 
 //    Py_XDECREF(args);
-    Py_XDECREF(walkers);
-
-    //   [
-    //      pot_i(t=0), pot_i(t=1), ... pot_i(t=n),
-    //      ...,
-    //      pot_(i+k)(t=0), pot_(i+k)(t=1), ... pot_(i+k)(t=n)
-    //   ]
 
     // we don't work with the walker data at this point
     free(walker_buf);
+    Py_XDECREF(walkers);
 
-    // receive buffer -- needs to be the number of walkers total in the system,
-    // so we take the number of walkers and multiply it into the number of calls we make
     RawPotentialBuffer pot_buf = NULL;
     PyObject *potVals = NULL;
     if ( world_rank == 0) {

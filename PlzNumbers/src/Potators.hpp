@@ -19,9 +19,21 @@ double _doopAPot(
         ExtraFloats &extra_floats,
         int retries = 3
         );
+double _doopAPot(
+        FlatCoordinates &walker_coords,
+        Names &atoms,
+        FlatPotentialFunction pot_func,
+        std::string &bad_walkers_file,
+        double err_val,
+        ExtraBools &extra_bools,
+        ExtraInts &extra_ints,
+        ExtraFloats &extra_floats,
+        int retries = 3
+);
 
 inline int ind2d(int i, int j, int n, int m);
 inline int int3d(int i, int j, int k, int m, int l);
+FlatCoordinates _getWalkerFlatCoords(const double* raw_data, int i, Py_ssize_t num_atoms);
 Coordinates _getWalkerCoords(const double* raw_data, int i, Py_ssize_t num_atoms);
 
 inline int int4d(int i, int j, int k, int a, int n, int m, int l, int o);
@@ -37,12 +49,26 @@ PotentialArray _mpiGetPot(
         Py_ssize_t num_atoms,
         PyObject* bad_walkers_file,
         double err_val,
-        bool vectorized_potential,
         ExtraBools &extra_bools,
         ExtraInts &extra_ints,
         ExtraFloats &extra_floats,
         bool use_openMP
         );
+PotentialArray _mpiGetPot(
+        PyObject* manager,
+        FlatPotentialFunction pot,
+        RawWalkerBuffer raw_data,
+        Names &atoms,
+        int ncalls,
+        Py_ssize_t num_walkers,
+        Py_ssize_t num_atoms,
+        PyObject* bad_walkers_file,
+        double err_val,
+        ExtraBools &extra_bools,
+        ExtraInts &extra_ints,
+        ExtraFloats &extra_floats,
+        bool use_openMP
+);
 
 PotentialArray _noMPIGetPot(
         PotentialFunction pot,
@@ -53,12 +79,25 @@ PotentialArray _noMPIGetPot(
         Py_ssize_t num_atoms,
         PyObject* bad_walkers_file,
         double err_val,
-        bool vectorized_potential,
         ExtraBools &extra_bools,
         ExtraInts &extra_ints,
         ExtraFloats &extra_floats,
         bool use_openMP
         );
+PotentialArray _noMPIGetPot(
+        FlatPotentialFunction pot,
+        double* raw_data,
+        Names &atoms,
+        int ncalls,
+        Py_ssize_t num_walkers,
+        Py_ssize_t num_atoms,
+        PyObject* bad_walkers_file,
+        double err_val,
+        ExtraBools &extra_bools,
+        ExtraInts &extra_ints,
+        ExtraFloats &extra_floats,
+        bool use_openMP
+);
 
 PyObject* _mpiGetPyPot(
         PyObject* manager,

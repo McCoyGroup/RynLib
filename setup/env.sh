@@ -131,13 +131,14 @@ function rynlib_update_singularity() {
 
 function rynlib_update_shifter() {
   local img="$RYNLIB_IMAGE";
+
   if [[ "$img" = "" ]]; then
     img="$RYNLIB_SHIFTER_IMAGE:latest";
   fi
 
   rynlib_git_update;
 
-  shifterimg pull img;
+  shifterimg pull $img;
   };
 
 RYNLIB_OPT_PATTERN=":eV:";
@@ -316,10 +317,9 @@ function rynlib() {
   local img="$RYNLIB_IMAGE";
   local cmd;
 
-  if [[ -x "shifter" ]]; then
+  if [[ -x "/usr/bin/shifter" ]]; then
     cmd="rynlib_shifter"
   fi
-
 
   if [[ "$img" == "*.sif" ]]; then
     if [[ "$cmd" == "" ]]; then

@@ -1,7 +1,3 @@
-//
-// Created by Mark Boyer on 1/31/20.
-//
-
 #include "`LibName`.hpp"
 #include "RynTypes.hpp"
 
