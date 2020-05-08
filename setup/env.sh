@@ -8,6 +8,9 @@
 #RYNLIB_CONIFG_PATH=""
 #RYNLIB_IMAGE=""
 
+# This was introduced literally just to make it possible to use ifort -_-
+#RYNLIB_EXTENSION_PATH=""
+
 # These three are probably never going to be changed, unless we want to change something about how
 #  we're distributing the image
 RYNLIB_IMAGE_NAME="rynimg"
@@ -147,6 +150,7 @@ RYNLIB_OPT_PATTERN=":eV:";
 function rynlib_shifter() {
 
     local entos="$RYNLIB_ENTOS_PATH";
+    local ext="$RYNLIB_EXTENSION_PATH";
     local config="$RYNLIB_CONFIG_PATH";
     local img="$RYNLIB_IMAGE";
     local vols="";
@@ -189,6 +193,9 @@ function rynlib_shifter() {
     if [[ -d "$entos" ]]; then
       vols="$vols;$entos:/entos";
     fi
+    if [[ -d "$ext" ]]; then
+      vols="$vols;$ext:/ext";
+    fi
 
     if [[ "$do_echo" = "" ]]; then
       shifter --volume=$vols --image=$img python3.7 /home/RynLib/CLI.py $@
@@ -201,6 +208,7 @@ function rynlib_shifter() {
 function rynlib_singularity() {
 
     local entos="$RYNLIB_ENTOS_PATH";
+    local ext="$RYNLIB_EXTENSION_PATH";
     local config="$RYNLIB_CONFIG_PATH";
     local img="$RYNLIB_IMAGE";
     local vols="";
@@ -243,6 +251,9 @@ function rynlib_singularity() {
     if [[ -d "$entos" ]]; then
       vols="$vols,$entos:/entos";
     fi
+    if [[ -d "$ext" ]]; then
+      vols="$vols,$ext:/ext";
+    fi
 
     if [[ "$do_echo" == "" ]]; then
       singularity run --bind $vols $img $@
@@ -255,6 +266,7 @@ function rynlib_singularity() {
 function rynlib_docker() {
 
     local entos="$RYNLIB_ENTOS_PATH";
+    local ext="$RYNLIB_EXTENSION_PATH";
     local config="$RYNLIB_CONFIG_PATH";
     local img="$RYNLIB_IMAGE";
     local vols="";
@@ -305,6 +317,9 @@ function rynlib_docker() {
 
     if [[ -d "$entos" ]]; then
       vols="$vols --mount type=bind,source=$entos,target=/entos";
+    fi
+    if [[ -d "$ext" ]]; then
+      vols="$vols --mount type=bind,source=$ext,target=/ext";
     fi
 
     if [[ "$do_echo" == "" ]]; then

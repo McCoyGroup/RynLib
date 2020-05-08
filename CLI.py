@@ -156,11 +156,11 @@ class CLI:
         """
         RynLib.configure_mpi()
 
-    def config_test_mpi(self):
-        """
-        Tests that MPI/Dumpi can initialize cleanly
-        """
-        RynLib.test_mpi()
+    # def config_test_mpi(self):
+    #     """
+    #     Tests that MPI/Dumpi can initialize cleanly
+    #     """
+    #     RynLib.test_mpi()
 
     # def config_update_testing_framework(self):
     #     RynLib.update_testing_framework()
@@ -312,16 +312,16 @@ class CLI:
     def pot_test(self):
         """Tests a generic potential. Args: NAME"""
         parse_dict = self.get_parse_dict(
-            ("name",)
-            # ("--in", dict(default="", type=str, dest='input_file'))
+            ("name",),
+            ("--input", dict(default="", type=str, dest='input_file'))
         )
         PotentialInterface.test_potential(**parse_dict)
 
     def pot_test_mpi(self):
         """Tests a generic potential under MPI. Args: NAME"""
         parse_dict = self.get_parse_dict(
-            ("name",)
-            # ("--in", dict(default="", type=str, dest='input_file'))
+            ("name",),
+            ("--input", dict(default="", type=str, dest='input_file'))
         )
         PotentialInterface.test_potential_mpi(**parse_dict)
 

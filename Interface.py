@@ -220,7 +220,7 @@ class PotentialInterface:
     @classmethod
     def test_potential(self, name=None, input_file=None):
         print("Testing Potential: {}".format(name))
-        print("Energies: {}".format(PotentialManager().test_potential(name), input_file=input_file))
+        print("Energies: {}".format(PotentialManager().test_potential(name, input_file=input_file)))
 
     @classmethod
     def test_potential_mpi(self, name=None, input_file=None, **opts):

@@ -6,6 +6,10 @@ FROM 1dc062781ea3
 
 RUN rm -rf /home/RynLib
 ADD . /home/RynLib
+
+ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/ext/lib
+ENV PATH=$PATH:/ext/bin
+
 RUN mkdir -p /tests
 
 RUN python3 /home/RynLib/CLI.py config build-libs --rebuild=True

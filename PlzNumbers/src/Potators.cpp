@@ -1,6 +1,7 @@
 
 #include "RynTypes.hpp"
 #include "PyAllUp.hpp"
+#include "Potators.hpp"
 #include <csignal>
 #include <iostream>
 
@@ -55,7 +56,7 @@ double _doopAPot(
         ExtraBools &extra_bools,
         ExtraInts &extra_ints,
         ExtraFloats &extra_floats,
-        int retries = 3
+        int retries
         ) {
     double pot;
 
@@ -95,12 +96,13 @@ double _doopAPot(
         ExtraBools &extra_bools,
         ExtraInts &extra_ints,
         ExtraFloats &extra_floats,
-        int retries = 3
+        int retries
 ) {
     double pot;
 
 
     try {
+
         signal(SIGSEGV, _sigsevHandler);
         signal(SIGILL, _sigillHandler);
         pot = pot_func(walker_coords, atoms, extra_bools, extra_ints, extra_floats);
@@ -375,11 +377,13 @@ PotentialArray _getLoopyPot(
     Py_XDECREF(pyStr);
     if (use_openMP) {
         #ifdef _OPENMP
-                #pragma omp parallel \
-                  shared (walker_buf, atoms, pot, bad_file)
-                #pragma omp for
+        #pragma omp parallel \
+          shared (walker_buf, atoms, pot, bad_file)
         #endif
         for (int n=0; n < ncalls_loop; n++) {
+            #ifdef _OPENMP
+            #pragma omp for
+            #endif
             for (int i = 0; i < walkers_to_core; i++) {
                 // Some amount of wasteful copying but ah well
                 Real_t pot_val = _getPot(
@@ -435,17 +439,22 @@ PotentialArray _getLoopyPotFlat(
     PotentialArray pots(ncalls_loop, PotentialVector(walkers_to_core, 0));
     PyObject* pyStr = NULL;
     std::string bad_file = _GetPyString(bad_walkers_file, pyStr);
-
     Py_XDECREF(pyStr);
+
     if (use_openMP) {
+        // shared (walker_buf, atoms, pot, bad_file)
         #ifdef _OPENMP
-        #pragma omp parallel \
-                  shared (walker_buf, atoms, pot, bad_file)
-        #pragma omp for
+        #pragma omp parallel shared (walker_buf, atoms, pot, bad_file)
+        {
+//            printf("using %d threads on thread %d...\n", omp_get_num_threads(), omp_get_thread_num());
         #endif
         for (int n=0; n < ncalls_loop; n++) {
+//            Names my_atoms = atoms; // trying to see if this allows OpenMP to thread better...
+//            printf("Atom ptr %p new ptr %p...\n", &atoms, &my_atoms);
+            #ifdef _OPENMP
+            #pragma omp for
+            #endif
             for (int i = 0; i < walkers_to_core; i++) {
-                // Some amount of wasteful copying but ah well
                 Real_t pot_val = _getPotFlat(
                         walker_buf,
                         n, ncalls, i, walkers_to_core,
@@ -460,6 +469,9 @@ PotentialArray _getLoopyPotFlat(
                 pots[n][i] = pot_val;
             }
         }
+    #ifdef _OPENMP
+        }
+    #endif
     } else {
         for (int n=0; n < ncalls_loop; n++) {
             for (int i = 0; i < walkers_to_core; i++) {

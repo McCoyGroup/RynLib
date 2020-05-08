@@ -164,7 +164,11 @@ class PotentialManager:
 
             atoms = atoms if atoms is not None else cfig["atoms"]
 
-            for k in ('walkers_per_core', 'displacement_radius', 'iterations', 'steps_per_call', 'print_walkers'):
+            for k in (
+                    'walkers_per_core', 'displacement_radius',
+                    'iterations', 'steps_per_call', 'print_walkers',
+                    'random_seed', 'copy_geometry'
+            ):
                 if k not in opts:
                     try:
                         v = cfig[k]
@@ -179,33 +183,38 @@ class PotentialManager:
                 pot.clean_up()
             os.chdir(curdir)
 
-    def _test_potential_mpi(cls,
-                           potential,
-                           testWalker,
-                           testAtoms,
-                           *extra_args,
-                           walkers_per_core=8,
-                           time_step=1,
-                           # displacement_radius=.5,
-                           iterations=5,
-                           steps_per_call=5,
-                           print_walkers=False
-                           ):
+    def _test_potential_mpi(
+                cls,
+                potential,
+                testWalker,
+                testAtoms,
+                *extra_args,
+                walkers_per_core=8,
+                time_step=1,
+                # displacement_radius=.5,
+                iterations=1,
+                steps_per_call=5,
+                print_walkers=False,
+                random_seed=None,
+                copy_geometry=False
+                ):
         import numpy as np, time
         from ..Dumpi import MPIManager, MPIManagerObject
         from ..DoMyCode import WalkerSet
 
         mpi_manager = MPIManager()
 
-        if mpi_manager is None:
-            raise ImportError("MPI isn't active?")
+        # if mpi_manager is None:
+        #     raise ImportError("MPI isn't active?")
 
         mpi = mpi_manager  # type: MPIManagerObject
 
         #
         # set up MPI
         #
-        who_am_i = mpi.world_rank
+        if random_seed is not None:
+            np.random.seed(random_seed)
+        who_am_i = mpi.world_rank if mpi is not None else 0
         w = WalkerSet(
             atoms=testAtoms,
             initial_walker=testWalker,
@@ -221,7 +230,10 @@ class PotentialManager:
         #
         # randomly permute things
         #
-        testWalkersss = w.get_displaced_coords(steps_per_call)
+        if copy_geometry:
+            testWalkersss = np.broadcast_to(w.coords, (steps_per_call,) + w.coords.shape)
+        else:
+            testWalkersss = w.get_displaced_coords(steps_per_call)
         test_iterations = iterations
         test_results = np.zeros((test_iterations,))
         lets_get_going = time.time()
@@ -232,7 +244,7 @@ class PotentialManager:
         #
         potential.mpi_manager = mpi_manager
         test_results_for_real = np.zeros((test_iterations, nsteps, w.num_walkers))
-        for ttt in range(1):#test_iterations):
+        for ttt in range(test_iterations):
             t0 = time.time()
             # call the potential
             # print(testAtoms)
@@ -265,7 +277,7 @@ class PotentialManager:
                 )
             else:
                 print(
-                    "Got back result with shape {}\n  and first element {}".format(test_result.shape, test_result[0]),
+                    "Got back result with shape {}\n and mean energy {}".format(test_result.shape, np.average(test_result)),
                     sep="\n"
                 )
             print("Total time: {}s (over {} iterations)".format(gotta_go_fast, test_iterations))
