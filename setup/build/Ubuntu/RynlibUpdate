@@ -1,0 +1,18 @@
+
+# Since we're updating, we build off the existing image
+
+#FROM rynimg
+FROM rynimg-old-build
+
+RUN rm -rf /home/RynLib
+ADD . /home/RynLib
+
+ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/ext/lib
+ENV PATH=$PATH:/ext/bin
+
+RUN mkdir -p /tests
+
+RUN python3 /home/RynLib/CLI.py config build-libs --rebuild=True
+#RUN python3 /home/RynLib/CLI.py config run-tests --debug=True
+
+WORKDIR /home

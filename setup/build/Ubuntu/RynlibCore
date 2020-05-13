@@ -44,7 +44,8 @@ ARG ITR=2020.0-166
 ARG IRS=2020.0.166
 RUN \
   echo deb https://apt.repos.intel.com/tbb all main > /etc/apt/sources.list.d/intel-tbb.list &&\
-  apt-get update && apt-get -y install intel-tbb-devel-$ITR
+  apt-get update && apt-get -y install intel-tbb-devel-$ITR && \
+  apt-get -y install intel-tbb-$ITR
 RUN \
   echo deb https://apt.repos.intel.com/mkl all main > /etc/apt/sources.list.d/intel-mkl.list &&\
   apt-get update && apt-get -y install intel-mkl-tbb-$ITR

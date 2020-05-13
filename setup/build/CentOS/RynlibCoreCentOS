@@ -9,7 +9,8 @@ FROM nvidia/cuda:10.1-devel-centos7
 RUN \
     yum install -y \
         python2 \
-        python3 &&\
+        python3 \
+        wget &&\
     rm -rf /var/cache/yum/*
 
 # GNU compiler runtime
@@ -44,6 +45,23 @@ RUN \
         hwloc \
         openssh-clients &&\
     rm -rf /var/cache/yum/*
+
+# Intel Components (really want TBB, but the other stuff is coming along for the ride)
+# https://software.intel.com/content/www/us/en/develop/articles/installing-intel-free-libs-and-python-yum-repo.html
+ARG ITR=2020.0-088
+ARG IRS=2020.0.088
+RUN \
+  yum-config-manager --add-repo https://yum.repos.intel.com/mkl/setup/intel-mkl.repo &&\
+  yum-config-manager --add-repo https://yum.repos.intel.com/tbb/setup/intel-tbb.repo &&\
+  rpm --import https://yum.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS-2019.PUB
+RUN \
+  yum install -y intel-mkl-$ITR &&\
+  yum install -y intel-tbb-$ITR &&\
+  rm -rf /var/cache/yum/*
+
+
+ENV BASH_ENV=/etc/bash.bashrc
+ENV MKL_THREADING_LAYER=TBB
 
 # RynLib
 RUN \

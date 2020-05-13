@@ -1,0 +1,30 @@
+
+# We've changed up the build process. Now we never build on top of Entos and instead we link that in at runtime.
+
+FROM rynlibcore
+
+#
+#   RYNLIB:
+#       Defines how to load RynLib inside the Dockerized environment
+#       This chunk can easily be a publicly available thing
+#
+
+#RyAN AND MARK HAFVE FUN TOGETHER
+
+ADD . /home/RynLib
+
+RUN mkdir -p /tests
+
+ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/ext/lib
+ENV PATH=$PATH:/ext/bin
+
+RUN \
+  git clone https://github.com/McCoyGroup/Peeves /home/Peeves
+
+RUN python3 /home/RynLib/CLI.py config install-mpi --version=3.1.4 --imp=ompi
+RUN python3 /home/RynLib/CLI.py config build-libs --rebuild=True
+# RUN python3 /home/RynLib/CLI.py config run-tests
+
+WORKDIR /home
+
+ENTRYPOINT ["python3", "/home/RynLib/CLI.py"]

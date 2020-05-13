@@ -44,6 +44,7 @@ Coordinates _getWalkerCoords2(const double* raw_data, int n, int i, int ncalls, 
 PotentialArray _mpiGetPot(
         PyObject* manager,
         PotentialFunction pot,
+        FlatPotentialFunction flat_pot,
         RawWalkerBuffer raw_data,
         Names &atoms,
         int ncalls,
@@ -54,26 +55,13 @@ PotentialArray _mpiGetPot(
         ExtraBools &extra_bools,
         ExtraInts &extra_ints,
         ExtraFloats &extra_floats,
-        bool use_openMP
+        bool use_openMP,
+        bool use_TBB
         );
-PotentialArray _mpiGetPot(
-        PyObject* manager,
-        FlatPotentialFunction pot,
-        RawWalkerBuffer raw_data,
-        Names &atoms,
-        int ncalls,
-        Py_ssize_t num_walkers,
-        Py_ssize_t num_atoms,
-        PyObject* bad_walkers_file,
-        double err_val,
-        ExtraBools &extra_bools,
-        ExtraInts &extra_ints,
-        ExtraFloats &extra_floats,
-        bool use_openMP
-);
 
 PotentialArray _noMPIGetPot(
         PotentialFunction pot,
+        FlatPotentialFunction flat_pot,
         double* raw_data,
         Names &atoms,
         int ncalls,
@@ -84,22 +72,9 @@ PotentialArray _noMPIGetPot(
         ExtraBools &extra_bools,
         ExtraInts &extra_ints,
         ExtraFloats &extra_floats,
-        bool use_openMP
+        bool use_openMP,
+        bool use_TBB
         );
-PotentialArray _noMPIGetPot(
-        FlatPotentialFunction pot,
-        double* raw_data,
-        Names &atoms,
-        int ncalls,
-        Py_ssize_t num_walkers,
-        Py_ssize_t num_atoms,
-        PyObject* bad_walkers_file,
-        double err_val,
-        ExtraBools &extra_bools,
-        ExtraInts &extra_ints,
-        ExtraFloats &extra_floats,
-        bool use_openMP
-);
 
 PyObject* _mpiGetPyPot(
         PyObject* manager,

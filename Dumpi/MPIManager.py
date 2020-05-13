@@ -22,8 +22,16 @@ class MPIManagerObject:
     _lib = None
 
     def __init__(self, hybrid_parallelization = None):
+        from ..Interface import RynLib
+        parallel_threads=RynLib.flags["OpenMPThreads"]
+        if not parallel_threads:
+            parallel_threads = RynLib.flags["TBBThreads"]
+        if parallel_threads is True:
+            parallel_threads = mp.cpu_count()
+        self.parallel_threads = parallel_threads
         self._hybrid_parallelization = hybrid_parallelization
         self.init_MPI()
+
 
     @classmethod
     def _load_lib(cls):
@@ -41,10 +49,11 @@ class MPIManagerObject:
         return loader.load()
 
     def __repr__(self):
-        return "{}(rank={}, world_size={}, hybrid={}, hybrid_world_size={})".format(
+        return "{}(rank={}, world_size={}, threads={}, hybrid={}, hybrid_world_size={})".format(
             type(self).__name__,
             self.world_rank,
             self.world_size,
+            self.parallel_threads,
             self.hybrid_parallelization,
             self.hybrid_world_size
         )
@@ -68,16 +77,8 @@ class MPIManagerObject:
             #world_size is smaller than the number of cores on a given node
             # or not divisible
             world_size = self.world_size
-            cores_per_node = mp.cpu_count()
+            cores_per_node = self.parallel_threads
             hybrid = world_size < cores_per_node or (world_size % cores_per_node != 0)
-            # if hybrid:
-            #     # means we need to see how many "nodes" we've got
-            #     cf = RynLib.get_conf()
-            #     try:
-            #         arch_min_processors = cf.min_processors
-            #     except AttributeError:
-            #         node = platform.node()
-            #         if
             self._hybrid_parallelization = hybrid
         return self._hybrid_parallelization
 
@@ -90,7 +91,7 @@ class MPIManagerObject:
     def cpu_world_size(self):
         # if hybrid parallelization, we return the CPUs, otherwise 1
         if self.hybrid_parallelization:
-            per_core = mp.cpu_count()
+            per_core = self.parallel_threads
         else:
             per_core = 1
         return per_core
@@ -189,11 +190,14 @@ class MPIManagerLoader:
 
         if not self._manager_initialized:
             self._manager_initialized = True
-            use_MP = (RynLib.flags["OpenMP"] or RynLib.flags["multiprocessing"])
-            if not use_MP:
-                hybrid_parallelization = False
-            else:
+
+            hybrid_parallelization = False
+            threaded_true = (RynLib.flags["OpenMPThreads"] is True or RynLib.flags["TBBThreads"] is True)
+            if threaded_true or RynLib.flags["multiprocessing"]:
                 hybrid_parallelization = None
+            elif RynLib.flags["OpenMPThreads"] or RynLib.flags["TBBThreads"]:
+                hybrid_parallelization = True
+
             self.manager = MPIManagerObject(hybrid_parallelization=hybrid_parallelization)
             try:
                 self.manager.init_MPI()

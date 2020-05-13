@@ -40,10 +40,22 @@ class PotentialCaller:
 
     @classmethod
     def load_lib(cls):
+        IRS_Ubuntu='2020.0.166'# needs to be synced with Dockerfile
+        TBB_Ubutu='/opt/intel/compilers_and_libraries_{IRS}/linux/tbb/'.format(IRS=IRS_Ubuntu)
+        IRS_CentOS = '2020.0.88'  # needs to be synced with Dockerfile
+        TBB_CentOS='/opt/intel/compilers_and_libraries_{IRS}/linux/tbb/'.format(IRS=IRS_CentOS)
         loader = CLoader("PlzNumbers",
                          os.path.dirname(os.path.abspath(__file__)),
-                         extra_compile_args=["-fopenmp"],
+                         extra_compile_args=["-fopenmp", '-std=c++11'],
                          extra_link_args=["-fopenmp"],
+                         include_dirs=[
+                             os.path.join(TBB_Ubutu, "include"),
+                             os.path.join(TBB_Ubutu, "lib", "intel64", "gcc4.8")
+                         ],
+                         runtime_dirs=[
+                             os.path.join(TBB_Ubutu, "lib", "intel64", "gcc4.8")
+                         ],
+                         linked_libs=['tbb'],
                          source_files=["PlzNumbers.cpp", "Potators.cpp", "PyAllUp.cpp"]
                 )
         return loader.load()
@@ -312,9 +324,12 @@ class PotentialCaller:
                 poots = poots.transpose()
         else:
             from ..Interface import RynLib
-            hp = RynLib.flags['OpenMP']
-            if hp and (self.mpi_manager is not None):
-                hp = self.mpi_manager.hybrid_parallelization
+            omp = RynLib.flags['OpenMPThreads']
+            tbb = RynLib.flags['TBBThreads']
+            if omp and (self.mpi_manager is not None):
+                omp = self.mpi_manager.hybrid_parallelization
+            if tbb and (self.mpi_manager is not None):
+                tbb = self.mpi_manager.hybrid_parallelization
             walker = walker.transpose((1, 0, 2, 3))
             if self.fortran_potential:
                 walker = walker.transpose((0, 1, 3, 2))
@@ -329,7 +344,8 @@ class PotentialCaller:
                 bool(self.raw_array_potential),
                 bool(self.vectorized_potential),
                 self.mpi_manager,
-                bool(hp)
+                bool(omp),
+                bool(tbb)
             )
             if poots is not None:
                 poots = poots.transpose()

@@ -2,7 +2,7 @@
 # Since we're updating, we build off the existing image
 
 #FROM rynimg
-FROM 1dc062781ea3
+FROM rynimg-ompi-old-build
 
 RUN rm -rf /home/RynLib
 ADD . /home/RynLib

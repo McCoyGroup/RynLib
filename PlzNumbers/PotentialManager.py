@@ -28,39 +28,44 @@ class PotentialManager:
                       test = None,
                       **opts
                       ):
-        self.manager.add_config(name, config_file = config_file, **opts)
-        cf =self.manager.load_config(name)
+        self.manager.add_config(name, config_file=config_file, **opts)
         try:
-            static_source = cf.static_source
-        except (KeyError, AttributeError):
-            static_source = False
-        try:
-            python_potential = cf.python_potential
-        except (KeyError, AttributeError):
-            python_potential = False
+            cf =self.manager.load_config(name)
+            try:
+                static_source = cf.static_source
+            except (KeyError, AttributeError):
+                static_source = False
+            try:
+                python_potential = cf.python_potential
+            except (KeyError, AttributeError):
+                python_potential = False
 
-        if test is not None:
-            shutil.copyfile(test, os.path.join(self.manager.config_loc(name), "test.py"))
+            if test is not None:
+                shutil.copyfile(test, os.path.join(self.manager.config_loc(name), "test.py"))
 
-        if data is not None:
-            data_src = os.path.join(self.manager.config_loc(name), os.path.basename(data))
-            shutil.copytree(data, data_src)
+            if data is not None:
+                data_src = os.path.join(self.manager.config_loc(name), os.path.basename(data))
+                shutil.copytree(data, data_src)
 
-        if not static_source:
-            if python_potential:
-                base_dir = self.manager.config_loc(name)
+            if not static_source:
+                if python_potential:
+                    base_dir = self.manager.config_loc(name)
+                else:
+                    base_dir = os.path.join(self.manager.config_loc(name), "raw_source")
+                new_src = os.path.join(base_dir, os.path.basename(src))
+                if not os.path.isdir(base_dir):
+                    os.makedirs(base_dir)
+                if os.path.isdir(src):
+                    shutil.copytree(src, new_src)
+                else:
+                    shutil.copyfile(src, new_src)
+                self.manager.edit_config(name, name=name, potential_source=new_src, static_source=False)
             else:
-                base_dir = os.path.join(self.manager.config_loc(name), "raw_source")
-            new_src = os.path.join(base_dir, os.path.basename(src))
-            if not os.path.isdir(base_dir):
-                os.makedirs(base_dir)
-            if os.path.isdir(src):
-                shutil.copytree(src, new_src)
-            else:
-                shutil.copyfile(src, new_src)
-            self.manager.edit_config(name, name=name, potential_source=new_src, static_source=False)
-        else:
-            self.manager.edit_config(name, name=name, potential_source=src, static_source=True)
+                self.manager.edit_config(name, name=name, potential_source=src, static_source=True)
+        except:
+            if name in self.list_potentials():
+                self.remove_potential(name)
+            raise
 
     def potential_config(self, name):
         self.check_potential(name)
@@ -84,6 +89,29 @@ class PotentialManager:
     def potential_compiled(self, name):
         import glob
         return len(glob.glob(os.path.join(self.manager.config_loc(name), "*.so")))>0
+
+    def import_potential(self, name, src, format='zip'):
+        import tempfile as tf
+
+        if os.path.exists(self.manager.config_loc(name)):
+            raise IOError("A potential with name '{}' already exists".format(name))
+        with tf.TemporaryDirectory as tmp_dir:
+            shutil.unpack_archive(src, format, tmp_dir)
+            extract_dir = os.path.join(tmp_dir, name)
+            if not os.path.exists(extract_dir):
+                raise IOError("Directory '{}' wasn't in '{}".format(name, src))
+            os.rename(extract_dir, os.path.dirname(self.manager.config_loc(name)))
+    def export_potential(self, name, dest, format='zip'):
+        import tempfile as tf
+
+        if os.path.exists(dest):
+            raise IOError("Can't export to '{}', path exists".format(dest))
+
+        self.check_potential(name)
+        with tf.TemporaryDirectory as tmp_dir:
+            src = os.path.dirname(self.manager.config_loc(name))
+            arch = shutil.make_archive(src, format, tmp_dir)
+            os.rename(arch, dest)
 
     def test_potential(self, name, input_file=None,
                        coordinates = None,

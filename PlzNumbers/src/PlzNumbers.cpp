@@ -126,11 +126,11 @@ PyObject *PlzNumbers_callPotVec( PyObject* self, PyObject* args ) {
     double err_val;
     int raw_array_pot, vectorized_potential;
     PyObject* manager;
-    int use_openMP;
+    int use_openMP, use_TBB;
 
     if ( !PyArg_ParseTuple(
             args,
-            "OOOOOdppOp",
+            "OOOOOdppOpp",
             &coords,
             &atoms,
             &pot_function,
@@ -140,7 +140,8 @@ PyObject *PlzNumbers_callPotVec( PyObject* self, PyObject* args ) {
             &raw_array_pot,
             &vectorized_potential,
             &manager,
-            &use_openMP
+            &use_openMP,
+            &use_TBB
             )
     ) return NULL;
 
@@ -185,78 +186,53 @@ PyObject *PlzNumbers_callPotVec( PyObject* self, PyObject* args ) {
 
     // We can tell if MPI is active or not by whether COMM is None or not
     PotentialArray pot_vals;
+    FlatPotentialFunction flat_pot;
+    PotentialFunction pot;
+    if (raw_array_pot) {
+        pot = NULL;
+        flat_pot = (FlatPotentialFunction) PyCapsule_GetPointer(pot_function, "_potential");
+    } else {
+        flat_pot = NULL;
+        pot = (PotentialFunction) PyCapsule_GetPointer(pot_function, "_potential");
+    }
 
     if (manager==Py_None) {
-        if (raw_array_pot) {
-            FlatPotentialFunction pot = (FlatPotentialFunction) PyCapsule_GetPointer(pot_function, "_potential");
-            pot_vals = _noMPIGetPot(
-                    pot,
-                    raw_data,
-                    mattsAtoms,
-                    ncalls,
-                    num_walkers,
-                    num_atoms,
-                    bad_walkers_file,
-                    err_val,
-                    extra_bools,
-                    extra_ints,
-                    extra_floats,
-                    use_openMP
-            );
-        } else {
-            PotentialFunction pot = (PotentialFunction) PyCapsule_GetPointer(pot_function, "_potential");
-            pot_vals = _noMPIGetPot(
-                    pot,
-                    raw_data,
-                    mattsAtoms,
-                    ncalls,
-                    num_walkers,
-                    num_atoms,
-                    bad_walkers_file,
-                    err_val,
-                    extra_bools,
-                    extra_ints,
-                    extra_floats,
-                    use_openMP
-            );
-        }
+        pot_vals = _noMPIGetPot(
+                pot,
+                flat_pot,
+                raw_data,
+                mattsAtoms,
+                ncalls,
+                num_walkers,
+                num_atoms,
+                bad_walkers_file,
+                err_val,
+                extra_bools,
+                extra_ints,
+                extra_floats,
+                use_openMP,
+                use_TBB
+        );
     } else {
-        if (raw_array_pot) {
-            FlatPotentialFunction pot = (FlatPotentialFunction) PyCapsule_GetPointer(pot_function, "_potential");
-            pot_vals = _mpiGetPot(
-                    manager,
-                    pot,
-                    raw_data,
-                    mattsAtoms,
-                    ncalls,
-                    num_walkers,
-                    num_atoms,
-                    bad_walkers_file,
-                    err_val,
-                    extra_bools,
-                    extra_ints,
-                    extra_floats,
-                    use_openMP
-            );
-        } else {
-            PotentialFunction pot = (PotentialFunction) PyCapsule_GetPointer(pot_function, "_potential");
-            pot_vals = _mpiGetPot(
-                    manager,
-                    pot,
-                    raw_data,
-                    mattsAtoms,
-                    ncalls,
-                    num_walkers,
-                    num_atoms,
-                    bad_walkers_file,
-                    err_val,
-                    extra_bools,
-                    extra_ints,
-                    extra_floats,
-                    use_openMP
-            );
-        }
+        pot_vals = _mpiGetPot(
+                manager,
+                pot,
+                flat_pot,
+                raw_data,
+                mattsAtoms,
+                ncalls,
+                num_walkers,
+                num_atoms,
+                bad_walkers_file,
+                err_val,
+                extra_bools,
+                extra_ints,
+                extra_floats,
+                use_openMP,
+                use_TBB
+        );
     }
+
     bool main_core = true;
     if ( manager != Py_None ){
         PyObject *rank = PyObject_GetAttrString(manager, "world_rank");

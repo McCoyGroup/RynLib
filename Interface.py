@@ -173,8 +173,12 @@ class PotentialInterface:
         print("Removed potential {}".format(name))
 
     @classmethod
-    def export_potential(cls, name=None, path=None):
-        PotentialManager().export_potential(name, path)
+    def import_potential(cls, name=None, src=None):
+        PotentialManager().import_potential(name, src)
+
+    @classmethod
+    def export_potential(cls, name=None, dest=None):
+        PotentialManager().export_potential(name, dest)
 
     @classmethod
     def compile_potential(self, name=None):
@@ -237,7 +241,8 @@ class RynLib:
 
     flags = dict(
         multiprocessing = False,
-        OpenMP = True
+        OpenMPThreads = True,
+        TBBThreads = False
     )
 
     @classmethod

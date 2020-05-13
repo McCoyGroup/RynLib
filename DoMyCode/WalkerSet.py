@@ -22,9 +22,11 @@ class WalkerSet:
         if num_walkers is None:
             if mpi_manager is None:
                 from ..Interface import RynLib
-                if RynLib.flags["OpenMP"] or RynLib.flags["multiprocessing"]:
+                if RynLib.flags["OpenMPThreads"] is True or RynLib.flags["multiprocessing"]:
                     import multiprocessing as mp
                     world_size = mp.cpu_count()
+                elif RynLib.flags["OpenMPThreads"]:
+                    world_size = RynLib.flags["OpenMPThreads"]
                 else:
                     world_size = 1
                 # raise TypeError("MPIManager is None (meaning MPI isn't configured) but 'num_walkers' not passed")
@@ -46,8 +48,8 @@ class WalkerSet:
         initial_walker = np.asarray(initial_walker)
         if len(initial_walker.shape) == 2:
             initial_walker = np.array([ initial_walker ] * num_walkers)
-        else: # should add some logic for handling stuff differently in the MPI world_rank > 0 case...
-            self.num_walkers = len(initial_walker)
+        elif len(initial_walker) > num_walkers or len(initial_walker) < num_walkers:
+               initial_walker = np.random.choice(initial_walker, num_walkers)
 
         self.coords = np.asarray(initial_walker)
         self.weights = np.ones(num_walkers)

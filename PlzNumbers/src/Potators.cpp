@@ -4,6 +4,9 @@
 #include "Potators.hpp"
 #include <csignal>
 #include <iostream>
+#include "tbb/parallel_for.h"
+#include "wchar.h"
+using namespace tbb;
 
 void _printOutWalkerStuff(
     Coordinates walker_coords,
@@ -352,188 +355,175 @@ Real_t _getPot(
     );
 }
 
-PotentialArray _getLoopyPot(
-        RawWalkerBuffer walker_buf,
-        int ncalls, int walkers_to_core,
-        Names &atoms,
-        int num_atoms,
-        PotentialFunction pot,
-        ExtraBools& extra_bools, ExtraInts& extra_ints, ExtraFloats& extra_floats,
-        Real_t err_val, PyObject* bad_walkers_file,
-        bool use_openMP
-        ) {
-
+class PotentialCaller {
+    RawWalkerBuffer walker_buf;
+    int ncalls;
+    int walkers_to_core;
+    Names &atoms;
+    int num_atoms;
+    PotentialFunction pot;
+    FlatPotentialFunction flat_pot;
+    ExtraBools& extra_bools;
+    ExtraInts& extra_ints;
+    ExtraFloats& extra_floats;
+    Real_t err_val;
+    std::string bad_file;
+    bool use_openMP;
+    bool use_TBB;
+    bool flat_mode;
     int ncalls_loop;
-    if (ncalls > 0) {
-        ncalls_loop = ncalls;
-    } else {
-        ncalls_loop = 1;
+    PotentialArray pots;
+    int _n_current;
+    RawPotentialBuffer cur_data;
+
+    public:
+
+    PotentialCaller(
+            RawWalkerBuffer arg_walker_buf,
+            int arg_ncalls,
+            int arg_walkers_to_core,
+            Names &arg_atoms,
+            int arg_num_atoms,
+            PotentialFunction arg_pot,
+            FlatPotentialFunction arg_flat_pot,
+            ExtraBools& arg_extra_bools,
+            ExtraInts& arg_extra_ints,
+            ExtraFloats& arg_extra_floats,
+            Real_t arg_err_val,
+            PyObject* bad_walkers_file,
+            bool arg_use_openMP,
+            bool arg_use_TBB
+            ) :
+            walker_buf(arg_walker_buf),
+            ncalls(arg_ncalls),
+            walkers_to_core(arg_walkers_to_core),
+            atoms(arg_atoms),
+            num_atoms(arg_num_atoms),
+            pot(arg_pot),
+            flat_pot(arg_flat_pot),
+            extra_bools(arg_extra_bools),
+            extra_ints(arg_extra_ints),
+            extra_floats(arg_extra_floats),
+            err_val(arg_err_val),
+            use_openMP(arg_use_openMP),
+            use_TBB(arg_use_TBB)
+    {
+        PyObject *pyStr = NULL;
+        bad_file = _GetPyString(bad_walkers_file, pyStr);
+        Py_XDECREF(pyStr);
+        if (pot == NULL) {
+            flat_mode = true;
+        } else {
+            flat_mode = false;
+        }
+        if (ncalls > 0) {
+            ncalls_loop = ncalls;
+        } else {
+            ncalls_loop = 1;
+        }
+        pots = PotentialArray(ncalls_loop, PotentialVector(walkers_to_core, 0));
+        cur_data = NULL;
+        _n_current = -1;
     }
 
-    PotentialArray pots(ncalls_loop, PotentialVector(walkers_to_core, 0));
-    PyObject* pyStr = NULL;
-    std::string bad_file = _GetPyString(bad_walkers_file, pyStr);
-
-    Py_XDECREF(pyStr);
-    if (use_openMP) {
-        #ifdef _OPENMP
-        #pragma omp parallel \
-          shared (walker_buf, atoms, pot, bad_file)
-        #endif
-        for (int n=0; n < ncalls_loop; n++) {
-            #ifdef _OPENMP
-            #pragma omp for
-            #endif
-            for (int i = 0; i < walkers_to_core; i++) {
-                // Some amount of wasteful copying but ah well
-                Real_t pot_val = _getPot(
-                        walker_buf,
-                        n, ncalls, i, walkers_to_core,
-                        num_atoms, atoms,
-                        pot,
-                        bad_file, err_val,
-                        extra_bools, extra_ints, extra_floats
-                );
-                #ifdef _OPENMP
-                #pragma omp critical
-                #endif
-                pots[n][i] = pot_val;
-            }
-        }
-    } else {
-        for (int n=0; n < ncalls_loop; n++) {
-            for (int i = 0; i < walkers_to_core; i++) {
-                // Some amount of wasteful copying but ah well
-                Real_t pot_val = _getPot(
-                        walker_buf,
-                        n, ncalls, i, walkers_to_core,
-                        num_atoms, atoms,
-                        pot,
-                        bad_file, err_val,
-                        extra_bools, extra_ints, extra_floats
-                );
-                pots[n][i] = pot_val;
-            }
-        }
-    }
-
-    return pots;
-}
-PotentialArray _getLoopyPotFlat(
-        RawWalkerBuffer walker_buf,
-        int ncalls, int walkers_to_core,
-        Names &atoms,
-        int num_atoms,
-        FlatPotentialFunction pot,
-        ExtraBools& extra_bools, ExtraInts& extra_ints, ExtraFloats& extra_floats,
-        Real_t err_val, PyObject* bad_walkers_file,
-        bool use_openMP
-) {
-    int ncalls_loop;
-    if (ncalls > 0) {
-        ncalls_loop = ncalls;
-    } else {
-        ncalls_loop = 1;
-    }
-
-    PotentialArray pots(ncalls_loop, PotentialVector(walkers_to_core, 0));
-    PyObject* pyStr = NULL;
-    std::string bad_file = _GetPyString(bad_walkers_file, pyStr);
-    Py_XDECREF(pyStr);
-
-    if (use_openMP) {
-        // shared (walker_buf, atoms, pot, bad_file)
-        #ifdef _OPENMP
-        #pragma omp parallel shared (walker_buf, atoms, pot, bad_file)
-        {
-//            printf("using %d threads on thread %d...\n", omp_get_num_threads(), omp_get_thread_num());
-        #endif
-        for (int n=0; n < ncalls_loop; n++) {
-//            Names my_atoms = atoms; // trying to see if this allows OpenMP to thread better...
-//            printf("Atom ptr %p new ptr %p...\n", &atoms, &my_atoms);
-            #ifdef _OPENMP
-            #pragma omp for
-            #endif
-            for (int i = 0; i < walkers_to_core; i++) {
-                Real_t pot_val = _getPotFlat(
-                        walker_buf,
-                        n, ncalls, i, walkers_to_core,
-                        num_atoms, atoms,
-                        pot,
-                        bad_file, err_val,
-                        extra_bools, extra_ints, extra_floats
-                );
-                #ifdef _OPENMP
-                #pragma omp critical
-                #endif
-                pots[n][i] = pot_val;
-            }
-        }
-    #ifdef _OPENMP
-        }
-    #endif
-    } else {
-        for (int n=0; n < ncalls_loop; n++) {
-            for (int i = 0; i < walkers_to_core; i++) {
-                // Some amount of wasteful copying but ah well
-                Real_t pot_val = _getPotFlat(
-                        walker_buf,
-                        n, ncalls, i, walkers_to_core,
-                        num_atoms, atoms,
-                        pot,
-                        bad_file, err_val,
-                        extra_bools, extra_ints, extra_floats
-                );
-                pots[n][i] = pot_val;
-            }
-        }
-    }
-
-    return pots;
-}
-
-// There are two flavors of this function which only differ in how they pass the coordinate data through to the
-// potential, i.e. for PotentialFunction and FlatPotentialFunction
-PotentialArray _mpiGetPot(
-        PyObject* manager,
-        PotentialFunction pot,
-        RawWalkerBuffer raw_data,
-        Names &atoms,
-        int ncalls,
-        Py_ssize_t num_walkers,
-        Py_ssize_t num_atoms,
-        PyObject* bad_walkers_file,
-        double err_val,
-        ExtraBools &extra_bools,
-        ExtraInts &extra_ints,
-        ExtraFloats &extra_floats,
-        bool use_openMP
-) {
-    int walkers_to_core, world_rank;
-    RawWalkerBuffer walker_buf = _scatterWalkers(manager, raw_data, ncalls, num_walkers, num_atoms, world_rank, walkers_to_core);
-
-    PotentialArray pots = _getLoopyPot(
-            walker_buf, -1, walkers_to_core,
-            atoms, num_atoms,
-            pot,
-            extra_bools, extra_ints, extra_floats,
-            err_val, bad_walkers_file, use_openMP
+    Real_t eval_pot(int n, int i) const {
+        Real_t pot_val;
+        if (flat_mode) {
+            pot_val = _getPotFlat(
+                    walker_buf,
+                    n, ncalls, i, walkers_to_core,
+                    num_atoms, atoms,
+                    flat_pot,
+                    bad_file, err_val,
+                    extra_bools, extra_ints, extra_floats
             );
+        } else {
+            pot_val = _getPot(
+                    walker_buf,
+                    n, ncalls, i, walkers_to_core,
+                    num_atoms, atoms,
+                    pot,
+                    bad_file, err_val,
+                    extra_bools, extra_ints, extra_floats
+            );
+        }
+        return pot_val;
+    }
+    Real_t eval_pot(int i) const {
+        return eval_pot(_n_current, i);
+    }
 
-    free(walker_buf);
-    PotentialArray potVals = _gatherPotentials(
-            manager,
-            world_rank,
-            ncalls,
-            pots[0].data(),
-            num_walkers,
-            walkers_to_core
-    );
-    return potVals;
-}
+    // Serial example
+    void serial_call() {
+        for (int n=0; n < ncalls_loop; n++) {
+            for (int i = 0; i < walkers_to_core; i++) {
+                // Some amount of wasteful copying but ah well
+                Real_t pot_val = eval_pot(n, i);
+                pots[n][i] = pot_val;
+            }
+        }
+    }
+
+    void omp_call() {
+        for (int n = 0; n < ncalls_loop; n++) {
+            RawPotentialBuffer current_data;
+            current_data = pots[n].data();
+            #pragma omp parallel
+            {
+                #pragma omp for
+                for (int i = 0; i < walkers_to_core; i++) {
+//                    printf("Running step (%d, %d) on thread %d...\n", n, i, omp_get_thread_num());
+                    Real_t pot_val = eval_pot(n, i);
+                    // We're using this in a shared memory model and I haven't yet figured out if I want to try to make this
+                    // thread private or anything like that...
+                    current_data[i] = pot_val;
+                }
+            }
+        }
+    }
+
+    class TBBCaller {
+        PotentialCaller *caller;
+    public:
+        TBBCaller(PotentialCaller *arg_caller) : caller(arg_caller) {}
+
+        // Gotta make this work to get TBB to work...
+        void operator()( const blocked_range<size_t>& r ) const {
+            for( size_t i=r.begin(); i!=r.end(); ++i ) {
+                Real_t pot_val = caller->eval_pot(i);
+                caller->assign_current(i, pot_val);
+            }
+        }
+    };
+    void assign_current(int i, Real_t pot_val) {
+        cur_data[i] = pot_val;
+    }
+    void tbb_call() {
+        for (int n = 0; n < ncalls_loop; n++) {
+            cur_data = pots[n].data();
+            _n_current = n;
+            parallel_for(blocked_range<size_t>(0, walkers_to_core), TBBCaller(this));
+        }
+    }
+
+    PotentialArray apply() {
+        if (use_openMP) {
+            omp_call();
+        } else if (use_TBB) {
+            tbb_call();
+        } else {
+            serial_call();
+        }
+        return pots;
+    }
+
+};
+
+// The two flavors have been condensed into one, where if `pot == NULL` then we assume we're using a flat potential
 PotentialArray _mpiGetPot(
         PyObject* manager,
-        FlatPotentialFunction pot,
+        PotentialFunction pot,
+        FlatPotentialFunction flat_pot,
         RawWalkerBuffer raw_data,
         Names &atoms,
         int ncalls,
@@ -544,18 +534,30 @@ PotentialArray _mpiGetPot(
         ExtraBools &extra_bools,
         ExtraInts &extra_ints,
         ExtraFloats &extra_floats,
-        bool use_openMP
+        bool use_openMP,
+        bool use_TBB
 ) {
     int walkers_to_core, world_rank;
     RawWalkerBuffer walker_buf = _scatterWalkers(manager, raw_data, ncalls, num_walkers, num_atoms, world_rank, walkers_to_core);
 
-    PotentialArray pots = _getLoopyPotFlat(
-            walker_buf, -1, walkers_to_core,
-            atoms, num_atoms,
+    PotentialCaller caller(
+            walker_buf,
+            -1, // we use ncalls = -1 to indicate that we've flattened everything out
+            walkers_to_core,
+            atoms,
+            num_atoms,
             pot,
-            extra_bools, extra_ints, extra_floats,
-            err_val, bad_walkers_file, use_openMP
+            flat_pot,
+            extra_bools,
+            extra_ints,
+            extra_floats,
+            err_val,
+            bad_walkers_file,
+            use_openMP,
+            use_TBB
     );
+
+    PotentialArray pots = caller.apply();
 
     free(walker_buf);
     PotentialArray potVals = _gatherPotentials(
@@ -571,6 +573,7 @@ PotentialArray _mpiGetPot(
 
 PotentialArray _noMPIGetPot(
         PotentialFunction pot,
+        FlatPotentialFunction flat_pot,
         double* raw_data,
         Names &atoms,
         int ncalls,
@@ -581,44 +584,31 @@ PotentialArray _noMPIGetPot(
         ExtraBools &extra_bools,
         ExtraInts &extra_ints,
         ExtraFloats &extra_floats,
-        bool use_openMP
+        bool use_openMP,
+        bool use_TBB
 ) {
     // currently I have nothing to manage an independently vectorized potential but maybe someday I will
-    PotentialArray potVals = _getLoopyPot(
-            raw_data, ncalls, num_walkers,
-            atoms, num_atoms,
+
+    PotentialCaller caller(
+            raw_data,
+            ncalls,
+            num_walkers,
+            atoms,
+            num_atoms,
             pot,
-            extra_bools, extra_ints, extra_floats,
-            err_val, bad_walkers_file, use_openMP
+            flat_pot,
+            extra_bools,
+            extra_ints,
+            extra_floats,
+            err_val,
+            bad_walkers_file,
+            use_openMP,
+            use_TBB
     );
 
-    return potVals;
+    PotentialArray pots = caller.apply();
 
-}
-PotentialArray _noMPIGetPot(
-        FlatPotentialFunction pot,
-        double* raw_data,
-        Names &atoms,
-        int ncalls,
-        Py_ssize_t num_walkers,
-        Py_ssize_t num_atoms,
-        PyObject* bad_walkers_file,
-        double err_val,
-        ExtraBools &extra_bools,
-        ExtraInts &extra_ints,
-        ExtraFloats &extra_floats,
-        bool use_openMP
-) {
-    // currently I have nothing to manage an independently vectorized potential but maybe someday I will
-    PotentialArray potVals = _getLoopyPotFlat(
-            raw_data, ncalls, num_walkers,
-            atoms, num_atoms,
-            pot,
-            extra_bools, extra_ints, extra_floats,
-            err_val, bad_walkers_file, use_openMP
-    );
-
-    return potVals;
+    return pots;
 
 }
 
