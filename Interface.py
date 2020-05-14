@@ -334,10 +334,13 @@ class RynLib:
     @classmethod
     def build_libs(cls, rebuild=False):
         from .PlzNumbers import PotentialCaller
+        from .DoMyCode import Simulation
         if rebuild:
             PotentialCaller.reload()
+            Simulation.reload_lib()
             cls.reload_dumpi()
         else:
+            Simulation.load_lib()
             PotentialCaller.load_lib()
             cls.configure_mpi()
 

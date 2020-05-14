@@ -41,11 +41,11 @@ static int Scatter_Walkers(
         int walkers_to_core, int walker_cnum,
         RawWalkerBuffer walker_buf
         ) {
-    PyObject *comm_capsule = PyObject_GetAttrString(manager, "comm");
-    if (comm_capsule == NULL) {
-        return -1;
-    }
-//    MPI_Comm comm = (MPI_Comm) PyCapsule_GetPointer(comm_capsule, "Dumpi._COMM_WORLD");
+//    PyObject *comm_capsule = PyObject_GetAttrString(manager, "comm");
+//    if (comm_capsule == NULL) {
+//        return -1;
+//    }
+
     return MPI_Scatter(
             raw_data,  // raw data buffer to chunk up
             walkers_to_core * walker_cnum, // three coordinates per atom per num_atoms per walker
@@ -58,17 +58,16 @@ static int Scatter_Walkers(
     );
 }
 
-static int Gather_Walkers(
+static int Gather_Potentials(
         PyObject *manager,
         RawPotentialBuffer pots,
         int walkers_to_core,
         RawPotentialBuffer pot_buf
 ) {
-//    printf("trying to get comm...\n");
-    PyObject *comm_capsule = PyObject_GetAttrString(manager, "comm");
-    if (comm_capsule == NULL) {
-        return -1;
-    }
+//    PyObject *comm_capsule = PyObject_GetAttrString(manager, "comm");
+//    if (comm_capsule == NULL) {
+//        return -1;
+//    }
 //    MPI_Comm comm = (MPI_Comm) PyCapsule_GetPointer(comm_capsule, "Dumpi._COMM_WORLD");
 //    printf("got COMM so now gathering %d walkers\n", walkers_to_core);
     return MPI_Gather(
@@ -77,6 +76,31 @@ static int Gather_Walkers(
             MPI_DOUBLE, // coordinates stored as doubles
             pot_buf, // buffer to get the potential values back
             walkers_to_core, // number of walkers fed in
+            MPI_DOUBLE, // coordinates stored as doubles
+            0, // where they should go
+            MPI_COMM_WORLD // communicator handle
+    );
+}
+
+static int Gather_Walkers(
+        PyObject *manager,
+        RawWalkerBuffer walkers,
+        int walkers_to_core, int walker_cnum,
+        RawWalkerBuffer walk_buf
+) {
+//    printf("trying to get comm...\n");
+//    PyObject *comm_capsule = PyObject_GetAttrString(manager, "comm");
+//    if (comm_capsule == NULL) {
+//        return -1;
+//    }
+//    MPI_Comm comm = (MPI_Comm) PyCapsule_GetPointer(comm_capsule, "Dumpi._COMM_WORLD");
+//    printf("got COMM so now gathering %d walkers\n", walkers_to_core);
+    return MPI_Gather(
+            walkers,
+            walkers_to_core * walker_cnum, // number of walkers fed in
+            MPI_DOUBLE, // coordinates stored as doubles
+            walk_buf, // buffer to get the walker values back
+            walkers_to_core * walker_cnum, // number of walkers fed in
             MPI_DOUBLE, // coordinates stored as doubles
             0, // where they should go
             MPI_COMM_WORLD // communicator handle
@@ -167,22 +191,34 @@ PyMODINIT_FUNC PyInit_Dumpi(void)
         Py_DECREF(module);
         return NULL;
     }
-    ScatterFunction test = (ScatterFunction) PyCapsule_GetPointer(scatter_cap, "Dumpi._SCATTER_WALKERS");
-    if (test == NULL) {
-        PyErr_SetString(PyExc_AttributeError, "Scatter pointer is NULL");
-        Py_XDECREF(scatter_cap);
-        Py_DECREF(module);
-        return NULL;
-    }
+//    ScatterFunction test = (ScatterFunction) PyCapsule_GetPointer(scatter_cap, "Dumpi._SCATTER_WALKERS");
+//    if (test == NULL) {
+//        PyErr_SetString(PyExc_AttributeError, "Scatter pointer is NULL");
+//        Py_XDECREF(scatter_cap);
+//        Py_DECREF(module);
+//        return NULL;
+//    }
 
-    static PyObject *gather_cap = PyCapsule_New((void *)Gather_Walkers, "Dumpi._GATHER_WALKERS", NULL);
+    static PyObject *gather_cap = PyCapsule_New((void *)Gather_Potentials, "Dumpi._GATHER_POTENTIALS", NULL);
     if (gather_cap == NULL) {
         PyErr_SetString(PyExc_AttributeError, "Failed to create Gather pointer capsule");
         Py_DECREF(module);
         return NULL;
     }
-    if (PyModule_AddObject(module, "_GATHER_WALKERS", gather_cap) < 0) {
+    if (PyModule_AddObject(module, "_GATHER_POTENTIALS", gather_cap) < 0) {
         Py_XDECREF(gather_cap);
+        Py_DECREF(module);
+        return NULL;
+    }
+
+    static PyObject *gatherw_cap = PyCapsule_New((void *)Gather_Walkers, "Dumpi._GATHER_WALKERS", NULL);
+    if (gatherw_cap == NULL) {
+        PyErr_SetString(PyExc_AttributeError, "Failed to create Gather walkers pointer capsule");
+        Py_DECREF(module);
+        return NULL;
+    }
+    if (PyModule_AddObject(module, "_GATHER_WALKERS", gatherw_cap) < 0) {
+        Py_XDECREF(gatherw_cap);
         Py_DECREF(module);
         return NULL;
     }

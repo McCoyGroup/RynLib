@@ -12,9 +12,9 @@
  * nothing else will be visible directly, so we need to make sure that this set is sufficient for out purposes
  *
  */
-
-// The walker propagator stuff once it actually works
-
-#endif
+static PyObject *DoMyCode_distributeWalkers
+        ( PyObject *, PyObject * );
+static PyObject *DoMyCode_getWalkersAndPots
+        ( PyObject *, PyObject * );
 
 #endif

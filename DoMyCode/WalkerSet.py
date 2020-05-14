@@ -19,6 +19,7 @@ class WalkerSet:
 
         self.n = len(atoms)
 
+        self.mpi_manager = mpi_manager
         if num_walkers is None:
             if mpi_manager is None:
                 from ..Interface import RynLib
@@ -89,7 +90,7 @@ class WalkerSet:
         if self.sigmas is None:
             self.sigmas = np.sqrt((2.0 * D * deltaT) / self.masses)
 
-    def get_displacements(self, steps = 1, in_AU = False):
+    def get_displacements(self, steps = 1, atomic_units = False):
         shape = (steps, ) + self.coords.shape[:-2] + self.coords.shape[-1:]
         disps = np.array([
             np.random.normal(0.0, sig, size = shape) for sig in self.sigmas
@@ -97,12 +98,16 @@ class WalkerSet:
 
         disps = np.transpose(disps, (1, 2, 0, 3))
 
-        if not in_AU:
+        if not atomic_units:
             disps = Constants.convert(disps, "angstroms", in_AU = False)
 
         return disps
 
-    def get_displaced_coords(self, n=1, importance_sampler = None, in_AU = False):
+    def distribute(self):
+        if self.mpi_manager is not None:
+            ...
+
+    def get_displaced_coords(self, n=1, importance_sampler = None, atomic_units = False):
         # accum_disp = np.cumsum(self.get_displacements(n), axis=1)
         # return np.broadcast_to(self.coords, (n,) + self.coords.shape) + accum_disp # hoping the broadcasting makes this work...
 
@@ -111,7 +116,7 @@ class WalkerSet:
         if importance_sampler is not None:
             importance_sampler.setup_psi(crds)
         bloop = self.coords.astype(float)
-        disps = self.get_displacements(n, in_AU=in_AU)
+        disps = self.get_displacements(n, atomic_units=atomic_units)
         for i, d in enumerate(disps): # loop over steps
             if importance_sampler is not None:
                 bloop = importance_sampler.accept_step(i, bloop, d)
@@ -121,7 +126,7 @@ class WalkerSet:
         return crds
 
     def displace(self, n=1, importance_sampler = None, atomic_units=False):
-        coords = self.get_displaced_coords(n, importance_sampler=importance_sampler, in_AU=atomic_units)
+        coords = self.get_displaced_coords(n, importance_sampler=importance_sampler, atomic_units=atomic_units)
         self.coords = coords[-1]
         return coords
 

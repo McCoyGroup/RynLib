@@ -166,6 +166,13 @@ class MPIManagerObject:
         self.init_MPI()
         if self._initted is None:
             MPIManagerError.raise_uninitialized()
+        return self.lib._GATHER_POTENTIALS
+
+    @property
+    def gather_walkers(self):
+        self.init_MPI()
+        if self._initted is None:
+            MPIManagerError.raise_uninitialized()
         return self.lib._GATHER_WALKERS
 
     @property

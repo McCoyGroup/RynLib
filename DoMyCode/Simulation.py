@@ -1,7 +1,7 @@
 import os, numpy as np, time
 from .WalkerSet import WalkerSet
 from .ImportanceSampler import ImportanceSampler, ImportanceSamplerManager
-from ..RynUtils import ParameterManager
+from ..RynUtils import ParameterManager, CLoader
 from ..Dumpi import *
 from ..PlzNumbers import PotentialManager, Potential
 from .SimulationUtils import *
@@ -27,7 +27,8 @@ class Simulation:
         "potential", "steps_per_propagation",
         "mpi_manager", "importance_sampler",
         "num_wavefunctions", "atomic_units",
-        "ignore_errors", "branching_threshold"
+        "ignore_errors", "branching_threshold",
+        "parallelize_diffusion"
     ]
     def __init__(self, params):
         """Initializes the simulation from the simulation parameters
@@ -41,6 +42,7 @@ class Simulation:
         self.logger = SimulationLogger(self, **params.filter(SimulationLogger))
         self.analyzer = SimulationAnalyzer(self, **params.filter(SimulationAnalyzer))
         self.configure_simulation(**params.filter(Simulation))
+        self._lib = None
 
     def configure_simulation(
             self,
@@ -56,7 +58,8 @@ class Simulation:
             importance_sampler = None,
             num_wavefunctions = 0,
             ignore_errors = True,
-            branching_threshold = 1.0
+            branching_threshold = 1.0,
+            parallelize_diffusion=True
             ):
         """
 
@@ -98,6 +101,9 @@ class Simulation:
             walker_set['mpi_manager']=mpi_manager
             walker_set = WalkerSet(**walker_set)
 
+
+        self.parallelize_diffusion = parallelize_diffusion
+
         self.walkers = walker_set if isinstance(walker_set, WalkerSet) else WalkerSet(walker_set)
         if isinstance(potential, str):
             potential = PotentialManager().load_potential(potential)
@@ -109,7 +115,8 @@ class Simulation:
                 pot.bind_arguments(potential['parameters'])
             potential = pot
 
-        potential.mpi_manager = mpi_manager
+        if not parallelize_diffusion:
+            potential.mpi_manager = mpi_manager
         self.potential = potential
         self.atomic_units = atomic_units
         self.ignore_errors = ignore_errors
@@ -256,14 +263,15 @@ class Simulation:
         wavefunctions_directory=self.logger.wavefunctions_folder
         if not os.path.isdir(wavefunctions_directory):
             wavefunctions_directory = os.path.join(output_folder, wavefunctions_directory)
-            wfs = []
+        wfs = []
+        if os.path.isdir(wavefunctions_directory):
             for f in os.listdir(wavefunctions_directory):
                 if f.endswith(".npy"):
                     wfs.append(
                         ( int(f.split("_")[-1].split(".")[0]), np.load(os.path.join(wavefunctions_directory, f)))
                     )
                 wfs = sorted(wfs, key=lambda a:a[0])
-            self.wavefunctions = deque(wfs)
+        self.wavefunctions = deque(wfs)
 
         # LOAD WEIGHTS (if saved)
         if not os.path.isfile(weights_file):
@@ -335,6 +343,81 @@ class Simulation:
                 self.imp_samp.clean_up()
             self.timer.stop()
 
+    @classmethod
+    def load_lib(cls):
+        loader = CLoader("DoMyCode",
+                         os.path.dirname(os.path.abspath(__file__)),
+                         extra_compile_args=['-fopenmp'],
+                         source_files=["DoMyCode.cpp", "PyAllUp.cpp"]
+                         )
+        return loader.load()
+    @classmethod
+    def reload_lib(cls):
+        try:
+            os.remove(os.path.join(os.path.dirname(os.path.abspath(__file__)), "DoMyCode.so"))
+        except OSError:
+            pass
+        cls.load_lib()
+    @property
+    def lib(self):
+        if self._lib is None:
+            self._lib = self.load_lib()
+        return self._lib
+
+    def _evaluate_potential(self, coord_sets):
+        energies = self.potential(coord_sets)
+        if self.imp_samp is not None:
+            imp = self.imp_samp  # type: ImportanceSampler
+            ke = imp.local_kin(coord_sets)
+            if not self.dummied:
+                self.log_print("    Local KE: Min {} | Max {} | Mean {}",
+                               np.min(ke), np.max(ke), np.average(ke),
+                               verbosity=self.logger.LogLevel.DATA
+                               )
+            energies += ke
+        return energies
+    def evaluate_potential(self, nsteps):
+        if not self.parallelize_diffusion or self.mpi_manager is None:
+            self.log_print("Moving coordinates {} steps", nsteps, verbosity=self.logger.LogLevel.STEPS)
+            start = time.time()
+            coord_sets = self.walkers.displace(nsteps, importance_sampler=self.imp_samp, atomic_units=self.atomic_units)
+            end = time.time()
+            self.log_print("    took {}s", end - start, verbosity=self.logger.LogLevel.STATUS)
+            self.log_print("Computing potential energy", verbosity=self.logger.LogLevel.STATUS)
+            start = time.time()
+            energies = self._evaluate_potential(coord_sets)
+            end = time.time()
+            self.log_print("    took {}s", end - start, verbosity=self.logger.LogLevel.STATUS)
+        else:
+            send_walkers = self.lib.sendFriends
+            get_results = self.lib.getFriendsAndPoots
+            if not self.dummied:
+                self.log_print("Moving coordinates {} steps", nsteps, verbosity=self.logger.LogLevel.STEPS)
+                start = time.time()
+            coords = np.ascontiguousarray(self.walkers.coords).astype('float')
+            small_walkers = send_walkers(coords, self.mpi_manager)
+            self.walkers.coords = small_walkers
+            coord_sets = self.walkers.displace(nsteps, importance_sampler=self.imp_samp, atomic_units=self.atomic_units)
+            if not self.dummied:
+                end = time.time()
+                self.log_print("    took {}s", end - start, verbosity=self.logger.LogLevel.STATUS)
+                self.log_print("Computing potential energy", verbosity=self.logger.LogLevel.STATUS)
+            energies = self._evaluate_potential(coord_sets)
+            if not self.dummied:
+                end = time.time()
+                self.log_print("    took {}s", end - start, verbosity=self.logger.LogLevel.STATUS)
+
+            coord_sets = np.ascontiguousarray(coord_sets).astype('float')
+            energies = np.ascontiguousarray(energies).astype('float')
+            res = get_results(coord_sets, energies, self.mpi_manager)
+            if res is not None:
+                coords, energies = res
+                self.walkers.coords = coords
+            else:
+                self.walkers.coords = coord_sets[-1]
+                energies = None
+        return energies
+
     def propagate(self, nsteps = None):
         """Propagates the system forward n steps
 
@@ -348,21 +431,7 @@ class Simulation:
 
         if not self.dummied:
             self.log_print("Starting step {}", self.counter.step_num, verbosity=self.logger.LogLevel.STATUS)
-            self.log_print("Moving coordinates {} steps", nsteps, verbosity=self.logger.LogLevel.STEPS)
-            coord_sets = self.walkers.displace(nsteps, importance_sampler=self.imp_samp, atomic_units = self.atomic_units)
-            self.log_print("Computing potential energy", verbosity=self.logger.LogLevel.STATUS)
-            start = time.time()
-            energies = self.potential(coord_sets)
-            if self.imp_samp is not None:
-                imp = self.imp_samp #type: ImportanceSampler
-                ke = imp.local_kin(coord_sets)
-                self.log_print("    Local KE: Min {} | Max {} | Mean {}",
-                               np.min(ke), np.max(ke), np.average(ke),
-                               verbosity=self.logger.LogLevel.DATA
-                               )
-                energies += ke
-            end = time.time()
-            self.log_print("    took {}s", end-start, verbosity=self.logger.LogLevel.STATUS)
+            energies = self.evaluate_potential(nsteps)
             self.counter.increment(nsteps)
             self.log_print("Updating walker weights", verbosity=self.logger.LogLevel.STEPS)
             weights = self.update_weights(energies, self.walkers.weights)
@@ -382,24 +451,7 @@ class Simulation:
             self.log_print("Runtime: {}s", round(self.timer.elapsed), verbosity=self.logger.LogLevel.STATUS)
             self.log_print("-" * 50, verbosity=self.logger.LogLevel.STATUS)
         else:
-            self.log_print(
-                "    computing potential energy on core {}",
-                self.mpi_manager.world_rank,
-                verbosity=self.logger.LogLevel.MPI
-            )
-
-            # need to compute local KE on the cores, too, to make sure the MPI gets there
-            crds = self.walkers.coords
-            walk = self.walkers.displace(nsteps,
-                                         importance_sampler=self.imp_samp,
-                                         atomic_units = self.atomic_units
-                                         )
-            self.walkers.coords = crds
-            # we reassign the old geometries so that this dummied version can't walk itself off a cliff
-            pe = self.potential(walk)
-            # if self.imp_samp is not None:
-            #     imp = self.imp_samp #type: ImportanceSampler
-            #     ke = imp.local_kin(walk)
+            energies = self.evaluate_potential(nsteps)
             self.counter.step_num += nsteps
 
         if self.mpi_manager is not None:

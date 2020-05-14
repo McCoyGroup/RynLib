@@ -38,6 +38,7 @@ typedef Real_t (*FlatPotentialFunction)(
 );
 
 typedef int (*ScatterFunction)(PyObject*, RawWalkerBuffer, int, int, RawWalkerBuffer);
+typedef int (*GatherWalkerFunction)(PyObject*, RawWalkerBuffer, int, int, RawWalkerBuffer);
 typedef int (*GatherFunction)(PyObject*, RawPotentialBuffer, int, RawPotentialBuffer);
 
 #define RYNLIB_RYNTYPES_HPP
