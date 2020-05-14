@@ -291,6 +291,12 @@ class Simulation:
         :return:
         :rtype:
         """
+        import signal
+
+        def handler(*args, sim=self, **kwargs):
+            sim.ignore_errors = False
+            raise KeyboardInterrupt
+
         try:
             if not self.dummied:
                 self.log_print(self.config_string)
@@ -300,6 +306,11 @@ class Simulation:
                 # self.log_print("waiting for friends", verbosity=self.logger.LogLevel.STATUS)
                 self.mpi_manager.wait()
             self.timer.start()
+
+            # TODO: think about whether I want this here or in the CLI run command...
+            signal.signal(signal.SIGINT, handler)
+            signal.signal(signal.SIGTERM, handler)
+            signal.signal(signal.SIGABRT, handler)
             self._prop()
         except Exception as e:
             import traceback as tb
