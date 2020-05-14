@@ -45,11 +45,14 @@ class WalkerSet:
         self.atoms = atoms
         self.masses = masses
 
+        if isinstance(initial_walker, str):
+            initial_walker = np.load(initial_walker)
         initial_walker = np.asarray(initial_walker)
         if len(initial_walker.shape) == 2:
             initial_walker = np.array([ initial_walker ] * num_walkers)
         elif len(initial_walker) > num_walkers or len(initial_walker) < num_walkers:
-               initial_walker = np.random.choice(initial_walker, num_walkers)
+            inds = np.random.randint(0, initial_walker.shape[0], num_walkers)
+            initial_walker = initial_walker[inds]
 
         self.coords = np.asarray(initial_walker)
         self.weights = np.ones(num_walkers)

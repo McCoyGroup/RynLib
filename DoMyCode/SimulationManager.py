@@ -52,14 +52,19 @@ class SimulationManager:
     def load_simulation(self, name):
 
         self.check_simulation(name)
-        conf = self.manager.load_config(name)
-        params = SimulationParameters(**conf.opt_dict)
-        params.output_folder = self.simulation_output_folder(name)
-        sim = Simulation(params)
-        mpi_manager = sim.mpi_manager
-        main = (mpi_manager is None) or (mpi_manager.world_rank == 0)
-        if main and self.simulation_ran(name):
-            sim.reload()
+        curdir = os.getcwd()
+        try:
+            os.chdir(self.manager.config_loc(name))
+            conf = self.manager.load_config(name)
+            params = SimulationParameters(**conf.opt_dict)
+            params.output_folder = self.simulation_output_folder(name)
+            sim = Simulation(params)
+            mpi_manager = sim.mpi_manager
+            main = (mpi_manager is None) or (mpi_manager.world_rank == 0)
+            if main and self.simulation_ran(name):
+                sim.reload()
+        finally:
+            os.chdir(curdir)
 
         return sim
 
@@ -71,32 +76,38 @@ class SimulationManager:
         import sys
 
         sim = self.load_simulation(name)
+        curdir = os.getcwd()
+        try:
+            os.chdir(self.manager.config_loc(name))
 
-        log = sim.logger.log_file
-        if sim.mpi_manager is not None:
-            sim.run()
-        elif isinstance(log, str):
+            log = sim.logger.log_file
             if sim.mpi_manager is not None:
-                if not os.path.isdir(os.path.dirname(log)):
-                    os.makedirs(os.path.dirname(log))
-                sim.mpi_manager.wait()
+                sim.run()
+            elif isinstance(log, str):
+                if sim.mpi_manager is not None:
+                    if not os.path.isdir(os.path.dirname(log)):
+                        os.makedirs(os.path.dirname(log))
+                    sim.mpi_manager.wait()
+                else:
+                    if not os.path.isdir(os.path.dirname(log)):
+                        os.makedirs(os.path.dirname(log))
+                try:
+                    with open(log, "w+", buffering=1) as log_stream:
+                        sim.logger.log_file = log_stream
+                        sout = sys.stdout
+                        serr = sys.stderr
+                        sys.stdout = log_stream
+                        sys.stderr = log_stream
+                        sim.run()
+                finally:
+                    sim.logger.log_file = log
+                    sys.stdout = sout
+                    sys.stderr = serr
             else:
-                if not os.path.isdir(os.path.dirname(log)):
-                    os.makedirs(os.path.dirname(log))
-            try:
-                with open(log, "w+", buffering=1) as log_stream:
-                    sim.logger.log_file = log_stream
-                    sout = sys.stdout
-                    serr = sys.stderr
-                    sys.stdout = log_stream
-                    sys.stderr = log_stream
-                    sim.run()
-            finally:
-                sim.logger.log_file = log
-                sys.stdout = sout
-                sys.stderr = serr
-        else:
-            sim.run()
+                sim.run()
+
+        finally:
+            os.chdir(curdir)
 
     def export_simulation(self, name, path):
         self.check_simulation(name)
