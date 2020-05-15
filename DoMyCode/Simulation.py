@@ -28,7 +28,8 @@ class Simulation:
         "mpi_manager", "importance_sampler",
         "num_wavefunctions", "atomic_units",
         "ignore_errors", "branching_threshold",
-        "parallelize_diffusion", "branch_on_cores"
+        "parallelize_diffusion", "branch_on_cores",
+        "random_seed"
     ]
     def __init__(self, params):
         """Initializes the simulation from the simulation parameters
@@ -60,7 +61,8 @@ class Simulation:
             ignore_errors = True,
             branching_threshold = 1.0,
             parallelize_diffusion=True,
-            branch_on_cores = False
+            branch_on_cores = False,
+            random_seed = None
             ):
         """
 
@@ -156,6 +158,12 @@ class Simulation:
             mpi_manager.abort()
             raise
         self.dummied = self.world_rank != 0
+
+        if random_seed is not None:
+            if self.dummied:
+                random_seed += self.world_rank
+            np.random.seed(random_seed)
+        self.random_seed = random_seed
 
         if isinstance(importance_sampler, dict):
             params = importance_sampler["parameters"]
@@ -290,7 +298,7 @@ class Simulation:
         return self
 
     def log_print(self, *arg, allow_dummy=False, **kwargs):
-        if allow_dummy or not (self.dummied):
+        if allow_dummy or (not self.dummied):
             self.logger.log_print(*arg, **kwargs)
 
     def _prop(self):
@@ -384,6 +392,13 @@ class Simulation:
         self.walkers.weights = weights
         self.log_print("Branching", verbosity=self.logger.LogLevel.STEPS)
         energies = self.branch(energies)
+        weights = self.walkers.weights
+        # self.log_print("Branching", verbosity=self.logger.LogLevel.STEPS)
+        # self.log_print(
+        #     "    New Weights: Min {} | Max {} | Mean {}",
+        #     np.min(weights), np.max(weights), np.average(weights),
+        #     verbosity=self.logger.LogLevel.DATA
+        # )
         return self.walkers.coords, self.walkers.weights, energies
     def evaluate_potential_and_branch(self, nsteps):
         if not self.parallelize_diffusion or self.mpi_manager is None:
@@ -408,10 +423,13 @@ class Simulation:
                 self.log_print("Moving coordinates {} steps", nsteps, verbosity=self.logger.LogLevel.STEPS)
                 start = time.time()
             coords = np.ascontiguousarray(self.walkers.coords).astype('float')
+            # self.log_print("Coord samples({}) {} {}", self.world_rank, coords[0], coords[5], allow_dummy=True)
             small_walkers = send_walkers(coords, self.mpi_manager)
             # self.log_print("little walkers what you do {}", small_walkers.shape)
             self.walkers.coords = small_walkers
             coord_sets = self.walkers.displace(nsteps, importance_sampler=self.imp_samp, atomic_units=self.atomic_units)
+
+            # self.log_print("Coord samples2({}) {} {}", self.world_rank, coord_sets[-1, 0], coord_sets[-1, 5], allow_dummy=True)
             if not self.dummied:
                 end = time.time()
                 self.log_print("    took {}s", end - start, verbosity=self.logger.LogLevel.STATUS)
@@ -423,10 +441,17 @@ class Simulation:
 
             coords = np.ascontiguousarray(coord_sets[-1]).astype('float')
             energies = np.ascontiguousarray(energies).astype('float')
-            if self.branch_on_cores:
-                coord_sets, weights, energies = self.apply_branching(energies)
-            else:
-                weights = None
+            # if self.branch_on_cores:
+            #     # self.log_print("Branching on the core...?")
+            #     coord_sets, weights, energies = self.apply_branching(energies)
+            # else:
+            #     weights = None
+            weights = None
+
+            # self.log_print(
+            #     "Energies samples({}|{}) {} {}", self.world_rank, energies.shape, energies[-1, 0], energies[-1, 5],
+            #     allow_dummy=True
+            # )
             res = get_results(coords, energies, weights, self.mpi_manager)
             if res is None:
                 self.walkers.coords = coords
@@ -437,6 +462,23 @@ class Simulation:
                 self.walkers.weights = weights
             elif len(res) == 2: # implicitly means not self.branch_on_cores
                 coords, energies = res
+                # we now have to take the energies arrays and stitch them together to look like the coords ;_;
+                world_size = int(energies.shape[0] / nsteps)
+                walkers_per_core = energies.shape[1]
+                real_energies = np.empty((nsteps,  walkers_per_core * world_size), dtype=energies.dtype)
+                for i in range(nsteps):
+                    for j in range(world_size):
+                        real_energies[i, walkers_per_core*j:walkers_per_core*(j+1)] = energies[i+nsteps*j]
+                energies = real_energies
+
+                # self.log_print("Coord samples3 {} {} {} {}",
+                #                coords[0], coords[5],
+                #                coords[int(len(coords)/2)], coords[int(len(coords)/2)+5]
+                #                )
+                # self.log_print("Energies samples2 {} {} {} {}",
+                #                energies[-1, 0], energies[-1, 5],
+                #                energies[-1, walkers_per_core], energies[-1, walkers_per_core + 5]
+                #                )
                 # self.log_print("big walkers who are you {} (energies too {})", coords.shape, energies.shape)
                 self.walkers.coords = coords
                 coords, weights, energies = self.apply_branching(energies)
@@ -540,8 +582,7 @@ class Simulation:
             dying = eliminated_walkers
             eliminated_walkers = []
         else:
-            mean_guys = np.sum(
-                max_weights[0] / 2 > max_weights)  # this is the number of walkers we actually need to be careful with
+            mean_guys = np.sum(max_weights[0] / 2 > max_weights)  # this is the number of walkers we actually need to be careful with
             cloning = max_inds[:-mean_guys]
             dying = eliminated_walkers[:-mean_guys]
             eliminated_walkers = eliminated_walkers[-mean_guys:]
@@ -568,13 +609,59 @@ class Simulation:
         parents = self.walkers.parents
         threshold = self.branching_threshold / self.walkers.num_walkers
 
+        # bond_lengths = np.linalg.norm(walkers[:, 1] - walkers[:, 0], axis=1)
+        # self.log_print('Bond Lengths: Min {} | Max {} | Mean {} | Vib. Avg {}',
+        #                np.min(bond_lengths), np.max(bond_lengths),
+        #                np.average(bond_lengths), np.average(bond_lengths, weights=weights)
+        #                )
+
         eliminated_walkers = np.argwhere(weights < threshold).flatten()
-        self.log_print('Walkers being removed: {}', len(eliminated_walkers), verbosity=self.logger.LogLevel.STATUS)
+        num_elim = len(eliminated_walkers)
+        branch_energies = energies[-1, eliminated_walkers] if num_elim > 0 else np.array([np.nan])
+        branch_weights = weights[eliminated_walkers] if num_elim > 0 else np.array([np.nan])
+        self.log_print(
+            '\n    '.join([
+                'Walkers being removed: {}',
+                'Threshold: {}',
+                'Energy: Max {} | Min {} | Mean {}',
+                'Weight: Max {} | Min {} | Mean {}'
+                ]),
+            num_elim, threshold,
+            np.max(branch_energies), np.min(branch_energies), np.average(branch_energies),
+            np.max(branch_weights), np.min(branch_weights), np.average(branch_weights),
+            verbosity=self.logger.LogLevel.STATUS
+            )
         # self.log_print('Min/Max weight in ensemble: {}/{}', np.min(weights), np.max(weights), verbosity=self.logger.LogLevel.STATUS)
 
-        # TODO: rewrite this to do an explicit sort of max_weights, first
+        # for dying in eliminated_walkers:  # gotta do it iteratively to get the max_weight_walker right...
+        #     cloning = np.argmax(weights)
+        #     # print(cloning)
+        #     parents[dying] = parents[cloning]
+        #     walkers[dying] = walkers[cloning]
+        #     weights[dying] = weights[cloning] / 2.0
+        #     weights[cloning] /= 2.0
         while len(eliminated_walkers) > 0:
             eliminated_walkers = self.chop_weights(eliminated_walkers, weights, parents, walkers, energies)
+
+        self.log_print(
+            '\n    '.join([
+                'Done branching:',
+                'Energy: Max {} | Min {} | Mean {}',
+                'Weight: Max {} | Min {} | Mean {}'
+            ]),
+            np.max(energies[-1]), np.min(energies[-1]), np.average(energies[-1]),
+            np.max(weights), np.min(weights), np.average(weights),
+            verbosity=self.logger.LogLevel.STATUS
+        )
+
+        # bond_lengths = np.linalg.norm(walkers[:, 1] - walkers[:, 0], axis=1)
+        # self.log_print('Bond Lengths: Min {} | Max {} | Mean {} | Vib. Avg {}',
+        #                np.min(bond_lengths), np.max(bond_lengths),
+        #                np.average(bond_lengths), np.average(bond_lengths, weights=weights)
+        #                )
+        # self.log_print('Energies for Bonds: Min Dist. {} | Max {}',
+        #                energies[-1, np.argmin(bond_lengths)], energies[-1, np.argmax(bond_lengths)]
+        #                )
 
     def descendent_weight(self):
         """Calls into the walker descendent weighting if the timing is right

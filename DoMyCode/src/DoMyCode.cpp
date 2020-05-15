@@ -81,7 +81,7 @@ PyObject *_gatherPotentials(
     PyObject *big_poots = NULL;
     double *poot_buf = NULL;
     if (world_rank == 0) {
-        big_poots = _getNumPyArray(num_steps, num_walkers_per_core * world_size, "float");
+        big_poots = _getNumPyArray(num_steps*world_size, num_walkers_per_core, "float");
         poot_buf = _GetDoubleDataArray(big_poots);
     }
 

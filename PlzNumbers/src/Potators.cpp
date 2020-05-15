@@ -279,13 +279,14 @@ PotentialArray _gatherPotentials(
     //      pot_m(t=0), walker_m(t=1), ... walker_m(t=n)
     //   ]
     // And so we'll just directly copy it in?
-    PotentialArray potVals(ncalls, PotentialVector(num_walkers, 0));
+    PotentialArray potVals(num_walkers, PotentialVector(ncalls, 0));
     if( world_rank == 0 ) {
-        // at this point we have (num_walkers, ncalls) shaped potVals array, too, so I'm just gonna copy it
-        // I think I _also_ copy it again downstream but, to be honest, I don't care???
+        // At this point we have (num_walkers, ncalls) shaped potVals array, too, so I'm just gonna copy it
+        //    in the dumbest, least efficient way possible (TODO: make this less dumb)
+        // I _also_ copy it again downstream but, to be honest, I don't care???
         for (int call = 0; call < ncalls; call++) {
             for (int walker = 0; walker < num_walkers; walker++) {
-                potVals[call][walker] = pot_buf[ind2d(walker, call, num_walkers, ncalls)];
+                potVals[walker][call] = pot_buf[ind2d(walker, call, num_walkers, ncalls)];
             }
         }
         free(pot_buf);
@@ -589,7 +590,6 @@ PotentialArray _noMPIGetPot(
         bool use_TBB
 ) {
     // currently I have nothing to manage an independently vectorized potential but maybe someday I will
-
     PotentialCaller caller(
             raw_data,
             ncalls,

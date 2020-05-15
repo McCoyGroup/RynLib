@@ -336,7 +336,7 @@ class PotentialCaller:
             coords = np.ascontiguousarray(walker).astype(float)
             poots = self.lib.rynaLovesPootsLots(
                 coords,
-                atoms,
+                list(atoms), # turns out I use `PyList_GetTuple` in the code -_-
                 self.potential,
                 (extra_bools, extra_ints, extra_floats),
                 self.bad_walkers_file,
@@ -347,8 +347,12 @@ class PotentialCaller:
                 bool(omp),
                 bool(tbb)
             )
-            # if poots is not None and self.mpi_manager is not None: # the MPI case, for historical reasons, transposes things
-            #     poots = poots.transpose()
+            if poots is not None:
+                if self.mpi_manager is not None:
+                    poots = poots.transpose()
+                else:
+                    shp = poots.shape
+                    poots = poots.reshape(shp[1], shp[0]).transpose()
         return np.squeeze(poots)
 
     def __call__(self, walkers, atoms, *extra_args):

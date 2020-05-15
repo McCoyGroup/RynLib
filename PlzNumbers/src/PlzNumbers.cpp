@@ -147,24 +147,29 @@ PyObject *PlzNumbers_callPotVec( PyObject* self, PyObject* args ) {
 
     // Assumes we get n atom type names
 
+//    printf("this is super annoying...\n");
+
     Py_ssize_t num_atoms = PyObject_Length(atoms);
+//    printf("how many of these are there...%d\n", num_atoms);
     if (PyErr_Occurred()) return NULL;
     Names mattsAtoms = _getAtomTypes(atoms, num_atoms);
 
+//    printf("like I figured this out before...\n");
 
     // we'll assume we have number of walkers X ncalls X number of atoms X 3
     PyObject *shape = PyObject_GetAttrString(coords, "shape");
     if (shape == NULL) return NULL;
-
-    PyObject *num_walkers_obj = PyTuple_GetItem(shape, 0);
-    if (num_walkers_obj == NULL) return NULL;
-    Py_ssize_t num_walkers = _FromInt(num_walkers_obj);
-    if (PyErr_Occurred()) return NULL;
-
     PyObject *ncalls_obj = PyTuple_GetItem(shape, 1);
     if (ncalls_obj == NULL) return NULL;
     Py_ssize_t ncalls = _FromInt(ncalls_obj);
     if (PyErr_Occurred()) return NULL;
+    PyObject *num_walkers_obj = PyTuple_GetItem(shape, 0);
+    if (num_walkers_obj == NULL) return NULL;
+    Py_ssize_t num_walkers = _FromInt(num_walkers_obj);
+    if (PyErr_Occurred()) return NULL;
+//    Py_XDECREF(shape);
+
+//    printf("but now I have to do it again...\n");
 
     // this thing should have the walker number as the slowest moving index then the number of the timestep
     // that way we'll really have the correct memory entering into our calls
@@ -173,8 +178,6 @@ PyObject *PlzNumbers_callPotVec( PyObject* self, PyObject* args ) {
 
      // we load in the extra arguments that the potential can pass -- this bit of flexibility makes every
      // call a tiny bit slower, but allows us to not have to change this code constantly and recompile
-
-
     PyObject* ext_bool = PyTuple_GetItem(extra_args, 0);
     PyObject* ext_int = PyTuple_GetItem(extra_args, 1);
     PyObject* ext_float = PyTuple_GetItem(extra_args, 2);
@@ -196,7 +199,16 @@ PyObject *PlzNumbers_callPotVec( PyObject* self, PyObject* args ) {
         pot = (PotentialFunction) PyCapsule_GetPointer(pot_function, "_potential");
     }
 
+    bool main_core = true;
+    if ( manager != Py_None ){
+        PyObject *rank = PyObject_GetAttrString(manager, "world_rank");
+        if (rank == NULL) { return NULL; }
+        main_core = (_FromInt(rank) == 0);
+        Py_XDECREF(rank);
+    }
+    PyObject* new_array;
     if (manager==Py_None) {
+//        printf("-_- y\n");
         pot_vals = _noMPIGetPot(
                 pot,
                 flat_pot,
@@ -213,6 +225,7 @@ PyObject *PlzNumbers_callPotVec( PyObject* self, PyObject* args ) {
                 use_openMP,
                 use_TBB
         );
+        new_array = _fillNumPyArray(pot_vals, ncalls, num_walkers);
     } else {
         pot_vals = _mpiGetPot(
                 manager,
@@ -231,14 +244,7 @@ PyObject *PlzNumbers_callPotVec( PyObject* self, PyObject* args ) {
                 use_openMP,
                 use_TBB
         );
-    }
-
-    bool main_core = true;
-    if ( manager != Py_None ){
-        PyObject *rank = PyObject_GetAttrString(manager, "world_rank");
-        if (rank == NULL) { return NULL; }
-        main_core = (_FromInt(rank) == 0);
-        Py_XDECREF(rank);
+        new_array = _fillNumPyArray(pot_vals, num_walkers, ncalls);
     }
 
     if ( main_core ){
@@ -247,7 +253,6 @@ PyObject *PlzNumbers_callPotVec( PyObject* self, PyObject* args ) {
 //                pot_vals.size(), pot_vals[0].size(),
 //                num_walkers, ncalls
 //                );
-        PyObject* new_array = _fillNumPyArray(pot_vals, ncalls, num_walkers);
         return new_array;
     } else {
         Py_RETURN_NONE;
