@@ -206,7 +206,7 @@ class SimulationLogger:
                     os.makedirs(self.output_folder)
                 f = os.path.join(self.output_folder, file)
 
-            np.save(f, np.array(self.sim.full_weights))
+            np.save(f, np.array(self.sim.full_weights).astype("float"))
             return f
 
     def snapshot_full_energies(self, file="full_energies{core}.npy"):
@@ -230,7 +230,7 @@ class SimulationLogger:
                     os.makedirs(self.output_folder)
                 f = os.path.join(self.output_folder, file)
 
-            np.save(f, np.array(self.sim.full_energies))
+            np.save(f, np.array(self.sim.full_energies).astype("float"))
             return f
 
     def snapshot_energies(self, file="energies{core}.npy"):

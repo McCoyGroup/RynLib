@@ -16,5 +16,7 @@ static PyObject *DoMyCode_distributeWalkers
         ( PyObject *, PyObject * );
 static PyObject *DoMyCode_getWalkersAndPots
         ( PyObject *, PyObject * );
+//static PyObject *DoMyCode_branchWalkers
+//        ( PyObject *, PyObject * );
 
 #endif

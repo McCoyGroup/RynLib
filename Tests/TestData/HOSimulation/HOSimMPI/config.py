@@ -1,9 +1,8 @@
 
 config = dict(
-    name="test_HO",
-    description="PythonHO",
+    description="MPI harmonic oscillator sim",
     potential=dict(
-        name="PythonHO",
+        name="HarmonicOscillator",
         parameters=[.9, 1.0]#re and k
     ),
     walker_set=dict(

@@ -88,6 +88,22 @@ function mcoptvalue {
 
 }
 
+function mcargcount {
+  local arg;
+  local arg_count=0;
+
+  for arg in "$@"; do
+    if [[ "${arg:0:2}" == "--" ]]; then
+      break
+    else
+      arg_count=$((arg_count+1))
+    fi
+  done
+
+  echo $arg_count;
+
+}
+
 function extract_entos {
 
   local img;
@@ -146,7 +162,7 @@ function rynlib_update_shifter() {
   shifterimg pull $img;
   };
 
-RYNLIB_OPT_PATTERN=":eV:";
+RYNLIB_OPT_PATTERN=":eV:n:";
 function rynlib_shifter() {
 
     local entos="$RYNLIB_ENTOS_PATH";
@@ -155,21 +171,13 @@ function rynlib_shifter() {
     local img="$RYNLIB_IMAGE";
     local vols="";
     local do_echo="";
+    local mpi="";
+    local arg_count;
 
-    if [[ "$1" == "-V" ]]; then
-      vols="$2";
-    else
-      if [[ "$2" == "-V" ]]; then
-        vols="$3";
-      fi
-    fi;
-    if [[ "$1" == "-e" ]]; then
-      do_echo="true";
-    else
-      if [[ "$2" == "-e" ]]; then
-        do_echo="true";
-      fi
-    fi;
+    arg_count=$(mcargcount $@)
+    vols=$(mcoptvalue $RYNLIB_OPT_PATTERN "V" ${@:1:arg_count})
+    do_echo=$(mcoptvalue $RYNLIB_OPT_PATTERN "e" ${@:1:arg_count})
+    mpi=$(mcoptvalue $RYNLIB_OPT_PATTERN "n" ${@:1:arg_count})
 
     if [[ "$entos" = "" ]]; then
       entos="$PWD/entos";
@@ -190,6 +198,10 @@ function rynlib_shifter() {
       vols="$vols;$config:/config";
     fi
 
+    if [[ "$mpi" != "" ]]; then
+      shift; shift
+    fi
+
     if [[ -d "$entos" ]]; then
       vols="$vols;$entos:/entos";
     fi
@@ -197,10 +209,14 @@ function rynlib_shifter() {
       vols="$vols;$ext:/ext";
     fi
 
-    if [[ "$do_echo" = "" ]]; then
-      shifter --volume=$vols --image=$img python3.7 /home/RynLib/CLI.py $@
+    if [[ "$do_echo" == "" ]]; then
+      if [[ "$mpi" == "" ]]; then
+        shifter --volume=$vols --image=$img python3.7 /home/RynLib/CLI.py $@
+      else
+        shifter --volume=$vols --image=$img /usr/lib/mpi/bin/mpirun -n $mpi python3.7 /home/RynLib/CLI.py $@
+      fi
     else
-      shift; shift;
+      shift;
       echo "shifter --volume=$vols --image=$img python3.7 /home/RynLib/CLI.py $@"
     fi
 }
@@ -213,21 +229,13 @@ function rynlib_singularity() {
     local img="$RYNLIB_IMAGE";
     local vols="";
     local do_echo="";
+    local mpi="";
+    local arg_count;
 
-    if [[ "$1" == "-V" ]]; then
-      vols="$2";
-    else
-      if [[ "$2" == "-V" ]]; then
-        vols="$3";
-      fi
-    fi;
-    if [[ "$1" == "-e" ]]; then
-      do_echo="true";
-    else
-      if [[ "$2" == "-e" ]]; then
-        do_echo="true";
-      fi
-    fi;
+    arg_count=$(mcargcount $@)
+    vols=$(mcoptvalue $RYNLIB_OPT_PATTERN "V" ${@:1:arg_count})
+    do_echo=$(mcoptvalue $RYNLIB_OPT_PATTERN "e" ${@:1:arg_count})
+    mpi=$(mcoptvalue $RYNLIB_OPT_PATTERN "n" ${@:1:arg_count})
 
     if [[ "$entos" = "" ]]; then
       entos="$PWD/entos";
@@ -248,6 +256,10 @@ function rynlib_singularity() {
       vols="$vols,$config:/config";
     fi
 
+    if [[ "$mpi" != "" ]]; then
+      shift; shift
+    fi
+
     if [[ -d "$entos" ]]; then
       vols="$vols,$entos:/entos";
     fi
@@ -256,7 +268,11 @@ function rynlib_singularity() {
     fi
 
     if [[ "$do_echo" == "" ]]; then
-      singularity run --bind $vols $img $@
+      if [[ "$mpi" == "" ]]; then
+        singularity run --bind $vols $img $@
+      else
+        singularity exec --bind $vols $img /usr/lib/mpi/bin/mpirun -n $mpi python3 /home/RynLib/CLI.py $@
+      fi
     else
       shift;
       echo "singularity run --bind $vols $img $@"
@@ -271,21 +287,13 @@ function rynlib_docker() {
     local img="$RYNLIB_IMAGE";
     local vols="";
     local do_echo="";
+    local mpi="";
+    local arg_count=0;
 
-    if [[ "$1" == "-V" ]]; then
-      vols="$2";
-    else
-      if [[ "$2" == "-V" ]]; then
-        vols="$3";
-      fi
-    fi;
-    if [[ "$1" == "-e" ]]; then
-      do_echo="true";
-    else
-      if [[ "$2" == "-e" ]]; then
-        do_echo="true";
-      fi
-    fi;
+    arg_count=$(mcargcount $@)
+    vols=$(mcoptvalue $RYNLIB_OPT_PATTERN "V" ${@:1:arg_count})
+    do_echo=$(mcoptvalue $RYNLIB_OPT_PATTERN "e" ${@:1:arg_count})
+    mpi=$(mcoptvalue $RYNLIB_OPT_PATTERN "n" ${@:1:arg_count})
 
     if [[ "$entos" = "" ]]; then
       entos="$PWD/entos";
@@ -301,6 +309,9 @@ function rynlib_docker() {
       img="$RYNLIB_IMAGE_NAME";
     fi
 
+    if [[ "$mpi" != "" ]]; then
+      shift; shift
+    fi
 
     if [[ "$vols" == "" ]]; then
       vols="--mount type=bind,source=$config,target=/config";
@@ -323,10 +334,18 @@ function rynlib_docker() {
     fi
 
     if [[ "$do_echo" == "" ]]; then
-      docker run --rm $vols -it $img $@
+      if [[ "$mpi" == "" ]]; then
+        docker run --rm $vols -it $img $@
+      else
+        docker run --rm $vols -it --entrypoint=/usr/lib/mpi/bin/mpirun $img -n $mpi python3 /home/RynLib/CLI.py $@
+      fi
     else
       shift;
-      echo "docker run --rm $vols -it $img $@"
+      if [[ "$mpi" == "" ]]; then
+        echo "docker run --rm $vols -it $img $@"
+      else
+        echo "docker run --rm $vols -it --entrypoint=/usr/lib/mpi/bin/mpirun $img -n $mpi python3 /home/RynLib/CLI.py $@"
+      fi
     fi
 }
 

@@ -347,8 +347,8 @@ class PotentialCaller:
                 bool(omp),
                 bool(tbb)
             )
-            if poots is not None:
-                poots = poots.transpose()
+            # if poots is not None and self.mpi_manager is not None: # the MPI case, for historical reasons, transposes things
+            #     poots = poots.transpose()
         return np.squeeze(poots)
 
     def __call__(self, walkers, atoms, *extra_args):

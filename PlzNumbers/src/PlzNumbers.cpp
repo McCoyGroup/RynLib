@@ -242,7 +242,12 @@ PyObject *PlzNumbers_callPotVec( PyObject* self, PyObject* args ) {
     }
 
     if ( main_core ){
-        PyObject* new_array = _fillNumPyArray(pot_vals, num_walkers, ncalls);
+//        printf("._. %f %f %f (%d, %d)&(%d, %d)?\n",
+//                pot_vals[0][0], pot_vals[1][2], pot_vals[2][4],
+//                pot_vals.size(), pot_vals[0].size(),
+//                num_walkers, ncalls
+//                );
+        PyObject* new_array = _fillNumPyArray(pot_vals, ncalls, num_walkers);
         return new_array;
     } else {
         Py_RETURN_NONE;

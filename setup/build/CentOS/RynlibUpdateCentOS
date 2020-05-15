@@ -13,6 +13,6 @@ ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/rynlib/ext/lib
 ENV PATH=$PATH:/rynlib/ext/bin
 
 RUN python3 /home/RynLib/CLI.py config build-libs --rebuild=True
-RUN python3 /home/RynLib/CLI.py config run-tests --debug=True
+#RUN python3 /home/RynLib/CLI.py config run-tests --debug=True
 
 WORKDIR /home

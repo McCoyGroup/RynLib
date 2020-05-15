@@ -41,6 +41,7 @@ PyObject *DoMyCode_distributeWalkers(PyObject* self, PyObject* args ) {
     if (natoms_obj == NULL) return NULL;
     Py_ssize_t num_atoms = _FromInt(natoms_obj);
     if (PyErr_Occurred()) return NULL;
+    Py_XDECREF(shape);
 
     // Assumes number of walkers X number of atoms X 3
     double* raw_data = _GetDoubleDataArray(coords);
@@ -70,73 +71,17 @@ PyObject *DoMyCode_distributeWalkers(PyObject* self, PyObject* args ) {
 
 }
 
-PyObject *DoMyCode_getWalkersAndPots(PyObject* self, PyObject* args ) {
-
-    PyObject *coords, *potentials, *manager;
-
-    if (!PyArg_ParseTuple(args, "OOO", &coords, &potentials, &manager)) return NULL;
-
-    // Figure out how many things to send/get
-    PyObject* ws = PyObject_GetAttrString(manager, "world_size");
-    int world_size = _FromInt(ws);
-    Py_XDECREF(ws);
-    PyObject* wr = PyObject_GetAttrString(manager, "world_rank");
-    int world_rank = _FromInt(wr);
-    Py_XDECREF(wr);
-
-    PyObject *shape = PyObject_GetAttrString(coords, "shape");
-    if (shape == NULL) return NULL;
-
-    PyObject *num_steps_obj = PyTuple_GetItem(shape, 0);
-    if (num_steps_obj == NULL) return NULL;
-    Py_ssize_t num_steps = _FromInt(num_steps_obj);
-    if (PyErr_Occurred()) return NULL;
-
-    PyObject *num_wpc_obj = PyTuple_GetItem(shape, 1);
-    if (num_wpc_obj == NULL) return NULL;
-    Py_ssize_t num_walker_per_core = _FromInt(num_wpc_obj);
-    if (PyErr_Occurred()) return NULL;
-
-    PyObject *natoms_obj = PyTuple_GetItem(shape, 2);
-    if (natoms_obj == NULL) return NULL;
-    Py_ssize_t num_atoms = _FromInt(natoms_obj);
-    if (PyErr_Occurred()) return NULL;
-
-    // Assumes number of walkers X number of atoms X 3
-    double* coord_data = _GetDoubleDataArray(coords);
-    if (coord_data == NULL) return NULL;
-    double* pot_data = _GetDoubleDataArray(potentials);
-    if (pot_data == NULL) return NULL;
-
-    PyObject *big_walkers = NULL;
-    double *walker_buf = NULL;
-    if (world_rank == 0) {
-        big_walkers = _getNumPyArray(num_steps, num_walker_per_core * world_size, num_atoms, 3, "float");
-        walker_buf = _GetDoubleDataArray(big_walkers);
-    }
-//
-//    _printObject("%s\n", PyObject_GetAttrString(big_walkers, "shape"));
-//    printf("??? loooks like we're here... sending (%d, %d) walkers back \n", num_steps, num_walker_per_core);
-    PyObject* gather_walkers = PyObject_GetAttrString(manager, "gather_walkers");
-    GatherWalkerFunction gather_w = (GatherWalkerFunction) PyCapsule_GetPointer(gather_walkers, "Dumpi._GATHER_WALKERS");
-    if (gather_w == NULL) {
-        PyErr_SetString(PyExc_AttributeError, "Couldn't get gather pointer");
-        return NULL;
-    }
-    gather_w(
-            manager,
-            coord_data,  // raw data buffer to chunk up
-            num_steps * num_walker_per_core,
-            num_atoms * 3, // three coordinates per atom per num_atoms per walker
-            walker_buf // raw array to write into
-    );
-    Py_XDECREF(gather_walkers);
-
-
+PyObject *_gatherPotentials(
+        PyObject *manager,
+        int world_rank, int world_size,
+        RawPotentialBuffer pot_data,
+        int num_steps,
+        int num_walkers_per_core
+        ) {
     PyObject *big_poots = NULL;
     double *poot_buf = NULL;
     if (world_rank == 0) {
-        big_poots = _getNumPyArray(num_steps, num_walker_per_core * world_size, "float");
+        big_poots = _getNumPyArray(num_steps, num_walkers_per_core * world_size, "float");
         poot_buf = _GetDoubleDataArray(big_poots);
     }
 
@@ -149,19 +94,143 @@ PyObject *DoMyCode_getWalkersAndPots(PyObject* self, PyObject* args ) {
     gather(
             manager,
             pot_data,
-            num_steps * num_walker_per_core, // number of walkers fed in
+            num_steps * num_walkers_per_core, // number of walkers fed in
             poot_buf // buffer to get the potential values back
     );
     Py_XDECREF(gather_pots);
 
+    return big_poots;
+}
+PyObject *_gatherWalkers(
+        PyObject *manager,
+        int world_rank, int world_size,
+        RawWalkerBuffer coord_data,
+//        int num_steps,
+        int num_walkers_per_core,
+        int num_atoms
+        ) {
+    PyObject *big_walkers = NULL;
+    double *walker_buf = NULL;
     if (world_rank == 0) {
-        PyObject *ret = PyTuple_Pack(2, big_walkers, big_poots);
+        big_walkers = _getNumPyArray(num_walkers_per_core * world_size, num_atoms, 3, "float");
+        walker_buf = _GetDoubleDataArray(big_walkers);
+//        _printObject(";_____%s____;\n", PyObject_GetAttrString(big_walkers, "shape"));
+    }
+
+//    printf("returning (%d, %d, %d, 3) from %d\n", num_steps, num_walkers_per_core, num_atoms, world_rank);
+
+    PyObject* gather_walkers = PyObject_GetAttrString(manager, "gather_walkers");
+    GatherWalkerFunction gather_w = (GatherWalkerFunction) PyCapsule_GetPointer(gather_walkers, "Dumpi._GATHER_WALKERS");
+    if (gather_w == NULL) {
+        PyErr_SetString(PyExc_AttributeError, "Couldn't get gather pointer");
+        return NULL;
+    }
+    gather_w(
+            manager,
+            coord_data,  // raw data buffer to chunk up
+            num_walkers_per_core,
+            num_atoms * 3, // three coordinates per atom per num_atoms per walker
+            walker_buf // raw array to write into
+    );
+    Py_XDECREF(gather_walkers);
+
+    return big_walkers;
+}
+
+PyObject *DoMyCode_getWalkersAndPots(PyObject* self, PyObject* args ) {
+
+    PyObject *coords, *potentials, *weights, *manager;
+
+    if (!PyArg_ParseTuple(args, "OOOO", &coords, &potentials, &weights, &manager)) return NULL;
+
+    // Figure out how many things to send/get
+    PyObject* ws = PyObject_GetAttrString(manager, "world_size");
+    int world_size = _FromInt(ws);
+    Py_XDECREF(ws);
+    PyObject* wr = PyObject_GetAttrString(manager, "world_rank");
+    int world_rank = _FromInt(wr);
+    Py_XDECREF(wr);
+
+    PyObject *shape = PyObject_GetAttrString(coords, "shape");
+    if (shape == NULL) return NULL;
+
+    PyObject *num_wpc_obj = PyTuple_GetItem(shape, 0);
+    if (num_wpc_obj == NULL) return NULL;
+    Py_ssize_t num_walker_per_core = _FromInt(num_wpc_obj);
+    if (PyErr_Occurred()) return NULL;
+
+    PyObject *natoms_obj = PyTuple_GetItem(shape, 1);
+    if (natoms_obj == NULL) return NULL;
+    Py_ssize_t num_atoms = _FromInt(natoms_obj);
+    if (PyErr_Occurred()) return NULL;
+    Py_XDECREF(shape);
+
+    PyObject *pot_shape = PyObject_GetAttrString(potentials, "shape");
+    if (shape == NULL) return NULL;
+
+    PyObject *num_steps_obj = PyTuple_GetItem(pot_shape, 0);
+    if (num_steps_obj == NULL) return NULL;
+    Py_ssize_t num_steps = _FromInt(num_steps_obj);
+    if (PyErr_Occurred()) return NULL;
+    Py_XDECREF(pot_shape);
+
+    // Assumes number of walkers X number of atoms X 3
+    double* coord_data = _GetDoubleDataArray(coords);
+    if (coord_data == NULL) return NULL;
+    PyObject* big_walkers = _gatherWalkers(
+            manager,
+            world_rank, world_size,
+            coord_data,
+            num_walker_per_core,
+            num_atoms
+            );
+
+    double* pot_data = _GetDoubleDataArray(potentials);
+    if (pot_data == NULL) return NULL;
+    PyObject* big_poots = _gatherPotentials(
+            manager,
+            world_rank, world_size,
+            pot_data,
+            num_steps,
+            num_walker_per_core
+    );
+
+    PyObject* big_weights;
+    if (weights != Py_None) {
+        double* weights_data = _GetDoubleDataArray(weights);
+        if (weights_data == NULL) return NULL;
+        big_weights = _gatherPotentials(
+            manager,
+            world_rank, world_size,
+            weights_data,
+            1,
+            num_walker_per_core
+        );
+    } else {
+        big_weights = Py_None;
+    }
+
+    if (world_rank == 0) {
+        PyObject *ret;
+        if (weights == Py_None) {
+            ret = Py_BuildValue("(OO)", big_walkers, big_poots);
+        } else {
+            ret = Py_BuildValue("(OOO)", big_walkers, big_poots, big_weights);
+        };
         return ret;
     } else {
         Py_RETURN_NONE;
     }
 
 }
+
+//for dying in eliminated_walkers:  # gotta do it iteratively to get the max_weight_walker right...
+//        cloning = np.argmax(weights)
+//# print(cloning)
+//parents[dying] = parents[cloning]
+//walkers[dying] = walkers[cloning]
+//weights[dying] = weights[cloning] / 2.0
+//weights[cloning] /= 2.0
 
 static PyMethodDef DoMyCodeMethods[] = {
     {"sendFriends", DoMyCode_distributeWalkers, METH_VARARGS, "distributes walkers to the nodes"},

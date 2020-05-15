@@ -28,7 +28,7 @@ class Simulation:
         "mpi_manager", "importance_sampler",
         "num_wavefunctions", "atomic_units",
         "ignore_errors", "branching_threshold",
-        "parallelize_diffusion"
+        "parallelize_diffusion", "branch_on_cores"
     ]
     def __init__(self, params):
         """Initializes the simulation from the simulation parameters
@@ -59,7 +59,8 @@ class Simulation:
             num_wavefunctions = 0,
             ignore_errors = True,
             branching_threshold = 1.0,
-            parallelize_diffusion=True
+            parallelize_diffusion=True,
+            branch_on_cores = False
             ):
         """
 
@@ -121,6 +122,7 @@ class Simulation:
         self.atomic_units = atomic_units
         self.ignore_errors = ignore_errors
 
+        self.branch_on_cores = branch_on_cores
         self.branching_threshold = branching_threshold
 
         if alpha is None:
@@ -287,8 +289,9 @@ class Simulation:
 
         return self
 
-    def log_print(self, *arg, **kwargs):
-        self.logger.log_print(*arg, **kwargs)
+    def log_print(self, *arg, allow_dummy=False, **kwargs):
+        if allow_dummy or not (self.dummied):
+            self.logger.log_print(*arg, **kwargs)
 
     def _prop(self):
         while not self.counter.done:
@@ -306,10 +309,9 @@ class Simulation:
             raise KeyboardInterrupt
 
         try:
-            if not self.dummied:
-                self.log_print(self.config_string)
-                self.log_print("-"*50)
-                self.log_print("Starting simulation")
+            self.log_print(self.config_string)
+            self.log_print("-"*50)
+            self.log_print("Starting simulation")
             if self.mpi_manager is not None:
                 # self.log_print("waiting for friends", verbosity=self.logger.LogLevel.STATUS)
                 self.mpi_manager.wait()
@@ -327,13 +329,13 @@ class Simulation:
             else:
                 self.log_print("Error Occurred on core {}\n  {}",
                                self.world_rank, tb.format_exc().replace("\n", "\n  "),
+                               allow_dummy=True,
                                verbosity=self.logger.LogLevel.STATUS
                                )
             if not self.ignore_errors:
                 raise
         finally:
-            if not self.dummied:
-                self.log_print("Ending simulation")
+            self.log_print("Ending simulation")
             self.checkpoint(test=False)
             if self.mpi_manager is not None:
                 self.mpi_manager.finalize_MPI()
@@ -376,7 +378,14 @@ class Simulation:
                                )
             energies += ke
         return energies
-    def evaluate_potential(self, nsteps):
+    def apply_branching(self, energies):
+        self.log_print("Updating walker weights", verbosity=self.logger.LogLevel.STEPS)
+        weights = self.update_weights(energies, self.walkers.weights)
+        self.walkers.weights = weights
+        self.log_print("Branching", verbosity=self.logger.LogLevel.STEPS)
+        energies = self.branch(energies)
+        return self.walkers.coords, self.walkers.weights, energies
+    def evaluate_potential_and_branch(self, nsteps):
         if not self.parallelize_diffusion or self.mpi_manager is None:
             self.log_print("Moving coordinates {} steps", nsteps, verbosity=self.logger.LogLevel.STEPS)
             start = time.time()
@@ -388,6 +397,10 @@ class Simulation:
             energies = self._evaluate_potential(coord_sets)
             end = time.time()
             self.log_print("    took {}s", end - start, verbosity=self.logger.LogLevel.STATUS)
+            if not self.dummied:
+                coords, weights, energies = self.apply_branching(energies)
+            else:
+                energies = weights = None
         else:
             send_walkers = self.lib.sendFriends
             get_results = self.lib.getFriendsAndPoots
@@ -396,6 +409,7 @@ class Simulation:
                 start = time.time()
             coords = np.ascontiguousarray(self.walkers.coords).astype('float')
             small_walkers = send_walkers(coords, self.mpi_manager)
+            # self.log_print("little walkers what you do {}", small_walkers.shape)
             self.walkers.coords = small_walkers
             coord_sets = self.walkers.displace(nsteps, importance_sampler=self.imp_samp, atomic_units=self.atomic_units)
             if not self.dummied:
@@ -407,16 +421,27 @@ class Simulation:
                 end = time.time()
                 self.log_print("    took {}s", end - start, verbosity=self.logger.LogLevel.STATUS)
 
-            coord_sets = np.ascontiguousarray(coord_sets).astype('float')
+            coords = np.ascontiguousarray(coord_sets[-1]).astype('float')
             energies = np.ascontiguousarray(energies).astype('float')
-            res = get_results(coord_sets, energies, self.mpi_manager)
-            if res is not None:
-                coords, energies = res
-                self.walkers.coords = coords
+            if self.branch_on_cores:
+                coord_sets, weights, energies = self.apply_branching(energies)
             else:
-                self.walkers.coords = coord_sets[-1]
+                weights = None
+            res = get_results(coords, energies, weights, self.mpi_manager)
+            if res is None:
+                self.walkers.coords = coords
                 energies = None
-        return energies
+            elif len(res) == 3:
+                coords, energies, weights = res
+                self.walkers.coords = coords
+                self.walkers.weights = weights
+            elif len(res) == 2: # implicitly means not self.branch_on_cores
+                coords, energies = res
+                # self.log_print("big walkers who are you {} (energies too {})", coords.shape, energies.shape)
+                self.walkers.coords = coords
+                coords, weights, energies = self.apply_branching(energies)
+
+        return energies, weights
 
     def propagate(self, nsteps = None):
         """Propagates the system forward n steps
@@ -431,13 +456,8 @@ class Simulation:
 
         if not self.dummied:
             self.log_print("Starting step {}", self.counter.step_num, verbosity=self.logger.LogLevel.STATUS)
-            energies = self.evaluate_potential(nsteps)
+            energies, weights = self.evaluate_potential_and_branch(nsteps)
             self.counter.increment(nsteps)
-            self.log_print("Updating walker weights", verbosity=self.logger.LogLevel.STEPS)
-            weights = self.update_weights(energies, self.walkers.weights)
-            self.walkers.weights = weights
-            self.log_print("Branching", verbosity=self.logger.LogLevel.STEPS)
-            self.branch()
             self.log_print("Applying descendent weighting", verbosity=self.logger.LogLevel.STEPS)
             self.descendent_weight()
             if self.full_energies is not None:
@@ -447,11 +467,12 @@ class Simulation:
             self.checkpoint()
             if self.logger.verb_int >= self.logger.LogLevel.STATUS.value:
                 # we do the check here so as to not waste time computing ZPE... even though that waste is effectively 0
+                self.log_print("Average Energy: {}", self.reference_potentials[-1], verbosity=self.logger.LogLevel.STATUS)
                 self.log_print("Zero-point Energy: {}", self.analyzer.zpe, verbosity=self.logger.LogLevel.STATUS)
             self.log_print("Runtime: {}s", round(self.timer.elapsed), verbosity=self.logger.LogLevel.STATUS)
             self.log_print("-" * 50, verbosity=self.logger.LogLevel.STATUS)
         else:
-            energies = self.evaluate_potential(nsteps)
+            energies, weights = self.evaluate_potential_and_branch(nsteps)
             self.counter.step_num += nsteps
 
         if self.mpi_manager is not None:
@@ -505,7 +526,36 @@ class Simulation:
             )
         return weights
 
-    def branch(self):
+    @staticmethod
+    def chop_weights(eliminated_walkers, weights, parents, walkers, energies):
+        n_elims = len(eliminated_walkers)
+        max_inds = np.argpartition(weights, -n_elims)[-n_elims:]
+        max_weights = weights[max_inds].copy()
+        max_sort = np.flip(np.argsort(max_weights))
+        max_inds = max_inds[max_sort]
+        max_weights = max_weights[max_sort]
+        if max_weights[0] / 2 < max_weights[-1]:
+            # we can circumvent any work
+            cloning = max_inds
+            dying = eliminated_walkers
+            eliminated_walkers = []
+        else:
+            mean_guys = np.sum(
+                max_weights[0] / 2 > max_weights)  # this is the number of walkers we actually need to be careful with
+            cloning = max_inds[:-mean_guys]
+            dying = eliminated_walkers[:-mean_guys]
+            eliminated_walkers = eliminated_walkers[-mean_guys:]
+        weights[cloning] /= 2.0
+        weights[dying] = weights[cloning]
+        parents[dying] = parents[cloning]
+        walkers[dying] = walkers[cloning]
+        if energies.ndim > 1:
+            energies[-1, dying] = energies[-1, cloning]
+        else:
+            energies[dying] = energies[cloning]
+        return eliminated_walkers
+
+    def branch(self, energies):
         """Handles branching in the system.
 
         :return:
@@ -522,13 +572,9 @@ class Simulation:
         self.log_print('Walkers being removed: {}', len(eliminated_walkers), verbosity=self.logger.LogLevel.STATUS)
         # self.log_print('Min/Max weight in ensemble: {}/{}', np.min(weights), np.max(weights), verbosity=self.logger.LogLevel.STATUS)
 
-        for dying in eliminated_walkers:  # gotta do it iteratively to get the max_weight_walker right...
-            cloning = np.argmax(weights)
-            # print(cloning)
-            parents[dying] = parents[cloning]
-            walkers[dying] = walkers[cloning]
-            weights[dying] = weights[cloning] / 2.0
-            weights[cloning] /= 2.0
+        # TODO: rewrite this to do an explicit sort of max_weights, first
+        while len(eliminated_walkers) > 0:
+            eliminated_walkers = self.chop_weights(eliminated_walkers, weights, parents, walkers, energies)
 
     def descendent_weight(self):
         """Calls into the walker descendent weighting if the timing is right

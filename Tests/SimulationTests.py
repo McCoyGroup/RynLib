@@ -12,7 +12,7 @@ class SimulationTests(TestCase):
         self.im = ImportanceSamplerManager()
         self.pm = PotentialManager()
 
-    @validationTest
+    @debugTest
     def test_SimpleHO(self):
         SimulationInterface.test_HO()
         f = self.sm.simulation_output_folder("test_HO")

@@ -261,7 +261,7 @@ PotentialArray _gatherPotentials(
         pot_buf = (RawPotentialBuffer) malloc(ncalls * num_walkers * sizeof(Real_t));
     }
     PyObject* gather = PyObject_GetAttrString(manager, "gather");
-    GatherFunction gather_walkers = (GatherFunction) PyCapsule_GetPointer(gather, "Dumpi._GATHER_WALKERS");
+    GatherFunction gather_walkers = (GatherFunction) PyCapsule_GetPointer(gather, "Dumpi._GATHER_POTENTIALS");
     gather_walkers(
             manager,
             pot_data,
@@ -279,13 +279,13 @@ PotentialArray _gatherPotentials(
     //      pot_m(t=0), walker_m(t=1), ... walker_m(t=n)
     //   ]
     // And so we'll just directly copy it in?
-    PotentialArray potVals(num_walkers, PotentialVector(ncalls, 0));
+    PotentialArray potVals(ncalls, PotentialVector(num_walkers, 0));
     if( world_rank == 0 ) {
         // at this point we have (num_walkers, ncalls) shaped potVals array, too, so I'm just gonna copy it
         // I think I _also_ copy it again downstream but, to be honest, I don't care???
         for (int call = 0; call < ncalls; call++) {
             for (int walker = 0; walker < num_walkers; walker++) {
-                potVals[walker][call] = pot_buf[ind2d(walker, call, num_walkers, ncalls)];
+                potVals[call][walker] = pot_buf[ind2d(walker, call, num_walkers, ncalls)];
             }
         }
         free(pot_buf);
@@ -465,6 +465,7 @@ class PotentialCaller {
     }
 
     void omp_call() {
+
         for (int n = 0; n < ncalls_loop; n++) {
             RawPotentialBuffer current_data;
             current_data = pots[n].data();
@@ -663,7 +664,7 @@ PyObject* _mpiGetPyPot(
         pot_buf = _GetDoubleDataArray(potVals);
     }
     PyObject* gather = PyObject_GetAttrString(manager, "gather");
-    GatherFunction gather_walkers = (GatherFunction) PyCapsule_GetPointer(gather, "Dumpi._GATHER_WALKERS");
+    GatherFunction gather_walkers = (GatherFunction) PyCapsule_GetPointer(gather, "Dumpi._GATHER_POTENTIALS");
     if (gather_walkers == NULL) {
         PyErr_SetString(PyExc_AttributeError, "Couldn't get gather pointer");
         return NULL;
