@@ -443,9 +443,9 @@ class Simulation:
             if not self.dummied:
                 end = time.time()
                 self.log_print("    took {}s", end - start, verbosity=self.logger.LogLevel.STATUS)
+                start = end
             self.log_print("Computing potential energy over walkers {}", coord_sets.shape,
                            allow_dummy=True, verbosity=self.logger.LogLevel.STATUS)
-            start = end
             energies = self._evaluate_potential(coord_sets)
             if not self.dummied:
                 end = time.time()
