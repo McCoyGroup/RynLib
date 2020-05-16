@@ -219,6 +219,14 @@ class Simulation:
         if (not test) or can_check:
             self.logger.checkpoint()
 
+    def garbage_collect(self, test = True):
+        import gc
+
+        can_gc = self.counter.checkpoint
+        # self.log_print("Checkpoint? {}", can_check, verbosity=self.logger.LogLevel.STATUS)
+        if (not test) or can_gc:
+            gc.collect()
+
     # @property
     # def checkpoint_params(self):
     #     # anything that isn't stored in config.py
@@ -507,6 +515,7 @@ class Simulation:
             if self.full_weights is not None:
                 self.full_weights.append(weights)
             self.checkpoint()
+            self.garbage_collect()
             if self.logger.verb_int >= self.logger.LogLevel.STATUS.value:
                 # we do the check here so as to not waste time computing ZPE... even though that waste is effectively 0
                 self.log_print("Average Energy: {}", self.reference_potentials[-1], verbosity=self.logger.LogLevel.STATUS)
@@ -516,6 +525,7 @@ class Simulation:
         else:
             energies, weights = self.evaluate_potential_and_branch(nsteps)
             self.counter.step_num += nsteps
+            self.garbage_collect()
 
         if self.mpi_manager is not None:
             # self.log_print("waiting for friends", verbosity=self.logger.LogLevel.STATUS)

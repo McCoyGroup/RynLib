@@ -8,6 +8,7 @@ RUN rm -rf /home/RynLib
 
 ADD . /home/RynLib
 RUN mkdir -p /tests
+RUN pip3 install memory_profiler matplotlib
 
 ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/rynlib/ext/lib
 ENV PATH=$PATH:/rynlib/ext/bin

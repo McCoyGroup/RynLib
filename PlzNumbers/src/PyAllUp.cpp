@@ -88,6 +88,8 @@ double *_GetDoubleDataBufferArray(Py_buffer *view) {
 double *_GetDoubleDataArray(PyObject *data) {
     Py_buffer view = _GetDataBuffer(data);
     double *array = _GetDoubleDataBufferArray(&view);
+    PyBuffer_Release(&view);
+//    Py_XDECREF(data);
 //    CHECKNULL(array);
     return array;
 }

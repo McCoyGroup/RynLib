@@ -9,7 +9,7 @@ class SimulationStepCounter:
     A class that manages knowing what timestep it is and what that means we need to do
     """
     __props__ = [
-        "step_num", "num_time_steps", "checkpoint_every",
+        "step_num", "num_time_steps", "checkpoint_every", "gc_every",
         "equilibration_steps", "descendent_weight_every", "descendent_weighting_steps"
     ]
     def __init__(self,
@@ -17,6 +17,7 @@ class SimulationStepCounter:
                  step_num = 0,
                  num_time_steps = None,
                  checkpoint_every=None,
+                 gc_every=None,
                  equilibration_steps=None,
                  descendent_weight_every = None,
                  descendent_weighting_steps = None
@@ -48,6 +49,15 @@ class SimulationStepCounter:
         self._checkpoint = checkpoint_every
         self._cached_checkpoint = None
 
+        self._previous_gc = step_num
+        if isinstance(gc_every, int):
+            # bind a little lambda to check whether we've gone `checkpoint_every` steps further
+            gc_every = lambda s, c=gc_every: s.step_num - s._previous_checkpoint >= c
+        elif gc_every is None:
+            gc_every = lambda *a: False
+        self._do_gc = gc_every
+        self._cached_gc = None
+
         self._equilibrated = False
         if isinstance(equilibration_steps, (int, np.integer)):
             equilibration_steps = lambda s, e=equilibration_steps: s.step_num > e  # classic lambda parameter binding
@@ -65,6 +75,14 @@ class SimulationStepCounter:
             if self._cached_checkpoint:
                 self._previous_checkpoint = self.step_num
         return self._cached_checkpoint
+
+    @property
+    def garbage_collect(self):
+        if self._cached_gc is None:
+            self._cached_gc = self._do_gc(self)
+            if self._cached_gc:
+                self._previous_gc = self.step_num
+        return self._cached_gc
 
     def increment(self, n):
         self._cached_checkpoint = None

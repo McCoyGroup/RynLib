@@ -73,11 +73,12 @@ class CLI:
 
         indent="    "
         template = "{group}:\n{commands}"
+        bleps = self.command_prefix.count("_")
         if self.cmd == "":
             for k in vars(type(self)):
                 for g in groups:
                     if k.startswith(self.command_prefix+g):
-                        groups[g][k.split("_", 1)[1].replace("_", "-")] = getattr(self, k)
+                        groups[g][k.split("_", bleps)[-1].replace("_", "-")] = getattr(self, k)
         else:
             template = "{group}{commands}"
             indent = "  "

@@ -11,6 +11,7 @@ ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/ext/lib
 ENV PATH=$PATH:/ext/bin
 
 RUN mkdir -p /tests
+RUN pip3 install memory_profiler matplotlib
 
 RUN python3 /home/RynLib/CLI.py config build-libs --rebuild=True
 #RUN python3 /home/RynLib/CLI.py config run-tests --debug=True

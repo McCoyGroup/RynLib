@@ -169,8 +169,6 @@ PyObject *PlzNumbers_callPotVec( PyObject* self, PyObject* args ) {
     if (PyErr_Occurred()) return NULL;
 //    Py_XDECREF(shape);
 
-//    printf("but now I have to do it again...\n");
-
     // this thing should have the walker number as the slowest moving index then the number of the timestep
     // that way we'll really have the correct memory entering into our calls
     double* raw_data = _GetDoubleDataArray(coords);
@@ -199,6 +197,8 @@ PyObject *PlzNumbers_callPotVec( PyObject* self, PyObject* args ) {
         pot = (PotentialFunction) PyCapsule_GetPointer(pot_function, "_potential");
     }
 
+//    printf("coords (%p) has %d refs...?\n", coords, Py_REFCNT(coords));
+
     bool main_core = true;
     if ( manager != Py_None ){
         PyObject *rank = PyObject_GetAttrString(manager, "world_rank");
@@ -208,7 +208,7 @@ PyObject *PlzNumbers_callPotVec( PyObject* self, PyObject* args ) {
     }
     PyObject* new_array;
     if (manager==Py_None) {
-//        printf("-_- y\n");
+// //       printf("-_- y\n");
         pot_vals = _noMPIGetPot(
                 pot,
                 flat_pot,
@@ -226,6 +226,7 @@ PyObject *PlzNumbers_callPotVec( PyObject* self, PyObject* args ) {
                 use_TBB
         );
         new_array = _fillNumPyArray(pot_vals, ncalls, num_walkers);
+//       new_array = _getNumPyArray(ncalls, num_walkers, "float");
     } else {
         pot_vals = _mpiGetPot(
                 manager,
@@ -244,8 +245,12 @@ PyObject *PlzNumbers_callPotVec( PyObject* self, PyObject* args ) {
                 use_openMP,
                 use_TBB
         );
-        new_array = _fillNumPyArray(pot_vals, num_walkers, ncalls);
+        if ( main_core) {
+            new_array = _fillNumPyArray(pot_vals, num_walkers, ncalls);
+        }
     }
+
+//    printf("After all that, coords (%p) has %d refs and new_array has (%d)\n", coords, Py_REFCNT(coords), Py_REFCNT(new_array));
 
     if ( main_core ){
 //        printf("._. %f %f %f (%d, %d)&(%d, %d)?\n",

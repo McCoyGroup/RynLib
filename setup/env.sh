@@ -162,7 +162,7 @@ function rynlib_update_shifter() {
   shifterimg pull $img;
   };
 
-RYNLIB_OPT_PATTERN=":eV:n:";
+RYNLIB_OPT_PATTERN=":eV:n:L:M:W:E:";
 function rynlib_shifter() {
 
     local entos="$RYNLIB_ENTOS_PATH";
@@ -230,12 +230,28 @@ function rynlib_singularity() {
     local vols="";
     local do_echo="";
     local mpi="";
-    local arg_count;
+    local prof="";
+    local lib="";
+    local wdir="";
+    local enter="";
+    local cmd="";
+    local cmd2="";
 
     arg_count=$(mcargcount $@)
     vols=$(mcoptvalue $RYNLIB_OPT_PATTERN "V" ${@:1:arg_count})
     do_echo=$(mcoptvalue $RYNLIB_OPT_PATTERN "e" ${@:1:arg_count})
     mpi=$(mcoptvalue $RYNLIB_OPT_PATTERN "n" ${@:1:arg_count})
+    lib=$(mcoptvalue $RYNLIB_OPT_PATTERN "L" ${@:1:arg_count})
+    wdir=$(mcoptvalue $RYNLIB_OPT_PATTERN "W" ${@:1:arg_count})
+    enter=$(mcoptvalue $RYNLIB_OPT_PATTERN "E" ${@:1:arg_count})
+    prof=$(mcoptvalue $RYNLIB_OPT_PATTERN "M" ${@:1:arg_count})
+    if [[ "$vols" != "" ]]; then shift 2; fi
+    if [[ "$do_echo" != "" ]]; then shift; fi
+    if [[ "$mpi" != "" ]]; then shift 2; fi
+    if [[ "$lib" != "" ]]; then shift 2; fi
+    if [[ "$wdir" != "" ]]; then shift 2; fi
+    if [[ "$enter" != "" ]]; then shift 2; fi
+    if [[ "$prof" != "" ]]; then shift 2; fi
 
     if [[ "$entos" = "" ]]; then
       entos="$PWD/entos";
@@ -252,12 +268,7 @@ function rynlib_singularity() {
     if [[ "$vols" = "" ]]; then
       vols="$config:/config";
     else
-      shift; shift;
       vols="$vols,$config:/config";
-    fi
-
-    if [[ "$mpi" != "" ]]; then
-      shift; shift
     fi
 
     if [[ -d "$entos" ]]; then
@@ -266,16 +277,47 @@ function rynlib_singularity() {
     if [[ -d "$ext" ]]; then
       vols="$vols,$ext:/ext";
     fi
+    if [[ -d "$lib" ]]; then
+      vols="$vols,$lib:/home/RynLib"
+    fi
 
+    # Set the entrypoint and define any args we need to pass
+    cmd="singularity exec"
+    if [[ "$enter" == "" ]]; then
+      call="python3 /home/RynLib/CLI.py" we want to profile our job, we really want to do 2 docker calls at once
+      if [[ "$prof" != "" ]]; then
+        enter="mprof"
+        cmd2="singularity exec"
+        if [[ "$wdir" != "" ]]; then
+          cmd2="$cmd2 -W $wdir"
+        fi
+        cmd2="$cmd2 $vols $img mprof plot --output=$prof"
+      elif [[ "$mpi" != "" ]]; then
+        #Set the working directory
+        enter="/usr/lib/mpi/bin/mpirun"
+        if [[ "$wdir" != "" ]]; then
+          cmd="$cmd -W $wdir"
+        fi
+        call="-n $mpi $call"
+      elif [[ "$lib" == "" ]]; then
+        cmd="singularity run"
+        call=""
+      fi
+    fi
+
+    if [[ "$wdir" != "" ]]; then
+      cmd="$cmd -W $wdir"
+    fi
+    cmd="$cmd --bind $vols $enter"
+
+    #We might want to just echo the command
     if [[ "$do_echo" == "" ]]; then
-      if [[ "$mpi" == "" ]]; then
-        singularity run --bind $vols $img $@
-      else
-        singularity exec --bind $vols $img /usr/lib/mpi/bin/mpirun -n $mpi python3 /home/RynLib/CLI.py $@
+      $cmd $img $call $@
+      if [[ "$cmd2" != "" ]]; then
+        $cmd2
       fi
     else
-      shift;
-      echo "singularity run --bind $vols $img $@"
+      echo "$cmd $img $call"
     fi
 }
 
@@ -285,15 +327,32 @@ function rynlib_docker() {
     local ext="$RYNLIB_EXTENSION_PATH";
     local config="$RYNLIB_CONFIG_PATH";
     local img="$RYNLIB_IMAGE";
+    local arg_count=0;
     local vols="";
     local do_echo="";
     local mpi="";
-    local arg_count=0;
+    local prof="";
+    local lib="";
+    local wdir="";
+    local enter="";
+    local cmd="";
+    local cmd2="";
 
     arg_count=$(mcargcount $@)
     vols=$(mcoptvalue $RYNLIB_OPT_PATTERN "V" ${@:1:arg_count})
     do_echo=$(mcoptvalue $RYNLIB_OPT_PATTERN "e" ${@:1:arg_count})
     mpi=$(mcoptvalue $RYNLIB_OPT_PATTERN "n" ${@:1:arg_count})
+    lib=$(mcoptvalue $RYNLIB_OPT_PATTERN "L" ${@:1:arg_count})
+    wdir=$(mcoptvalue $RYNLIB_OPT_PATTERN "W" ${@:1:arg_count})
+    enter=$(mcoptvalue $RYNLIB_OPT_PATTERN "E" ${@:1:arg_count})
+    prof=$(mcoptvalue $RYNLIB_OPT_PATTERN "M" ${@:1:arg_count})
+    if [[ "$vols" != "" ]]; then shift 2; fi
+    if [[ "$do_echo" != "" ]]; then shift; fi
+    if [[ "$mpi" != "" ]]; then shift 2; fi
+    if [[ "$lib" != "" ]]; then shift 2; fi
+    if [[ "$wdir" != "" ]]; then shift 2; fi
+    if [[ "$enter" != "" ]]; then shift 2; fi
+    if [[ "$prof" != "" ]]; then shift 2; fi
 
     if [[ "$entos" = "" ]]; then
       entos="$PWD/entos";
@@ -309,14 +368,9 @@ function rynlib_docker() {
       img="$RYNLIB_IMAGE_NAME";
     fi
 
-    if [[ "$mpi" != "" ]]; then
-      shift; shift
-    fi
-
     if [[ "$vols" == "" ]]; then
       vols="--mount type=bind,source=$config,target=/config";
     else
-      shift; shift;
       local escaped=",";
       local real=" --mount type=bind,source=";
       vols=${vols//$escaped/$real}
@@ -332,20 +386,49 @@ function rynlib_docker() {
     if [[ -d "$ext" ]]; then
       vols="$vols --mount type=bind,source=$ext,target=/ext";
     fi
+    if [[ -d "$lib" ]]; then
+      vols="$vols --mount type=bind,source=$lib,target=/home/RynLib";
+    fi
 
-    if [[ "$do_echo" == "" ]]; then
-      if [[ "$mpi" == "" ]]; then
-        docker run --rm $vols -it $img $@
+    # Set the entrypoint and define any args we need to pass
+    cmd="docker run --rm $vols -it"
+    if [[ "$enter" == "" ]]; then
+      call="python3 /home/RynLib/CLI.py"
+      # if we want to profile our job, we really want to do 2 docker calls at once
+      if [[ "$prof" != "" ]]; then
+        cmd="$cmd --entrypoint=mprof"
+        call="run $call"
+        if [[ "$mpi" != "" ]]; then
+          call="/usr/lib/mpi/bin/mpirun -n $mpi $call"
+        fi
+        cmd2="docker run --entrypoint=mprof"
+        if [[ "$wdir" != "" ]]; then
+          cmd2="$cmd2 -w=$wdir"
+        fi
+        cmd2="$cmd2 $vols $img plot --output=$prof"
+      elif [[ "$mpi" != "" ]]; then
+        cmd="$cmd --entrypoint=/usr/lib/mpi/bin/mpirun"
+        call="-n $mpi $call $@"
       else
-        docker run --rm $vols -it --entrypoint=/usr/lib/mpi/bin/mpirun $img -n $mpi python3 /home/RynLib/CLI.py $@
+        call=""
       fi
     else
-      shift;
-      if [[ "$mpi" == "" ]]; then
-        echo "docker run --rm $vols -it $img $@"
-      else
-        echo "docker run --rm $vols -it --entrypoint=/usr/lib/mpi/bin/mpirun $img -n $mpi python3 /home/RynLib/CLI.py $@"
+      cmd="$cmd --entrypoint=$enter"
+    fi
+
+    #Set the working directory
+    if [[ "$wdir" != "" ]]; then
+      cmd="$cmd -w=$wdir"
+    fi
+
+    #We might want to just echo the command
+    if [[ "$do_echo" == "" ]]; then
+      $cmd $img $call $@
+      if [[ "$cmd2" != "" ]]; then
+        $cmd2
       fi
+    else
+      echo "$cmd $img $call"
     fi
 }
 

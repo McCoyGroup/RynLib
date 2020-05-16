@@ -14,6 +14,8 @@ PyObject *DoMyCode_distributeWalkers(PyObject* self, PyObject* args ) {
            )
         ) return NULL;
 
+//    printf("To start, coords (%p) has %d refs...?\n", coords, Py_REFCNT(coords));
+
     // Figure out how many things to send/get
     PyObject* ws = PyObject_GetAttrString(manager, "world_size");
     int world_size = _FromInt(ws);
@@ -67,6 +69,8 @@ PyObject *DoMyCode_distributeWalkers(PyObject* self, PyObject* args ) {
     );
     Py_XDECREF(scatter);
 
+//    printf("  after the scatter, coords (%p) has %d refs...?\n", coords, Py_REFCNT(coords));
+
     return little_walkers;
 
 }
@@ -109,6 +113,7 @@ PyObject *_gatherWalkers(
         int num_walkers_per_core,
         int num_atoms
         ) {
+
     PyObject *big_walkers = NULL;
     double *walker_buf = NULL;
     if (world_rank == 0) {
@@ -116,8 +121,6 @@ PyObject *_gatherWalkers(
         walker_buf = _GetDoubleDataArray(big_walkers);
 //        _printObject(";_____%s____;\n", PyObject_GetAttrString(big_walkers, "shape"));
     }
-
-//    printf("returning (%d, %d, %d, 3) from %d\n", num_steps, num_walkers_per_core, num_atoms, world_rank);
 
     PyObject* gather_walkers = PyObject_GetAttrString(manager, "gather_walkers");
     GatherWalkerFunction gather_w = (GatherWalkerFunction) PyCapsule_GetPointer(gather_walkers, "Dumpi._GATHER_WALKERS");
@@ -150,6 +153,11 @@ PyObject *DoMyCode_getWalkersAndPots(PyObject* self, PyObject* args ) {
     PyObject* wr = PyObject_GetAttrString(manager, "world_rank");
     int world_rank = _FromInt(wr);
     Py_XDECREF(wr);
+
+//    printf("Before the gather, coords (%p) has %d refs and potentials (%p) has %d\n",
+//            coords, Py_REFCNT(coords),
+//            potentials, Py_REFCNT(potentials)
+//            );
 
     PyObject *shape = PyObject_GetAttrString(coords, "shape");
     if (shape == NULL) return NULL;
@@ -210,13 +218,27 @@ PyObject *DoMyCode_getWalkersAndPots(PyObject* self, PyObject* args ) {
         big_weights = Py_None;
     }
 
+//    printf("  after the gather, coords (%p) has %d refs, potentials (%p) has %d, and new walks/pots are %d & %d\n",
+//           coords, Py_REFCNT(coords),
+//           potentials, Py_REFCNT(potentials),
+//           Py_REFCNT(big_walkers), Py_REFCNT(big_poots)
+//    );
+
     if (world_rank == 0) {
         PyObject *ret;
         if (weights == Py_None) {
             ret = Py_BuildValue("(OO)", big_walkers, big_poots);
+            Py_XDECREF(big_walkers); Py_XDECREF(big_poots);
         } else {
             ret = Py_BuildValue("(OOO)", big_walkers, big_poots, big_weights);
+            Py_XDECREF(big_walkers); Py_XDECREF(big_poots); Py_XDECREF(big_weights);
         };
+        if (ret == NULL) { return NULL; }
+//        printf("  and after the build we're at: coords (%d), potentials (%d), and new walks/pots (%d & %d)\n",
+//               Py_REFCNT(coords),
+//               Py_REFCNT(potentials),
+//               Py_REFCNT(big_walkers), Py_REFCNT(big_poots)
+//        );
         return ret;
     } else {
         Py_RETURN_NONE;

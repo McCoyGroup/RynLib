@@ -56,6 +56,7 @@ class WalkerSet:
             initial_walker = initial_walker[inds]
 
         self.coords = np.asarray(initial_walker)
+        self._cached_coords = None # efficient for big-walker simulations
         self.weights = np.ones(num_walkers)
 
         self.parents = np.arange(num_walkers)
@@ -108,14 +109,16 @@ class WalkerSet:
             ...
 
     def get_displaced_coords(self, n=1, importance_sampler = None, atomic_units = False):
-        # accum_disp = np.cumsum(self.get_displacements(n), axis=1)
-        # return np.broadcast_to(self.coords, (n,) + self.coords.shape) + accum_disp # hoping the broadcasting makes this work...
-
         # this is a kinda crummy way to get this, but it allows us to get our n sets of displacements
-        crds = np.empty((n,) + self.coords.shape, dtype=float)
+        if self._cached_coords is None or len(self._cached_coords) != n:
+            crds = np.empty((n,) + self.coords.shape, dtype=float)
+            self._cached_coords = crds
+        else:
+            crds = self._cached_coords
         if importance_sampler is not None:
             importance_sampler.setup_psi(crds)
         bloop = self.coords.astype(float)
+        # print("wat...?", id(self.coords))
         disps = self.get_displacements(n, atomic_units=atomic_units)
         for i, d in enumerate(disps): # loop over steps
             if importance_sampler is not None:
