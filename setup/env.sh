@@ -284,7 +284,7 @@ function rynlib_singularity() {
     # Set the entrypoint and define any args we need to pass
     cmd="singularity exec"
     if [[ "$enter" == "" ]]; then
-      call="python3 /home/RynLib/CLI.py" we want to profile our job, we really want to do 2 docker calls at once
+      call="python3 /home/RynLib/CLI.py"
       if [[ "$prof" != "" ]]; then
         enter="mprof"
         cmd2="singularity exec"
