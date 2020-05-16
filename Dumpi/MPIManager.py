@@ -21,7 +21,10 @@ class MPIManagerObject:
     _world_rank = None
     _lib = None
 
-    def __init__(self, hybrid_parallelization = None):
+    def __init__(self,
+                 hybrid_parallelization = None,
+                 finalize_on_exit=True
+                 ):
         from ..Interface import RynLib
         parallel_threads=RynLib.flags["OpenMPThreads"]
         if not parallel_threads:
@@ -31,7 +34,7 @@ class MPIManagerObject:
         self.parallel_threads = parallel_threads
         self._hybrid_parallelization = hybrid_parallelization
         self.init_MPI()
-
+        self.finalize_on_exit=finalize_on_exit
 
     @classmethod
     def _load_lib(cls):
@@ -182,6 +185,10 @@ class MPIManagerObject:
             MPIManagerError.raise_uninitialized()
         mod = sys.modules[type(self).__module__]
         return self.lib._SCATTER_WALKERS
+
+    def __del__(self):
+        if self.finalize_on_exit:
+            self.finalize_MPI()
 
 class MPIManagerError(Exception):
     @classmethod

@@ -408,7 +408,7 @@ function rynlib_docker() {
         cmd2="$cmd2 $vols $img plot --output=$prof"
       elif [[ "$mpi" != "" ]]; then
         cmd="$cmd --entrypoint=/usr/lib/mpi/bin/mpirun"
-        call="-n $mpi $call $@"
+        call="-n $mpi $call"
       else
         call=""
       fi

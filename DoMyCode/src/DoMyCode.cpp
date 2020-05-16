@@ -14,7 +14,7 @@ PyObject *DoMyCode_distributeWalkers(PyObject* self, PyObject* args ) {
            )
         ) return NULL;
 
-//    printf("To start, coords (%p) has %d refs...?\n", coords, Py_REFCNT(coords));
+//    printf("To start, coords (%p) has %d refs and manager has %d\n", coords, Py_REFCNT(coords), Py_REFCNT(manager));
 
     // Figure out how many things to send/get
     PyObject* ws = PyObject_GetAttrString(manager, "world_size");
@@ -103,7 +103,12 @@ PyObject *_gatherPotentials(
     );
     Py_XDECREF(gather_pots);
 
-    return big_poots;
+    if (world_rank == 0) {
+        return big_poots;
+    } else {
+        Py_RETURN_NONE;
+    }
+
 }
 PyObject *_gatherWalkers(
         PyObject *manager,
@@ -119,7 +124,6 @@ PyObject *_gatherWalkers(
     if (world_rank == 0) {
         big_walkers = _getNumPyArray(num_walkers_per_core * world_size, num_atoms, 3, "float");
         walker_buf = _GetDoubleDataArray(big_walkers);
-//        _printObject(";_____%s____;\n", PyObject_GetAttrString(big_walkers, "shape"));
     }
 
     PyObject* gather_walkers = PyObject_GetAttrString(manager, "gather_walkers");
@@ -128,7 +132,7 @@ PyObject *_gatherWalkers(
         PyErr_SetString(PyExc_AttributeError, "Couldn't get gather pointer");
         return NULL;
     }
-    gather_w(
+    int success = gather_w(
             manager,
             coord_data,  // raw data buffer to chunk up
             num_walkers_per_core,
@@ -137,7 +141,13 @@ PyObject *_gatherWalkers(
     );
     Py_XDECREF(gather_walkers);
 
-    return big_walkers;
+    if (!success) { return NULL; }
+
+    if (world_rank == 0) {
+        return big_walkers;
+    } else {
+        Py_RETURN_NONE;
+    }
 }
 
 PyObject *DoMyCode_getWalkersAndPots(PyObject* self, PyObject* args ) {
@@ -192,6 +202,9 @@ PyObject *DoMyCode_getWalkersAndPots(PyObject* self, PyObject* args ) {
             num_walker_per_core,
             num_atoms
             );
+    if (big_walkers == NULL) return NULL;
+
+//    printf("...sent walker (%d)\n", world_rank);
 
     double* pot_data = _GetDoubleDataArray(potentials);
     if (pot_data == NULL) return NULL;
@@ -202,6 +215,9 @@ PyObject *DoMyCode_getWalkersAndPots(PyObject* self, PyObject* args ) {
             num_steps,
             num_walker_per_core
     );
+    if (big_poots == NULL) return NULL;
+
+//    printf("...sent poots (%d)\n", world_rank);
 
     PyObject* big_weights;
     if (weights != Py_None) {
@@ -214,15 +230,14 @@ PyObject *DoMyCode_getWalkersAndPots(PyObject* self, PyObject* args ) {
             1,
             num_walker_per_core
         );
-    } else {
+        if (big_weights == NULL) return NULL;
+    } else {;
         big_weights = Py_None;
     }
+    
+//    printf("To end, coords (%p) has %d refs and manager has %d\n", coords,
+//            Py_REFCNT(coords), Py_REFCNT(manager));
 
-//    printf("  after the gather, coords (%p) has %d refs, potentials (%p) has %d, and new walks/pots are %d & %d\n",
-//           coords, Py_REFCNT(coords),
-//           potentials, Py_REFCNT(potentials),
-//           Py_REFCNT(big_walkers), Py_REFCNT(big_poots)
-//    );
 
     if (world_rank == 0) {
         PyObject *ret;
@@ -234,11 +249,6 @@ PyObject *DoMyCode_getWalkersAndPots(PyObject* self, PyObject* args ) {
             Py_XDECREF(big_walkers); Py_XDECREF(big_poots); Py_XDECREF(big_weights);
         };
         if (ret == NULL) { return NULL; }
-//        printf("  and after the build we're at: coords (%d), potentials (%d), and new walks/pots (%d & %d)\n",
-//               Py_REFCNT(coords),
-//               Py_REFCNT(potentials),
-//               Py_REFCNT(big_walkers), Py_REFCNT(big_poots)
-//        );
         return ret;
     } else {
         Py_RETURN_NONE;

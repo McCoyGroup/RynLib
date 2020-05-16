@@ -58,7 +58,7 @@ class Simulation:
             mpi_manager = True,
             importance_sampler = None,
             num_wavefunctions = 0,
-            ignore_errors = True,
+            ignore_errors = False,
             branching_threshold = 1.0,
             parallelize_diffusion=True,
             branch_on_cores = False,
@@ -340,6 +340,7 @@ class Simulation:
             signal.signal(signal.SIGTERM, handler)
             signal.signal(signal.SIGABRT, handler)
             self._prop()
+
         except Exception as e:
             import traceback as tb
             if not self.dummied:
@@ -351,6 +352,8 @@ class Simulation:
                                verbosity=self.logger.LogLevel.STATUS
                                )
             if not self.ignore_errors:
+                if self.mpi_manager is not None:
+                    self.mpi_manager.abort()
                 raise
         finally:
             self.log_print("Ending simulation")
@@ -397,20 +400,29 @@ class Simulation:
             energies += ke
         return energies
     def apply_branching(self, energies):
-        self.log_print("Updating walker weights", verbosity=self.logger.LogLevel.STEPS)
+        if not self.branch_on_cores:
+            self.log_print("Updating walker weights", verbosity=self.logger.LogLevel.STEPS)
         weights = self.update_weights(energies, self.walkers.weights)
         self.walkers.weights = weights
-        self.log_print("Branching", verbosity=self.logger.LogLevel.STEPS)
+        if not self.branch_on_cores:
+            self.log_print("Branching", verbosity=self.logger.LogLevel.STEPS)
+            start = time.time()
         energies = self.branch(energies)
-        weights = self.walkers.weights
-        # self.log_print("Branching", verbosity=self.logger.LogLevel.STEPS)
-        # self.log_print(
-        #     "    New Weights: Min {} | Max {} | Mean {}",
-        #     np.min(weights), np.max(weights), np.average(weights),
-        #     verbosity=self.logger.LogLevel.DATA
-        # )
+        if not self.branch_on_cores:
+            end = time.time()
+            self.log_print("  took {}s", end - start, verbosity=self.logger.LogLevel.STEPS)
         return self.walkers.coords, self.walkers.weights, energies
     def evaluate_potential_and_branch(self, nsteps):
+        import sys
+        def log_refcounts(names, objs):
+            self.log_print(
+                "\n  ".join(["Ref Counts:"]+
+                    ["{}({}) {}"]*len(names)
+                ),
+                *[x for n,o in zip(names, objs) for x in (n, id(o), sys.getrefcount(o))],
+                allow_dummy=True
+            )
+
         if not self.parallelize_diffusion or self.mpi_manager is None:
             self.log_print("Moving coordinates {} steps", nsteps, verbosity=self.logger.LogLevel.STEPS)
             start = time.time()
@@ -429,46 +441,73 @@ class Simulation:
         else:
             send_walkers = self.lib.sendFriends
             get_results = self.lib.getFriendsAndPoots
+            self.log_print("MPI({}): {}", id(self.mpi_manager), self.mpi_manager.world_rank, verbosity=self.logger.LogLevel.STEPS)
+            log_refcounts(["mpi", "walkers.coords"], [self.mpi_manager, self.walkers.coords])
             if not self.dummied:
                 self.log_print("Moving coordinates {} steps", nsteps, verbosity=self.logger.LogLevel.STEPS)
                 start = time.time()
-            coords = np.ascontiguousarray(self.walkers.coords).astype('float')
-            # self.log_print("Coord samples({}) {} {}", self.world_rank, coords[0], coords[5], allow_dummy=True)
-            small_walkers = send_walkers(coords, self.mpi_manager)
-            # self.log_print("little walkers what you do {}", small_walkers.shape)
-            self.walkers.coords = small_walkers
-            coord_sets = self.walkers.displace(nsteps, importance_sampler=self.imp_samp, atomic_units=self.atomic_units)
 
-            # self.log_print("Coord samples2({}) {} {}", self.world_rank, coord_sets[-1, 0], coord_sets[-1, 5], allow_dummy=True)
+            self.mpi_manager.wait()
+            coords = np.ascontiguousarray(self.walkers.coords).astype('float')
+
+            log_refcounts(["mpi", "walkers.coords", "coords"], [self.mpi_manager, self.walkers.coords, coords])
+            self.mpi_manager.wait()
+            small_walkers = send_walkers(coords, self.mpi_manager)
+            self.mpi_manager.wait()
+            log_refcounts(
+                ["walkers.coords", "coords", "lil_walkers"],
+                [self.walkers.coords, coords, small_walkers]
+            )
+
+            self.mpi_manager.wait()
+            self.walkers.coords = small_walkers
+            self.mpi_manager.wait()
+            coord_sets = self.walkers.get_displaced_coords(nsteps, importance_sampler=self.imp_samp, atomic_units=self.atomic_units)
+            log_refcounts(
+                ["mpi", "walkers.coords", "coords", "lil_walkers", "coord_sets"],
+                [self.mpi_manager, self.walkers.coords, coords, small_walkers, coord_sets]
+            )
+
             if not self.dummied:
                 end = time.time()
                 self.log_print("    took {}s", end - start, verbosity=self.logger.LogLevel.STATUS)
                 start = end
                 self.log_print("Computing potential energy", coord_sets.shape,
                                allow_dummy=True, verbosity=self.logger.LogLevel.STATUS)
-            self.log_print("Walkers {} walkers[0][0] {}", coord_sets.shape, coord_sets[0][0],
-                           allow_dummy=True, verbosity=self.logger.LogLevel.STATUS)
-            energies = np.random.rand(*coord_sets.shape[:2]) # self._evaluate_potential(coord_sets)
+            self.mpi_manager.wait()
+            energies = self._evaluate_potential(coord_sets)
+            self.mpi_manager.wait()
             if not self.dummied:
                 end = time.time()
                 self.log_print("    took {}s", end - start, verbosity=self.logger.LogLevel.STATUS)
-            # self.log_print("Computed potential energy over walkers... {}", coord_sets.shape,
-            #                allow_dummy=True, verbosity=self.logger.LogLevel.STATUS)
+
             coords = np.ascontiguousarray(coord_sets[-1]).astype('float')
             energies = np.ascontiguousarray(energies).astype('float')
-            # if self.branch_on_cores:
-            #     # self.log_print("Branching on the core...?")
-            #     coord_sets, weights, energies = self.apply_branching(energies)
-            # else:
-            #     weights = None
-            weights = None
-
-            # self.log_print(
-            #     "Energies samples({}|{}) {} {}", self.world_rank, energies.shape, energies[-1, 0], energies[-1, 5],
-            #     allow_dummy=True
+            # log_refcounts(
+            #     ["mpi", "walkers.coords", "coords", "lil_walkers", "coord_sets", "energies"],
+            #     [self.mpi_manager, self.walkers.coords, coords, small_walkers, coord_sets, energies]
             # )
+            if self.branch_on_cores:
+                self.mpi_manager.wait()
+                self.log_print("Branching", verbosity=self.logger.LogLevel.STATUS)
+                self.mpi_manager.wait()
+                self.log_print("   branching on core {}", self.mpi_manager.world_rank,
+                               allow_dummy=True,
+                               verbosity=self.logger.LogLevel.MPI
+                               )
+                coord_sets, weights, energies = self.apply_branching(energies)
+            else:
+                weights = None
+
+            self.mpi_manager.wait()
             res = get_results(coords, energies, weights, self.mpi_manager)
+            log_refcounts(
+                ["mpi", "walkers.coords", "coords", "lil_walkers", "coord_sets", "energies", "res"],
+                [self.mpi_manager, self.walkers.coords, coords, small_walkers, coord_sets, energies, res]
+            )
+
             if res is None:
+                self.mpi_manager.wait()
                 self.walkers.coords = coords
                 energies = None
             elif len(res) == 3:
@@ -486,18 +525,12 @@ class Simulation:
                         real_energies[i, walkers_per_core*j:walkers_per_core*(j+1)] = energies[i+nsteps*j]
                 energies = real_energies
 
-                # self.log_print("Coord samples3 {} {} {} {}",
-                #                coords[0], coords[5],
-                #                coords[int(len(coords)/2)], coords[int(len(coords)/2)+5]
-                #                )
-                # self.log_print("Energies samples2 {} {} {} {}",
-                #                energies[-1, 0], energies[-1, 5],
-                #                energies[-1, walkers_per_core], energies[-1, walkers_per_core + 5]
-                #                )
-                # self.log_print("big walkers who are you {} (energies too {})", coords.shape, energies.shape)
+                self.mpi_manager.wait()
+
                 self.walkers.coords = coords
                 coords, weights, energies = self.apply_branching(energies)
 
+        self.mpi_manager.wait()
         return energies, weights
 
     def propagate(self, nsteps = None):
@@ -521,8 +554,10 @@ class Simulation:
                 self.full_energies.append(energies)
             if self.full_weights is not None:
                 self.full_weights.append(weights)
+
+            self.log_print("Pre-checkpointing?", verbosity=self.logger.LogLevel.STEPS)
             self.checkpoint()
-            self.garbage_collect()
+            # self.garbage_collect()
             if self.logger.verb_int >= self.logger.LogLevel.STATUS.value:
                 # we do the check here so as to not waste time computing ZPE... even though that waste is effectively 0
                 self.log_print("Average Energy: {}", self.reference_potentials[-1], verbosity=self.logger.LogLevel.STATUS)
@@ -531,8 +566,9 @@ class Simulation:
             self.log_print("-" * 50, verbosity=self.logger.LogLevel.STATUS)
         else:
             energies, weights = self.evaluate_potential_and_branch(nsteps)
-            self.counter.step_num += nsteps
-            self.garbage_collect()
+            self.counter.increment(nsteps)
+        self.mpi_manager.wait()
+            # self.garbage_collect()
 
         if self.mpi_manager is not None:
             # self.log_print("waiting for friends", verbosity=self.logger.LogLevel.STATUS)
@@ -679,6 +715,7 @@ class Simulation:
         # self.log_print('Energies for Bonds: Min Dist. {} | Max {}',
         #                energies[-1, np.argmin(bond_lengths)], energies[-1, np.argmax(bond_lengths)]
         #                )
+        return energies
 
     def descendent_weight(self):
         """Calls into the walker descendent weighting if the timing is right

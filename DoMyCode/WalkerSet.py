@@ -91,8 +91,10 @@ class WalkerSet:
         if self.sigmas is None:
             self.sigmas = np.sqrt((2.0 * D * deltaT) / self.masses)
 
-    def get_displacements(self, steps = 1, atomic_units = False):
-        shape = (steps, ) + self.coords.shape[:-2] + self.coords.shape[-1:]
+    def get_displacements(self, steps = 1, coords = None, atomic_units = False):
+        if coords is None:
+            coords = self.coords
+        shape = (steps, ) + coords.shape[:-2] + coords.shape[-1:]
         disps = np.array([
             np.random.normal(0.0, sig, size = shape) for sig in self.sigmas
         ])
@@ -104,22 +106,16 @@ class WalkerSet:
 
         return disps
 
-    def distribute(self):
-        if self.mpi_manager is not None:
-            ...
-
-    def get_displaced_coords(self, n=1, importance_sampler = None, atomic_units = False):
+    def get_displaced_coords(self, n=1, coords = None, importance_sampler = None, atomic_units = False):
         # this is a kinda crummy way to get this, but it allows us to get our n sets of displacements
-        if self._cached_coords is None or len(self._cached_coords) != n:
-            crds = np.empty((n,) + self.coords.shape, dtype=float)
-            self._cached_coords = crds
-        else:
-            crds = self._cached_coords
+        if coords is None:
+            coords = self.coords
+        crds = np.empty((n,) + coords.shape, dtype=float)
         if importance_sampler is not None:
             importance_sampler.setup_psi(crds)
-        bloop = self.coords.astype(float)
+        bloop = coords.astype(float)
         # print("wat...?", id(self.coords))
-        disps = self.get_displacements(n, atomic_units=atomic_units)
+        disps = self.get_displacements(n, coords, atomic_units=atomic_units)
         for i, d in enumerate(disps): # loop over steps
             if importance_sampler is not None:
                 bloop = importance_sampler.accept_step(i, bloop, d)

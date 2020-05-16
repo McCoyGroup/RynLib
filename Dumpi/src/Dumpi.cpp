@@ -1,26 +1,53 @@
 #include "Dumpi.h"
 #include "RynTypes.hpp"
+#include <string>
 
+static int _world_rank, _world_size;
 void _mpiInit(int* world_size, int* world_rank) {
     // Initialize MPI state
     int did_i_do_good_pops = 0;
     int err = MPI_SUCCESS;
     MPI_Initialized(&did_i_do_good_pops);
     if (!did_i_do_good_pops){
-//        int error;
-//        error = MPI_Comm_set_errhandler(MPI_COMM_WORLD, MPI_ERRORS_RETURN);
-//        printf("this is before MPI_Init\n");
-//        MPI_Errhandler_set(MPI_COMM_WORLD, MPI_ERRORS_RETURN);
-//        MPI_ERRORS_ARE_FATAL = MPI_ERRORS_RETURN; // eesh this is dangerous, but I just want to see if it works...
         err = MPI_Init(NULL, NULL);
-//        printf("...okay I guess MPI initialized\n");
-//        error = MPI_Comm_set_errhandler(MPI_COMM_WORLD, MPI_ERRORS_ARE_FATAL);
     };
     if (err == MPI_SUCCESS) {
         MPI_Comm_size(MPI_COMM_WORLD, world_size);
+        _world_size = *world_size;
         MPI_Comm_rank(MPI_COMM_WORLD, world_rank);
+        _world_rank = *world_rank;
     }
-    // printf("This many things %d and I am here %d\n", *world_size, *world_rank);
+}
+
+int _mpiHandleErrors(int res) {
+    int succeeded = 0;
+    std::string base_message = "No error";
+    switch (res) {
+        case MPI_SUCCESS:
+            succeeded = 1;
+        case MPI_ERR_COMM:
+            base_message = "Invalid communicator. A common error is to use a null communicator in a call (not even allowed in MPI_Comm_rank).";
+        case MPI_ERR_COUNT:
+            base_message = "Invalid count argument. Count arguments must be non-negative; a count of zero is often valid.";
+        case MPI_ERR_TYPE:
+            base_message = "Invalid datatype argument. Additionally, this error can occur if an uncommitted MPI_Datatype (see MPI_Type_commit) is used in a communication call.";
+        case MPI_ERR_BUFFER:
+            base_message = "Invalid buffer pointer. Usually a null buffer where one is not valid.";
+        default:
+            base_message = "Unknown MPI error (i.e. I didn't bake it in).";
+    }
+
+    if (!succeeded) {
+        // Once again, thank you Stack Overflow
+        auto format = "Error code %d on %d: %s";
+        auto size = std::snprintf(nullptr, 0, format, res, _world_rank, base_message.c_str());
+        std::string err(size + 1, '\0');
+        std::sprintf(&err[0], format, res, _world_rank, base_message.c_str());
+        PyErr_SetString(PyExc_IOError, err.c_str());
+    }
+
+    return succeeded;
+
 }
 
 void _mpiFinalize() {
@@ -46,7 +73,7 @@ static int Scatter_Walkers(
 //        return -1;
 //    }
 
-    return MPI_Scatter(
+    int res =  MPI_Scatter(
             raw_data,  // raw data buffer to chunk up
             walkers_to_core * walker_cnum, // three coordinates per atom per num_atoms per walker
             MPI_DOUBLE, // coordinates stored as doubles
@@ -56,6 +83,10 @@ static int Scatter_Walkers(
             0, // root caller
             MPI_COMM_WORLD // communicator handle
     );
+
+    return _mpiHandleErrors(res);
+
+
 }
 
 static int Gather_Potentials(
@@ -70,7 +101,7 @@ static int Gather_Potentials(
 //    }
 //    MPI_Comm comm = (MPI_Comm) PyCapsule_GetPointer(comm_capsule, "Dumpi._COMM_WORLD");
 //    printf("got COMM so now gathering %d walkers\n", walkers_to_core);
-    return MPI_Gather(
+    int res = MPI_Gather(
             pots,
             walkers_to_core, // number of walkers fed in
             MPI_DOUBLE, // coordinates stored as doubles
@@ -80,6 +111,8 @@ static int Gather_Potentials(
             0, // where they should go
             MPI_COMM_WORLD // communicator handle
     );
+
+    return _mpiHandleErrors(res);
 }
 
 static int Gather_Walkers(
@@ -88,14 +121,7 @@ static int Gather_Walkers(
         int walkers_to_core, int walker_cnum,
         RawWalkerBuffer walk_buf
 ) {
-//    printf("trying to get comm...\n");
-//    PyObject *comm_capsule = PyObject_GetAttrString(manager, "comm");
-//    if (comm_capsule == NULL) {
-//        return -1;
-//    }
-//    MPI_Comm comm = (MPI_Comm) PyCapsule_GetPointer(comm_capsule, "Dumpi._COMM_WORLD");
-//    printf("got COMM so now gathering %d walkers\n", walkers_to_core);
-    return MPI_Gather(
+    int res = MPI_Gather(
             walkers,
             walkers_to_core * walker_cnum, // number of walkers fed in
             MPI_DOUBLE, // coordinates stored as doubles
@@ -105,6 +131,8 @@ static int Gather_Walkers(
             0, // where they should go
             MPI_COMM_WORLD // communicator handle
     );
+
+    return _mpiHandleErrors(res);
 }
 
 // MPI COMMUNICATION METHODS
