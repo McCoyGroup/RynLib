@@ -120,6 +120,8 @@ class Simulation:
 
         if not parallelize_diffusion:
             potential.mpi_manager = mpi_manager
+        else:
+            potential.mpi_manager = None
         self.potential = potential
         self.atomic_units = atomic_units
         self.ignore_errors = ignore_errors
