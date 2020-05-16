@@ -448,7 +448,7 @@ class Simulation:
                                allow_dummy=True, verbosity=self.logger.LogLevel.STATUS)
             self.log_print("Walkers {} walkers[0][0] {}", coord_sets.shape, coord_sets[0][0],
                            allow_dummy=True, verbosity=self.logger.LogLevel.STATUS)
-            energies = np.random.rand(*coord_sets.shape) # self._evaluate_potential(coord_sets)
+            energies = np.random.rand(*coord_sets.shape[:2]) # self._evaluate_potential(coord_sets)
             if not self.dummied:
                 end = time.time()
                 self.log_print("    took {}s", end - start, verbosity=self.logger.LogLevel.STATUS)
