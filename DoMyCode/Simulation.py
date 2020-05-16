@@ -450,7 +450,8 @@ class Simulation:
             if not self.dummied:
                 end = time.time()
                 self.log_print("    took {}s", end - start, verbosity=self.logger.LogLevel.STATUS)
-
+            self.log_print("Computed potential energy over walkers... {}", coord_sets.shape,
+                           allow_dummy=True, verbosity=self.logger.LogLevel.STATUS)
             coords = np.ascontiguousarray(coord_sets[-1]).astype('float')
             energies = np.ascontiguousarray(energies).astype('float')
             # if self.branch_on_cores:
