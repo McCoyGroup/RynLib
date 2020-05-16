@@ -228,7 +228,7 @@ PyObject *DoMyCode_getWalkersAndPots(PyObject* self, PyObject* args ) {
         PyObject *ret;
         if (weights == Py_None) {
             ret = Py_BuildValue("(OO)", big_walkers, big_poots);
-//            Py_XDECREF(big_walkers); Py_XDECREF(big_poots);
+            Py_XDECREF(big_walkers); Py_XDECREF(big_poots);
         } else {
             ret = Py_BuildValue("(OOO)", big_walkers, big_poots, big_weights);
             Py_XDECREF(big_walkers); Py_XDECREF(big_poots); Py_XDECREF(big_weights);
