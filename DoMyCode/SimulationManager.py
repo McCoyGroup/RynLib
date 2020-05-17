@@ -83,7 +83,8 @@ class SimulationManager:
             log = sim.logger.log_file
             if sim.mpi_manager is not None:
                 sim.run()
-            elif isinstance(log, str):
+            elif isinstance(log, str) and log.lower() not in {"stdout", "stderr"}:
+                # print(log)
                 if sim.mpi_manager is not None:
                     if not os.path.isdir(os.path.dirname(log)):
                         os.makedirs(os.path.dirname(log))

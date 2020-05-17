@@ -441,52 +441,30 @@ class Simulation:
         else:
             send_walkers = self.lib.sendFriends
             get_results = self.lib.getFriendsAndPoots
-            self.log_print("MPI({}): {}", id(self.mpi_manager), self.mpi_manager.world_rank, verbosity=self.logger.LogLevel.STEPS)
-            log_refcounts(["mpi", "walkers.coords"], [self.mpi_manager, self.walkers.coords])
-            if not self.dummied:
-                self.log_print("Moving coordinates {} steps", nsteps, verbosity=self.logger.LogLevel.STEPS)
-                start = time.time()
+            # self.lib.DEBUG_LEVEL = 100
 
-            self.mpi_manager.wait()
+            self.log_print("Moving coordinates {} steps", nsteps, verbosity=self.logger.LogLevel.STEPS)
+            start = time.time()
+
             coords = np.ascontiguousarray(self.walkers.coords).astype('float')
-
-            log_refcounts(["mpi", "walkers.coords", "coords"], [self.mpi_manager, self.walkers.coords, coords])
-            self.mpi_manager.wait()
             small_walkers = send_walkers(coords, self.mpi_manager)
-            self.mpi_manager.wait()
-            log_refcounts(
-                ["walkers.coords", "coords", "lil_walkers"],
-                [self.walkers.coords, coords, small_walkers]
-            )
 
-            self.mpi_manager.wait()
             self.walkers.coords = small_walkers
-            self.mpi_manager.wait()
             coord_sets = self.walkers.get_displaced_coords(nsteps, importance_sampler=self.imp_samp, atomic_units=self.atomic_units)
-            log_refcounts(
-                ["mpi", "walkers.coords", "coords", "lil_walkers", "coord_sets"],
-                [self.mpi_manager, self.walkers.coords, coords, small_walkers, coord_sets]
-            )
 
-            if not self.dummied:
-                end = time.time()
-                self.log_print("    took {}s", end - start, verbosity=self.logger.LogLevel.STATUS)
-                start = end
-                self.log_print("Computing potential energy", coord_sets.shape,
-                               allow_dummy=True, verbosity=self.logger.LogLevel.STATUS)
-            self.mpi_manager.wait()
+            end = time.time()
+            self.log_print("    took {}s", end - start, verbosity=self.logger.LogLevel.STATUS)
+            start = end
+            self.log_print("Computing potential energy", coord_sets.shape, verbosity=self.logger.LogLevel.STATUS)
+
             energies = self._evaluate_potential(coord_sets)
-            self.mpi_manager.wait()
             if not self.dummied:
                 end = time.time()
                 self.log_print("    took {}s", end - start, verbosity=self.logger.LogLevel.STATUS)
 
             coords = np.ascontiguousarray(coord_sets[-1]).astype('float')
             energies = np.ascontiguousarray(energies).astype('float')
-            # log_refcounts(
-            #     ["mpi", "walkers.coords", "coords", "lil_walkers", "coord_sets", "energies"],
-            #     [self.mpi_manager, self.walkers.coords, coords, small_walkers, coord_sets, energies]
-            # )
+
             if self.branch_on_cores:
                 self.mpi_manager.wait()
                 self.log_print("Branching", verbosity=self.logger.LogLevel.STATUS)
@@ -499,21 +477,23 @@ class Simulation:
             else:
                 weights = None
 
-            self.mpi_manager.wait()
             res = get_results(coords, energies, weights, self.mpi_manager)
-            log_refcounts(
-                ["mpi", "walkers.coords", "coords", "lil_walkers", "coord_sets", "energies", "res"],
-                [self.mpi_manager, self.walkers.coords, coords, small_walkers, coord_sets, energies, res]
-            )
 
             if res is None:
-                self.mpi_manager.wait()
                 self.walkers.coords = coords
                 energies = None
-            elif len(res) == 3:
+            elif len(res) == 3: #branch_on_cores
                 coords, energies, weights = res
                 self.walkers.coords = coords
                 self.walkers.weights = weights
+                # we now have to take the energies arrays and stitch them together to look like the coords ;_;
+                world_size = int(energies.shape[0] / nsteps)
+                walkers_per_core = energies.shape[1]
+                real_energies = np.empty((nsteps, walkers_per_core * world_size), dtype=energies.dtype)
+                for i in range(nsteps):
+                    for j in range(world_size):
+                        real_energies[i, walkers_per_core * j:walkers_per_core * (j + 1)] = energies[i + nsteps * j]
+                energies = real_energies
             elif len(res) == 2: # implicitly means not self.branch_on_cores
                 coords, energies = res
                 # we now have to take the energies arrays and stitch them together to look like the coords ;_;
@@ -525,12 +505,9 @@ class Simulation:
                         real_energies[i, walkers_per_core*j:walkers_per_core*(j+1)] = energies[i+nsteps*j]
                 energies = real_energies
 
-                self.mpi_manager.wait()
-
                 self.walkers.coords = coords
                 coords, weights, energies = self.apply_branching(energies)
 
-        self.mpi_manager.wait()
         return energies, weights
 
     def propagate(self, nsteps = None):

@@ -21,6 +21,7 @@ build_dir=$RYNLIB_PATH/setup/build;
 if [[ "$build_type" = "docker" ]]; then
   docker build -t rynlibcore -f $build_dir/Ubuntu/RynlibCore $RYNLIB_PATH
   docker build -t $RYNLIB_IMAGE_NAME -f $build_dir/Ubuntu/RynlibBuild $RYNLIB_PATH
+  docker tag $RYNLIB_IMAGE_NAME $RYNLIB_IMAGE_NAME-old-build
   if [[ "$push" == "--push" ]]; then
     docker tag $RYNLIB_IMAGE_NAME $RYNLIB_DOCKER_IMAGE
     docker push $RYNLIB_DOCKER_IMAGE
@@ -29,6 +30,7 @@ fi
 if [[ "$build_type" = "ompi" ]]; then
   docker build -t rynlibcore -f $build_dir/Ubuntu/RynlibCore $RYNLIB_PATH
   docker build -t $RYNLIB_IMAGE_NAME-ompi -f $build_dir/Ubuntu-OpenMPI/RynlibBuild-OpenMPI $RYNLIB_PATH
+  docker tag $RYNLIB_IMAGE_NAME-ompi $RYNLIB_IMAGE_NAME-old-build-ompi
   if [[ "$push" == "--push" ]]; then
     docker tag $RYNLIB_IMAGE_NAME $RYNLIB_DOCKER_IMAGE-ompi
     docker push $RYNLIB_DOCKER_IMAGE-ompi
@@ -37,6 +39,7 @@ fi
 if [[ "$build_type" = "shifter" ]]; then
   docker build -t rynlibcore -f $build_dir/Ubuntu/RynlibCore $RYNLIB_PATH
   docker build -t $RYNLIB_IMAGE_NAME -f $build_dir/Ubuntu/RynlibBuild $RYNLIB_PATH
+  docker tag $RYNLIB_IMAGE_NAME $RYNLIB_IMAGE_NAME-old-build
   if [[ "$push" == "--push" ]]; then
     docker tag $RYNLIB_IMAGE_NAME $RYNLIB_SHIFTER_IMAGE
     docker push $RYNLIB_SHIFTER_IMAGE
@@ -45,6 +48,7 @@ fi
 if [[ "$build_type" = "singularity" ]]; then
   docker build -t rynlibcore-centos -f $build_dir/CentOS/RynlibCoreCentOS $RYNLIB_PATH
   docker build -t $RYNLIB_IMAGE_NAME-centos -f $build_dir/CentOS/RynlibBuildCentOS $RYNLIB_PATH
+  docker tag $RYNLIB_IMAGE_NAME-centos $RYNLIB_IMAGE_NAME-old-build-centos
   if [[ "$push" == "--push" ]]; then
     docker tag $RYNLIB_IMAGE_NAME-centos $RYNLIB_DOCKER_IMAGE-centos
     docker push $RYNLIB_DOCKER_IMAGE-centos

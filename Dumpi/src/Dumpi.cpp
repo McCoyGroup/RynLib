@@ -86,7 +86,6 @@ static int Scatter_Walkers(
 
     return _mpiHandleErrors(res);
 
-
 }
 
 static int Gather_Potentials(

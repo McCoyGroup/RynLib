@@ -179,6 +179,7 @@ function rynlib_shifter() {
     do_echo=$(mcoptvalue $RYNLIB_OPT_PATTERN "e" ${@:1:arg_count})
     mpi=$(mcoptvalue $RYNLIB_OPT_PATTERN "n" ${@:1:arg_count})
 
+
     if [[ "$entos" = "" ]]; then
       entos="$PWD/entos";
     fi
@@ -247,7 +248,15 @@ function rynlib_singularity() {
     prof=$(mcoptvalue $RYNLIB_OPT_PATTERN "M" ${@:1:arg_count})
     if [[ "$vols" != "" ]]; then shift 2; fi
     if [[ "$do_echo" != "" ]]; then shift; fi
-    if [[ "$mpi" != "" ]]; then shift 2; fi
+    if [[ "$mpi" != "" ]]; then
+      shift 2;
+      local escaped="+";
+      local real=" --";
+      mpi=${mpi//$escaped/$real}
+      escaped="="
+      real=" "
+      mpi=${mpi//$escaped/$real}
+    fi
     if [[ "$lib" != "" ]]; then shift 2; fi
     if [[ "$wdir" != "" ]]; then shift 2; fi
     if [[ "$enter" != "" ]]; then shift 2; fi
@@ -348,7 +357,15 @@ function rynlib_docker() {
     prof=$(mcoptvalue $RYNLIB_OPT_PATTERN "M" ${@:1:arg_count})
     if [[ "$vols" != "" ]]; then shift 2; fi
     if [[ "$do_echo" != "" ]]; then shift; fi
-    if [[ "$mpi" != "" ]]; then shift 2; fi
+    if [[ "$mpi" != "" ]]; then
+      shift 2;
+      local escaped="+";
+      local real=" --";
+      mpi=${mpi//$escaped/$real};
+      escaped="="
+      real=" "
+      mpi=${mpi//$escaped/$real}
+    fi
     if [[ "$lib" != "" ]]; then shift 2; fi
     if [[ "$wdir" != "" ]]; then shift 2; fi
     if [[ "$enter" != "" ]]; then shift 2; fi

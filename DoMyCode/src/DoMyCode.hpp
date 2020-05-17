@@ -12,11 +12,14 @@
  * nothing else will be visible directly, so we need to make sure that this set is sufficient for out purposes
  *
  */
-static PyObject *DoMyCode_distributeWalkers
-        ( PyObject *, PyObject * );
-static PyObject *DoMyCode_getWalkersAndPots
-        ( PyObject *, PyObject * );
-//static PyObject *DoMyCode_branchWalkers
-//        ( PyObject *, PyObject * );
+namespace DoMyCode {
+
+    static PyObject *DoMyCode_distributeWalkers
+            ( PyObject *, PyObject * );
+    static PyObject *DoMyCode_getWalkersAndPots
+            ( PyObject *, PyObject * );
+    //static PyObject *DoMyCode_branchWalkers
+    //        ( PyObject *, PyObject * );
+}
 
 #endif

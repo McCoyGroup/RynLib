@@ -33,8 +33,8 @@ class MPIManagerObject:
             parallel_threads = mp.cpu_count()
         self.parallel_threads = parallel_threads
         self._hybrid_parallelization = hybrid_parallelization
-        self.init_MPI()
         self.finalize_on_exit=finalize_on_exit
+        self.init_MPI()
 
     @classmethod
     def _load_lib(cls):

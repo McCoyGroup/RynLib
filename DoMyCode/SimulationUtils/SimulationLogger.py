@@ -1,4 +1,4 @@
-import os, numpy as np, enum
+import os, numpy as np, enum, sys
 from ...RynUtils import Logger
 
 __all__ = [
@@ -66,6 +66,10 @@ class SimulationLogger:
 
         if log_file is None:
             log_file = os.path.join(self.output_folder, "log.txt")
+        elif isinstance(log_file, str) and log_file.lower() == "stdout":
+            log_file = sys.stdout
+        elif isinstance(log_file, str) and log_file.lower() == "stderr":
+            log_file = sys.stderr
         self.log_file = log_file
 
         verbosity = log_level
