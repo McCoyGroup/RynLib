@@ -43,7 +43,7 @@ class MPIManagerObject:
         loader = CLoader("Dumpi",
                          os.path.dirname(os.path.abspath(__file__)),
                          linked_libs=["mpi"],
-                         extra_compile_args=['-fopenmp'],
+                         extra_compile_args=['-fopenmp', '-std=c++11'],
                          include_dirs=[
                              os.path.join(mpi_dir, "lib"),
                              os.path.join(mpi_dir, "include")

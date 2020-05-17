@@ -370,7 +370,7 @@ class Simulation:
     def load_lib(cls):
         loader = CLoader("DoMyCode",
                          os.path.dirname(os.path.abspath(__file__)),
-                         extra_compile_args=['-fopenmp'],
+                         extra_compile_args=['-fopenmp', '-std=c++11'],
                          source_files=["DoMyCode.cpp", "PyAllUp.cpp"]
                          )
         return loader.load()
