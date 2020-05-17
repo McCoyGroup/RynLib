@@ -38,11 +38,10 @@ int _mpiHandleErrors(int res) {
     }
 
     if (!succeeded) {
-        // Once again, thank you Stack Overflow
-        auto format = "Error code %d on %d: %s";
-        auto size = std::snprintf(nullptr, 0, format, res, _world_rank, base_message.c_str());
-        std::string err(size + 1, '\0');
-        std::sprintf(&err[0], format, res, _world_rank, base_message.c_str());
+//        const char* format = "Error code %d on %d: %s";
+        std::string err = "Error code " + std::to_string(res) +
+                " on " + std::to_string(_world_rank) + ": " +
+                base_message;
         PyErr_SetString(PyExc_IOError, err.c_str());
     }
 
