@@ -12,6 +12,7 @@ class WalkerSet:
                  atoms=None,
                  masses=None,
                  initial_walker=None,
+                 initial_weights=1.,
                  num_walkers=None,
                  mpi_manager=None,
                  walkers_per_core=None
@@ -46,18 +47,28 @@ class WalkerSet:
         self.atoms = atoms
         self.masses = masses
 
+        walker_choice_inds = None # to make sure that the walkers and weights line up
         if isinstance(initial_walker, str):
             initial_walker = np.load(initial_walker)
         initial_walker = np.asarray(initial_walker)
         if len(initial_walker.shape) == 2:
             initial_walker = np.array([ initial_walker ] * num_walkers)
         elif len(initial_walker) > num_walkers or len(initial_walker) < num_walkers:
-            inds = np.random.randint(0, initial_walker.shape[0], num_walkers)
-            initial_walker = initial_walker[inds]
-
-        self.coords = np.asarray(initial_walker)
+            walker_choice_inds = np.random.randint(0, initial_walker.shape[0], num_walkers)
+            initial_walker = initial_walker[walker_choice_inds]
+        self.coords = initial_walker
         self._cached_coords = None # efficient for big-walker simulations
-        self.weights = np.ones(num_walkers)
+
+        if isinstance(initial_weights, str):
+            initial_weights = np.load(initial_weights)
+        elif isinstance(initial_weights, (float, int, np.integer, np.floating)):
+            initial_weights = np.full((initial_walker.num_walkers, initial_weights))
+        if len(initial_weights) > num_walkers or len(initial_weights) < num_walkers:
+            if walker_choice_inds is None:
+                # should we raise a misconfiguration error?
+                raise ValueError("Can't figure out how to map initial weights onto initial walkers?")
+            initial_weights = initial_weights[walker_choice_inds]
+        self.weights = initial_weights
 
         self.parents = np.arange(num_walkers)
         self.sigmas = None

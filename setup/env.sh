@@ -7,12 +7,14 @@
 #RYNLIB_ENTOS_PATH=""
 #RYNLIB_CONIFG_PATH=""
 #RYNLIB_IMAGE=""
+#RYNLIB_CONTAINER_RUNNER="docker" # this is to allow for podman support in docker-type envs
 
 # This was introduced literally just to make it possible to use ifort -_-
 #RYNLIB_EXTENSION_PATH=""
 
 # These three are probably never going to be changed, unless we want to change something about how
 #  we're distributing the image
+
 RYNLIB_IMAGE_NAME="rynimg"
 RYNLIB_DOCKER_IMAGE="mccoygroup/rynlib:$RYNLIB_IMAGE_NAME"
 RYNLIB_SINGULARITY_EXTENSION="-centos"
@@ -336,6 +338,7 @@ function rynlib_docker() {
     local ext="$RYNLIB_EXTENSION_PATH";
     local config="$RYNLIB_CONFIG_PATH";
     local img="$RYNLIB_IMAGE";
+    local runner="$RYNLIB_CONTAINER_RUNNER";
     local arg_count=0;
     local vols="";
     local do_echo="";
@@ -407,8 +410,11 @@ function rynlib_docker() {
       vols="$vols --mount type=bind,source=$lib,target=/home/RynLib";
     fi
 
+    if [[ "$runner" == "" ]]; then
+      runner="docker"
+    fi
     # Set the entrypoint and define any args we need to pass
-    cmd="docker run --rm $vols -it"
+    cmd="$runner run --rm $vols -it"
     if [[ "$enter" == "" ]]; then
       call="python3 /home/RynLib/CLI.py"
       # if we want to profile our job, we really want to do 2 docker calls at once
@@ -418,7 +424,7 @@ function rynlib_docker() {
         if [[ "$mpi" != "" ]]; then
           call="/usr/lib/mpi/bin/mpirun -n $mpi $call"
         fi
-        cmd2="docker run --entrypoint=mprof"
+        cmd2="$runner run --entrypoint=mprof"
         if [[ "$wdir" != "" ]]; then
           cmd2="$cmd2 -w=$wdir"
         fi
@@ -453,16 +459,19 @@ function rynlib() {
   local img="$RYNLIB_IMAGE";
   local cmd;
 
+  # if shifter exists at all...
   if [[ -x "/usr/bin/shifter" ]]; then
     cmd="rynlib_shifter"
   fi
 
+  # if our image is already tagged as a .sif
   if [[ "$img" == *".sif" ]]; then
     if [[ "$cmd" == "" ]]; then
       cmd="rynlib_singularity";
     fi
   fi
 
+  # if we've got a .sif file we can run
   if [[ "$img" = "" ]] && [[ -f "$PWD/$RYNLIB_IMAGE_NAME.sif" ]]; then
     if [[ "$cmd" == "" ]]; then
       cmd="rynlib_singularity";
