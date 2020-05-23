@@ -465,17 +465,13 @@ function rynlib() {
   fi
 
   # if our image is already tagged as a .sif
-  if [[ "$img" == *".sif" ]]; then
-    if [[ "$cmd" == "" ]]; then
-      cmd="rynlib_singularity";
-    fi
+  if [[ "$img" == *".sif" ]] && [[ "$cmd" == "" ]]; then
+    cmd="rynlib_singularity";
   fi
 
   # if we've got a .sif file we can run
-  if [[ "$img" = "" ]] && [[ -f "$PWD/$RYNLIB_IMAGE_NAME.sif" ]]; then
-    if [[ "$cmd" == "" ]]; then
-      cmd="rynlib_singularity";
-    fi
+  if [[ "$img" = "" ]] && [[ -f "$PWD/$RYNLIB_IMAGE_NAME.sif" ]] && [[ "$cmd" == "" ]]; then
+    cmd="rynlib_singularity";
   fi
 
   if [[ "$cmd" == "" ]]; then

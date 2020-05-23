@@ -1,3 +1,7 @@
+"""
+Provides a Caller that Potential uses to actually evaluate the potential
+"""
+
 import numpy as np, os, multiprocessing as mp, itertools as it, sys
 from ..RynUtils import CLoader
 

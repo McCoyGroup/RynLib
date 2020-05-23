@@ -1,3 +1,7 @@
+"""
+Defines the core DMC simulation
+"""
+
 import os, numpy as np, time
 from .WalkerSet import WalkerSet
 from .ImportanceSampler import ImportanceSampler, ImportanceSamplerManager

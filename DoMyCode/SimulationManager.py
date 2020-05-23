@@ -1,3 +1,7 @@
+"""
+Provides a general purpose manager to manage starting, creating, and archiving DMC simulations
+"""
+
 from ..RynUtils import ConfigManager
 from .Simulation import Simulation, SimulationParameters
 import os, shutil

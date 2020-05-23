@@ -1,3 +1,6 @@
+"""
+Provides classes for adding importance sampling to a simulation / managing importance samplers
+"""
 
 import numpy as np, os, shutil
 from ..RynUtils import ConfigManager, ModuleLoader, ConfigSerializer

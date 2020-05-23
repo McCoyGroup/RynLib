@@ -4,6 +4,7 @@ Binds the Scatter and Gather methods to itself so that it can be passed through 
 needing to know about MPI.
 Allows for easier separation of components.
 """
+
 from ..RynUtils import CLoader
 import multiprocessing as mp
 import os, sys

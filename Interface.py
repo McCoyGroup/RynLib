@@ -64,6 +64,12 @@ class SimulationInterface:
         # print("Finished running simulation {}".format(name))
 
     @classmethod
+    def restart_simulation(self, name=None):
+        # print("Running simulation {}".format(name))
+        SimulationManager().restart_simulation(name)
+        # print("Finished running simulation {}".format(name))
+
+    @classmethod
     def test_add_HO(cls):
         pm = PotentialManager()
         if 'HarmonicOscillator' not in pm.list_potentials():

@@ -1,3 +1,7 @@
+"""
+Provides a general purpose manager for adding/removing/compiling potentials
+"""
+
 from ..RynUtils import ConfigManager, ConfigSerializer
 from .Potential import Potential
 import os, shutil

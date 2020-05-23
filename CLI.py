@@ -66,7 +66,11 @@ class CLI:
     def get_help(self):
         from collections import OrderedDict
 
+        blocks = []
         if self.group == "":
+            return None
+        elif self.group == "all":
+            blocks.append(self.help_doc.replace(" ", "  "))
             groups = OrderedDict((k, OrderedDict()) for k in self.command_groups)
         else:
             groups = OrderedDict([(self.group, OrderedDict())])
@@ -78,13 +82,12 @@ class CLI:
             for k in vars(type(self)):
                 for g in groups:
                     if k.startswith(self.command_prefix+g):
-                        groups[g][k.split("_", bleps)[-1].replace("_", "-")] = getattr(self, k)
+                        groups[g][k.split("_", bleps+1)[-1].replace("_", "-")] = getattr(self, k)
         else:
             template = "{group}{commands}"
             indent = "  "
             groups[self.group][self.cmd] = self.get_command()
 
-        blocks = []
         make_command_info = lambda name, fun, indent: "{0}{1}{3}{0}  {2}".format(
             indent,
             name,
@@ -190,6 +193,13 @@ class CLI:
             ("name",)
         )
         SimulationInterface.run_simulation(**parse_dict)
+
+    def cli_method_sim_restart(self):
+        """Restarts a stopped simulation. Args: NAME"""
+        parse_dict = self.get_parse_dict(
+            ("name",)
+        )
+        SimulationInterface.restart_simulation(**parse_dict)
 
     def cli_method_sim_status(self):
         """Gets the status of a simulation. Args: NAME"""
@@ -351,12 +361,33 @@ class CLI:
         return res
 
     def help(self, print_help=True):
-        sys.argv.pop(1)
+        try:
+            sys.argv.pop(1)
+        except IndexError:
+            pass
         res = self.get_help()
-        if print_help:
+        if print_help and res is not None:
             print(res)
         return res
 
+    help_doc = """
+    rynlib [--<flags>] GRP CMD [ARGS] runs RynLib with the specified command
+    Flags:
+     --help: print this help message
+     --help <grp>:
+      all: list all available commands
+      grp: list commands in grp
+     --output=<FILE>: bind stdout to FILE
+     --error=<FILE>: bind stderr to FILE
+     --script=<FILE>: run FILE in the RynLib environment
+     --root=<PATH>: specify the root directory to do resource resolution from
+     --interact: start an interactive session after running the command
+     --fulltb: turn on full tracebacks
+     --noomp: turn off OpenMP parallelism
+     --thomp: specify the number of OpenMP threads that were set outside the program (if != os.cpu_count)
+     --notbb: turn off Threaded Building Blocks parallelism
+     --thtbb: specify the number of TBB threads that were set outside the program (if != os.cpu_count)
+    """.replace("    ", "").strip()
     @classmethod
     def run_command(cls, parse):
         # detect whether interactive run or not
@@ -399,7 +430,7 @@ class CLI:
             exec(src, interactive_env, interactive_env)
         elif parse.help:
             if len(sys.argv) == 1:
-                print("rynlib [--output|--error|--script|--root|--nomp|--interact] GRP CMD [ARGS] runs RynLib with the specified command")
+                print(cls.help_doc.splitlines()[0])
             group = sys.argv[1] if len(sys.argv) > 1 else ""
             command = sys.argv[2] if len(sys.argv) > 2 else ""
             CLI(group=group, command=command).help()
@@ -412,48 +443,52 @@ class CLI:
     @classmethod
     def run_parse(cls, parse, unknown):
         if not parse.ignore:
-            if parse.update or parse.rebuild:
-                import subprocess
-
-                CLI.update_lib(rebuild=parse.rebuild)
-
-                sys.argv = [sys.argv[0]]
+            # if parse.update or parse.rebuild:
+            #     import subprocess
+            #
+            #     CLI.update_lib(rebuild=parse.rebuild)
+            #
+            #     sys.argv = [sys.argv[0]]
+            #     if parse.output != "":
+            #         sys.argv.append("--output="+parse.output)
+            #     if parse.error != "":
+            #         sys.argv.append("--error="+parse.error)
+            #     if parse.interact:
+            #         sys.argv.append("--interact")
+            #     if parse.interact:
+            #         sys.argv.append("--help")
+            #     if parse.no_openmp:
+            #         sys.argv.append("--nomp")
+            #     sys.argv += unknown
+            #     subprocess.call([sys.executable, *sys.argv])
+            # else:
+            stdout = sys.stdout
+            stderr = sys.stderr
+            sys.argv = [sys.argv[0]] + unknown
+            # print(sys.argv)
+            try:
                 if parse.output != "":
-                    sys.argv.append("--output="+parse.output)
-                if parse.error != "":
-                    sys.argv.append("--error="+parse.error)
-                if parse.interact:
-                    sys.argv.append("--interact")
-                if parse.interact:
-                    sys.argv.append("--help")
-                if parse.no_openmp:
-                    sys.argv.append("--nomp")
-                sys.argv += unknown
-                subprocess.call([sys.executable, *sys.argv])
-            else:
-                stdout = sys.stdout
-                stderr = sys.stderr
-                sys.argv = [sys.argv[0]] + unknown
-                # print(sys.argv)
-                try:
-                    if parse.output != "":
-                        with open(parse.output, "w+", buffering=1) as out:
-                            sys.stdout = out
-                            if parse.error != "":
-                                with open(parse.error, "w+", buffering=1) as err:
-                                    sys.stderr = err
-                                    cls.run_command(parse)
-                            else:
-                                sys.stderr = out
+                    with open(parse.output, "w+", buffering=1) as out:
+                        sys.stdout = out
+                        if parse.error != "":
+                            with open(parse.error, "w+", buffering=1) as err:
+                                sys.stderr = err
                                 cls.run_command(parse)
-                    else:
-                        cls.run_command(parse)
-                finally:
-                    sys.stdout = stdout
-                    sys.stderr = stderr
+                        else:
+                            sys.stderr = out
+                            cls.run_command(parse)
+                else:
+                    cls.run_command(parse)
+            finally:
+                sys.stdout = stdout
+                sys.stderr = stderr
 
     @classmethod
     def parse_and_run(cls):
+        if "-h" in sys.argv:
+            print("use rynlib --help to get help")
+            return
+
         parser = argparse.ArgumentParser(add_help=False)
         parser.add_argument("--update", default=False, action='store_const', const=True, dest="update")
         parser.add_argument("--rebuild", default=False, action='store_const', const=True, dest="rebuild")

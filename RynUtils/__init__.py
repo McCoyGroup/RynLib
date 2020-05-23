@@ -1,5 +1,5 @@
 """
-Defines a ConfigManager that will be used by both DoMyCode and PootyAndTheBlowfish to handle managing instances of jobs/potentials
+Defines a series of utility classes that RynLib uses to get its job done. Many of these will make their way back into McUtils.
 """
 
 from .ConfigManager import *

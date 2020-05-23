@@ -1,3 +1,7 @@
+"""
+Provides a Loader object to load a potential from a C++ extension
+"""
+
 from ..RynUtils import CLoader, ModuleLoader
 
 __all__ = [

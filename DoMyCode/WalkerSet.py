@@ -1,5 +1,5 @@
 """
-Defines the WalkerSet to be used by the simulation
+Defines a WalkerSet to be used by a simulation
 """
 
 import numpy as np
