@@ -22,14 +22,16 @@ class Potential:
                  name = None,
                  potential_source = None,
 
-                 #Call Validation Options
-
+                 #Validation
+                 atom_pattern = None,
 
                  #Template Options
                  wrap_potential = None,
                  function_name=None,
                  raw_array_potential=None,
                  arguments=(),
+                 shim_script="",
+                 conversion = None,
                  potential_directory = None,
                  static_source = False,
                  extra_functions=(),
@@ -54,7 +56,8 @@ class Potential:
                  bad_walker_file="bad_walkers.txt",
                  mpi_manager=None,
                  vectorized_potential=False,
-                 error_value=10.e9
+                 error_value=10.e9,
+                 transpose_call = None
                  ):
         """
 
@@ -131,6 +134,8 @@ class Potential:
                     function_name=function_name,
                     raw_array_potential=raw_array_potential,
                     fortran_potential=fortran_potential,
+                    shim_script=shim_script,
+                    conversion=conversion,
                     arguments=arguments,
                     static_source=static_source,
                     extra_functions=extra_functions
@@ -168,12 +173,22 @@ class Potential:
             raw_array_potential=raw_array_potential,
             vectorized_potential=vectorized_potential,
             error_value=error_value,
-            fortran_potential=fortran_potential
+            fortran_potential=fortran_potential,
+            transpose_call = transpose_call
         )
+
+
+        self._args_pat = arguments
+        self._atom_pat = atom_pattern
+        self._real_args = None
+
     def __repr__(self):
-        return "Potential('{}', function={}, atoms={}, args={})".format(
+        if self._real_args is None:
+            self._prep_real_args()
+        return "Potential('{}', {}({}), atoms={}, bound_args={})".format(
             self.name,
             self.function_name,
+            ", ".join(a[0] for a in self._real_args),
             self._atoms,
             self._args
         )
@@ -196,11 +211,112 @@ class Potential:
     def clean_up(self):
         self.caller.clean_up()
 
+    def _validate_atoms(self, atoms):
+        if self._atom_pat is not None:
+            import re
+            if isinstance(self._atom_pat, str):
+                self._atom_pat = re.compile(self._atom_pat)
+            matches = True
+            bad_ind = -1
+            try:
+                matches = re.match(self._atom_pat, "".join(atoms))
+            except TypeError:
+                for i,a in enumerate(zip(self._atom_pat, atoms)):
+                    a1, a2 = a
+                    if a1 != a2:
+                        matches = False
+                        bad_ind = i
+            if not matches and bad_ind >= 0:
+                raise ValueError("Atom mismatch at {}: expected atom list {} but got {}".format(
+                    bad_ind,
+                    tuple(self._atom_pat),
+                    tuple(atoms)
+                ))
+            elif not matches:
+                raise ValueError("Atom mismatch: expected atom pattern {} but got list {}".format(
+                    bad_ind,
+                    self._atom_pat.pattern,
+                    tuple(atoms)
+                ))
     def bind_atoms(self, atoms):
+        self._validate_atoms(atoms)
         self._atoms = atoms
+    def _prep_real_args(self):
+        self._real_args = []
+        if self._args_pat is not None:
+            for k in self._args_pat:
+                extra = True
+                dtype = None
+                if isinstance(k, dict):
+                    name = k['name']
+                    dtype = k['dtype']
+                    if 'extra' in k:
+                        extra = k['extra']
+                    elif name in {"coords", "raw_coords", "atoms", "raw_atoms", "energy"}:
+                        extra = False
+                    elif isinstance(dtype, str) and dtype.endswith("*"):
+                        extra = False
+                else:
+                    name = k[0]
+                    dtype = k[1]
+                    if len(k) > 3:
+                        extra = k[3]
+                    elif k[0] in {"coords", "raw_coords", "atoms", "raw_atoms", "energy"}:
+                        extra = False
+                    elif isinstance(k[1], str) and k[1].endswith("*"):
+                        extra = False
+
+                if extra:
+                    if isinstance(dtype, str):
+                        dt = dtype.lower()
+                        if dt.startswith('float') or dt.startswith('double') or dt == "Real_t":
+                            dtype = float
+                        elif dt.startswith('int'):
+                            dtype = int
+                        elif dt == "bool":
+                            dtype = bool
+                        else:
+                            dtype = None
+                    self._real_args.append([name, dtype])
+    def _validate_args(self, argtuple):
+        # first we find the args we actually need...
+        if self._args_pat is not None:
+            if self._real_args is None:
+                self._prep_real_args()
+            if isinstance(argtuple, dict):
+                args = []
+                for k in self._real_args:
+                    n = k[0]
+                    if n not in argtuple:
+                        raise ValueError("Argument mismatch: argument {} missing".format(
+                            n
+                        ))
+                    args.append(argtuple[n])
+                argtuple = args
+            if len(self._real_args) < len(argtuple):
+                raise ValueError("Argument mismatch: too many parameters passed, expected {} but got {}".format(
+                    len(self._real_args),
+                    len(argtuple)
+                ))
+            elif len(self._real_args) > len(argtuple):
+                raise ValueError("Argument mismatch: too few parameters passed, expected {} but got {}".format(
+                    len(self._real_args),
+                    len(argtuple)
+                ))
+            else:
+                for i,t in enumerate(zip(self._real_args, argtuple)):
+                    t1, obj = t
+                    if t1 is not None and not isinstance(obj, t1[1]):
+                        raise ValueError("Argument mismatch: argument at {} is expected to be of type {} (got {})".format(
+                            i,
+                            t1.__name__,
+                            type(obj).__name__
+                        ))
+            return argtuple
     def bind_arguments(self, args):
+        args = self._validate_args(args)
         self._args = args
-    def __call__(self, coordinates, *extra_args):
+    def __call__(self, coordinates, *extra_args, **extra_kwargs):
         if self._atoms is not None:
             atoms = self._atoms
         elif len(extra_args) > 0:
@@ -208,6 +324,12 @@ class Potential:
             extra_args = extra_args[1:]
         else:
             atoms = []
-        if len(extra_args) == 0:
+        if atoms is not self._atoms:
+            self._validate_atoms(atoms)
+        if len(extra_args) == 0 and len(extra_kwargs) == 0:
             extra_args = self._args
+        elif len(extra_args) > 0:
+            self._validate_args(extra_args)
+        elif len(extra_kwargs) > 0:
+            extra_args = self._validate_args(extra_kwargs)
         return self.caller(coordinates, atoms, *extra_args)

@@ -2,9 +2,10 @@
 Defines the command-line interface to RynLib
 """
 
-import sys, os, argparse, functools
+import sys, os, argparse
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
+from RynLib import VERSION_NUMBER
 from RynLib.Interface import *
 
 class CLI:
@@ -438,7 +439,12 @@ class CLI:
             CLI().run()
         if interact:
             import code
-            code.interact(banner="RynLib Interactive Session", readfunc=None, local=interactive_env, exitmsg=None)
+            code.interact(
+                banner="RynLib Interactive Session (version {})".format(VERSION_NUMBER),
+                readfunc=None,
+                local=interactive_env,
+                exitmsg=None
+            )
 
     @classmethod
     def run_parse(cls, parse, unknown):

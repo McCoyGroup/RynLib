@@ -18,7 +18,9 @@ class PotentialCaller:
         "mpi_manager",
         "raw_array_potential",
         "vectorized_potential",
-        "error_value"
+        "error_value",
+        "fortran_potential",
+        "transpose_call"
     ]
     def __init__(self,
                  potential, *ignore,
@@ -27,7 +29,8 @@ class PotentialCaller:
                  raw_array_potential = None,
                  vectorized_potential = False,
                  error_value = 10.e9,
-                 fortran_potential=False
+                 fortran_potential=False,
+                 transpose_call=None
                  ):
         if len(ignore) > 0:
             raise ValueError("Only one positional argument (for the potential) accepted")
@@ -41,6 +44,9 @@ class PotentialCaller:
         self._py_pot = not repr(self.potential).startswith("<capsule object ")  # wow this is a hack...
         self._wrapped_pot = None
         self.fortran_potential = fortran_potential
+        if transpose_call is None:
+            transpose_call = fortran_potential
+        self.transpose_call = transpose_call
 
     @classmethod
     def load_lib(cls):
@@ -96,7 +102,7 @@ class PotentialCaller:
         if self._py_pot:
             return self.potential(walker, atoms, (extra_bools, extra_ints, extra_floats))
         else:
-            if self.fortran_potential:
+            if self.transpose_call:
                 walker = walker.transpose()
             coords = np.ascontiguousarray(walker).astype(float)
             # print(coords)
@@ -314,7 +320,7 @@ class PotentialCaller:
             poots = self._wrapped_pot(walker, atoms, (extra_bools, extra_ints, extra_floats))
         elif self._py_pot:
             walker = walker.transpose((1, 0, 2, 3))
-            if self.fortran_potential:
+            if self.transpose_call:
                 walker = walker.transpose((0, 1, 3, 2))
             coords = np.ascontiguousarray(walker).astype(float)
             poots = self.lib.rynaLovesPyPootsLots(
@@ -335,7 +341,7 @@ class PotentialCaller:
             if tbb and (self.mpi_manager is not None):
                 tbb = self.mpi_manager.hybrid_parallelization
             walker = walker.transpose((1, 0, 2, 3))
-            if self.fortran_potential:
+            if self.transpose_call:
                 walker = walker.transpose((0, 1, 3, 2))
             coords = np.ascontiguousarray(walker).astype(float)
             poots = self.lib.rynaLovesPootsLots(

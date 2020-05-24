@@ -153,7 +153,10 @@ class PotentialManager:
 
             atoms = atoms if atoms is not None else cfig["atoms"]
 
-            return pot(walkers, atoms, *params)
+            pot.bind_atoms(atoms)
+            pot.bind_arguments(params)
+
+            return pot(walkers)
         finally:
             if pot is not None:
                 pot.clean_up()
@@ -208,8 +211,8 @@ class PotentialManager:
                         pass
                     else:
                         opts[k] = v
-
-            return self._test_potential_mpi(pot, walkers, atoms, *params, **opts)
+            pot.bind_arguments(params)
+            return self._test_potential_mpi(pot, walkers, atoms, **opts)
         finally:
             if pot is not None:
                 pot.clean_up()

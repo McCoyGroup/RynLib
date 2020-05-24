@@ -16,13 +16,17 @@ Some of these, like the MPI, are set automatically, unless there's an override o
 Everything has been designed to run inside a container, which adds another layer of complexity.
 """
 
-from .Interface import *
+import RynLib.Interface as Interface
 import RynLib.DoMyCode as DoMyCode
 import RynLib.Dumpi as Dumpi
 import RynLib.PlzNumbers as PlzNumbers
 import RynLib.RynUtils as RynUtils
 
+VERSION_NUMBER = "1.0.0" # bump this when you make changes -- uses semantic versioning rules
+
 __all__ = [
+    "VERSION_NUMBER",
+    "Interface",
     "DoMyCode",
     "Dumpi",
     "PlzNumbers",
