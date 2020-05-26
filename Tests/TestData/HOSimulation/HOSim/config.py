@@ -13,7 +13,7 @@ config = dict(
         ),
     mpi_manager = None,
     time_step=1,
-    steps_per_propagation=3,
+    steps_per_propagation=1,
     num_time_steps=120,
     checkpoint_every=6,
     equilibration_steps=30,

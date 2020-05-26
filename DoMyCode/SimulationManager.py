@@ -2,7 +2,7 @@
 Provides a general purpose manager to manage starting, creating, and archiving DMC simulations
 """
 
-from ..RynUtils import ConfigManager
+from ..RynUtils import ConfigManager, Config
 from .Simulation import Simulation, SimulationParameters
 import os, shutil
 
@@ -37,7 +37,10 @@ class SimulationManager:
             shutil.copytree(data, data_src)
         self.manager.edit_config(name, name=name)
 
-    def edit_simulation(self, name, **opts):
+    def edit_simulation(self, name, optfile=None, **opts):
+        if optfile is not None:
+            optfile = Config(optfile).opt_dict
+            opts.update(optfile)
         self.check_simulation(name)
         self.manager.edit_config(name, **opts)
 
@@ -72,16 +75,30 @@ class SimulationManager:
 
         return sim
 
-    def restart_simulation(self, name):
-        shutil.rmtree(self.simulation_output_folder(name))
-        self.run_simulation(name)
+    def copy_simulation(self, name, new_name):
+        self.check_simulation(name)
+        old = self.manager.config_loc(name)
+        new = self.manager.config_loc(new_name)
+        shutil.copytree(old, new)
+        self.manager.edit_config(new_name, name=new_name)
 
-    def run_simulation(self, name):
-        import sys
+    def restart_simulation(self, name):
+        # shutil.rmtree(self.simulation_output_folder(name))
+        self.run_simulation(name, restart=True)
+
+    def run_simulation(self, name, restart=False):
+        import sys, signal
 
         sim = self.load_simulation(name)
         curdir = os.getcwd()
         try:
+            def handler(*args, sim=sim, **kwargs):
+                sim.ignore_errors = False
+                raise KeyboardInterrupt
+            signal.signal(signal.SIGINT,  handler)
+            signal.signal(signal.SIGTERM, handler)
+            signal.signal(signal.SIGABRT, handler)
+
             os.chdir(self.manager.config_loc(name))
 
             log = sim.logger.log_file
@@ -97,7 +114,8 @@ class SimulationManager:
                     if not os.path.isdir(os.path.dirname(log)):
                         os.makedirs(os.path.dirname(log))
                 try:
-                    with open(log, "w+", buffering=1) as log_stream:
+                    open_mode = "a+" if restart else "w+"
+                    with open(log, open_mode, buffering=1) as log_stream:
                         sim.logger.log_file = log_stream
                         sout = sys.stdout
                         serr = sys.stderr

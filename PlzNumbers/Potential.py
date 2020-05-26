@@ -29,7 +29,7 @@ class Potential:
                  wrap_potential = None,
                  function_name=None,
                  raw_array_potential=None,
-                 arguments=(),
+                 arguments=None,
                  shim_script="",
                  conversion = None,
                  potential_directory = None,
@@ -312,7 +312,7 @@ class Potential:
                             t1.__name__,
                             type(obj).__name__
                         ))
-            return argtuple
+        return argtuple
     def bind_arguments(self, args):
         args = self._validate_args(args)
         self._args = args

@@ -38,19 +38,46 @@ class CLI:
         sys.argv[0] = self.group + " " + self.cmd
         parser = argparse.ArgumentParser()
         keys = []
+        handle_unkown_opts = False
+        unkown_opt_key = None
         for arg in spec:
             if len(arg) > 1:
                 arg_name, arg_dict = arg
             else:
                 arg_name = arg[0]
                 arg_dict = {}
-            if 'dest' in arg_dict:
+            if arg_dict == "OPTDICT":
+                handle_unkown_opts = True
+                unkown_opt_key = arg_name
+            elif 'dest' in arg_dict:
                 keys.append(arg_dict['dest'])
             else:
                 keys.append(arg_name)
-            parser.add_argument(arg_name, **arg_dict)
-        args = parser.parse_args()
+            if arg_dict != "OPTDICT":
+                parser.add_argument(arg_name, **arg_dict)
+
+        if not handle_unkown_opts:
+            args = parser.parse_args()
+        else:
+            args, unknown = parser.parse_known_args()
+            opt_dict = {}
+            for k in unknown:
+                if not k.startswith("--") or "=" not in k:
+                    raise ValueError("Option '{}' is expected to look like '--<key>=<value>'".format(k))
+                key, val = k.split('=', 1)
+                key = key.strip("--")
+                try:
+                    val = int(val)
+                except TypeError:
+                    try:
+                        val = float(val)
+                    except TypeError:
+                        pass
+                opt_dict[key] = val
+
         opts = {k: getattr(args, k) for k in keys}
+        if unkown_opt_key is not None:
+            opts[unkown_opt_key] = opt_dict
         return {k:o for k,o in opts.items() if not (isinstance(o, str) and o=="")}
 
     def get_command(self, group=None, cmd=None):
@@ -187,6 +214,23 @@ class CLI:
             ("name",)
         )
         SimulationInterface.remove_simulation(**parse_dict)
+
+    def cli_method_sim_copy(self):
+        """Copies a simulation. Args: NAME NEW_NAME"""
+        parse_dict = self.get_parse_dict(
+            ("name",),
+            ("new_name",)
+        )
+        SimulationInterface.copy_simulation(**parse_dict)
+
+    def cli_method_sim_edit(self):
+        """Copies a simulation. Args: NAME [--OPTS=VALS]"""
+        parse_dict = self.get_parse_dict(
+            ("name",),
+            ("--optfile", dict(default="", type=str, dest='optfile')),
+            ("opts", "OPTDICT")
+        )
+        SimulationInterface.edit_simulation(**parse_dict)
 
     def cli_method_sim_run(self):
         """Runs a simulation. Args: NAME"""

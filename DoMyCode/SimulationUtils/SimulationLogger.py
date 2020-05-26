@@ -189,7 +189,7 @@ class SimulationLogger:
         np.savez(file, **wf)
         return file
 
-    def snapshot_weights(self, file="weights{core}.npy"):
+    def snapshot_weights(self, file="full_weights{core}.npy"):
         """Saves a snapshot of the energies to a numpy binary
 
         :param file:

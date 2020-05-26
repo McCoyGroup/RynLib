@@ -62,7 +62,7 @@ class WalkerSet:
         if isinstance(initial_weights, str):
             initial_weights = np.load(initial_weights)
         elif isinstance(initial_weights, (float, int, np.integer, np.floating)):
-            initial_weights = np.full((initial_walker.num_walkers, initial_weights))
+            initial_weights = np.full((num_walkers,), initial_weights)
         if len(initial_weights) > num_walkers or len(initial_weights) < num_walkers:
             if walker_choice_inds is None:
                 # should we raise a misconfiguration error?

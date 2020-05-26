@@ -274,12 +274,12 @@ class PotentialTemplate(TemplateWriter):
                  function_name = None,
                  potential_source = None,
                  raw_array_potential = None,
-                 arguments = (),
+                 arguments = None,
                  linked_libs = None,
                  static_source = False,
                  extra_functions = (),
                  fortran_potential = False,
-                 shim_script = "",
+                 shim_script = None,
                  conversion = None
                  ):
         """
@@ -299,6 +299,11 @@ class PotentialTemplate(TemplateWriter):
         :param extra_functions: Extra functions if we'll have more than the default one
         :type extra_functions:
         """
+
+        if arguments is None:
+            arguments = ()
+        if shim_script is None:
+            shim_script = ""
 
         if len(ignored) > 0:
             raise PotentialTemplateError("{} requires all arguments to be passed as keywords".format(

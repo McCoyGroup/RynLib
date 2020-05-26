@@ -152,7 +152,7 @@ class Simulation:
         self.time_step = time_step
 
         self.wavefunctions = deque()
-        self.num_wavefunctions = num_wavefunctions # here so we can do things with save_wavefunction <- mattered in the past when I sometimes had deque(maxlength=1)
+        self.num_wavefunctions = num_wavefunctions
 
         self.mpi_manager = mpi_manager
         try:
@@ -192,7 +192,12 @@ class Simulation:
 
     @property
     def config_string(self):
-        header = "RynLib DMC SIMULATION: {}\n{}\n".format(self.name, self.description)
+        from ..Interface import RynLib
+        header = "RynLib DMC SIMULATION (version {}): {}\n{}\n".format(
+            RynLib.VERSION_NUMBER,
+            self.name,
+            self.description
+        )
         logger_props = "\n".join([
             "{}: {}".format(k, getattr(self.logger, k)) for k in [
                 'verbosity'
@@ -244,7 +249,7 @@ class Simulation:
                # params_file = "checkpoint.json",
                energies_file = 'energies.npy',
                walkers_file="walkers_{n}.npz",
-               weights_file="weights.npy",
+               full_weights_file="full_weights.npy",
                full_energies_file='full_energies.npy'
                ):
         """Reloads the core data in a Simulation object from a checkpoint file
@@ -296,12 +301,13 @@ class Simulation:
                     )
                 wfs = sorted(wfs, key=lambda a:a[0])
         self.wavefunctions = deque(wfs)
+        self.num_wavefunctions = len(self.wavefunctions)
 
-        # LOAD WEIGHTS (if saved)
-        if not os.path.isfile(weights_file):
-            weights_file = os.path.join(output_folder, weights_file)
-        if os.path.isfile(weights_file):
-            self.full_weights = deque(np.load(weights_file))
+        # LOAD FULL WEIGHTS (if saved)
+        if not os.path.isfile(full_weights_file):
+            full_weights_file = os.path.join(output_folder, full_weights_file)
+        if os.path.isfile(full_weights_file):
+            self.full_weights = deque(np.load(full_weights_file))
 
         # LOAD FULL ENERGIES (if saved)
         if not os.path.isfile(full_energies_file):
@@ -324,51 +330,44 @@ class Simulation:
         :return:
         :rtype:
         """
-        import signal
 
-        def handler(*args, sim=self, **kwargs):
-            sim.ignore_errors = False
-            raise KeyboardInterrupt
+        if not self.counter.done:
 
-        try:
-            self.log_print(self.config_string)
-            self.log_print("-"*50)
-            self.log_print("Starting simulation")
-            if self.mpi_manager is not None:
-                # self.log_print("waiting for friends", verbosity=self.logger.LogLevel.STATUS)
-                self.mpi_manager.wait()
-            self.timer.start()
-
-            # TODO: think about whether I want this here or in the CLI run command...
-            signal.signal(signal.SIGINT, handler)
-            signal.signal(signal.SIGTERM, handler)
-            signal.signal(signal.SIGABRT, handler)
-            self._prop()
-
-        except Exception as e:
-            import traceback as tb
-            if not self.dummied:
-                self.log_print("Error Occurred\n  {}", tb.format_exc().replace("\n", "\n  "), verbosity=self.logger.LogLevel.STATUS)
-            else:
-                self.log_print("Error Occurred on core {}\n  {}",
-                               self.world_rank, tb.format_exc().replace("\n", "\n  "),
-                               allow_dummy=True,
-                               verbosity=self.logger.LogLevel.STATUS
-                               )
-            if not self.ignore_errors:
+            try:
+                self.log_print(self.config_string)
+                self.log_print("-"*50)
+                self.log_print("Starting simulation")
                 if self.mpi_manager is not None:
-                    self.mpi_manager.abort()
-                raise
-        finally:
-            self.log_print("Ending simulation")
-            self.checkpoint(test=False)
-            if self.mpi_manager is not None:
-                self.mpi_manager.finalize_MPI()
-            if isinstance(self.potential, Potential):
-                self.potential.clean_up()
-            if isinstance(self.imp_samp, ImportanceSampler):
-                self.imp_samp.clean_up()
-            self.timer.stop()
+                    # self.log_print("waiting for friends", verbosity=self.logger.LogLevel.STATUS)
+                    self.mpi_manager.wait()
+                self.timer.start()
+
+                self._prop()
+
+            except Exception as e:
+                import traceback as tb
+                if not self.dummied:
+                    self.log_print("Error Occurred\n  {}", tb.format_exc().replace("\n", "\n  "), verbosity=self.logger.LogLevel.STATUS)
+                else:
+                    self.log_print("Error Occurred on core {}\n  {}",
+                                   self.world_rank, tb.format_exc().replace("\n", "\n  "),
+                                   allow_dummy=True,
+                                   verbosity=self.logger.LogLevel.STATUS
+                                   )
+                if not self.ignore_errors:
+                    if self.mpi_manager is not None:
+                        self.mpi_manager.abort()
+                    raise
+            finally:
+                self.log_print("Ending simulation")
+                self.checkpoint(test=False)
+                if self.mpi_manager is not None:
+                    self.mpi_manager.finalize_MPI()
+                if isinstance(self.potential, Potential):
+                    self.potential.clean_up()
+                if isinstance(self.imp_samp, ImportanceSampler):
+                    self.imp_samp.clean_up()
+                self.timer.stop()
 
     @classmethod
     def load_lib(cls):
@@ -406,6 +405,7 @@ class Simulation:
     def apply_branching(self, energies):
         if not self.branch_on_cores:
             self.log_print("Updating walker weights", verbosity=self.logger.LogLevel.STEPS)
+        # raise Exception(energies.shape)
         weights = self.update_weights(energies, self.walkers.weights)
         self.walkers.weights = weights
         if not self.branch_on_cores:
@@ -548,7 +548,6 @@ class Simulation:
         else:
             energies, weights = self.evaluate_potential_and_branch(nsteps)
             self.counter.increment(nsteps)
-        self.mpi_manager.wait()
             # self.garbage_collect()
 
         if self.mpi_manager is not None:

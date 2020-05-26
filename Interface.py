@@ -40,6 +40,11 @@ class SimulationInterface:
         print("Removed simulation {}".format(name))
 
     @classmethod
+    def copy_simulation(self, name=None, new_name=None):
+        SimulationManager().copy_simulation(name, new_name)
+        print("Copied simulation {} into {}".format(name, new_name))
+
+    @classmethod
     def simulation_status(self, name=None):
         status = SimulationManager().simulation_ran(name)
         config = SimulationManager().simulation_config(name)
@@ -50,12 +55,19 @@ class SimulationInterface:
         )
 
     @classmethod
-    def edit_simulation(self, name=None, **opts):
-        SimulationManager().edit_simulation(name, **opts)
+    def edit_simulation(self, name=None, opts=None, optfile=None):
+        SimulationManager().edit_simulation(name, optfile=optfile, **opts)
+        print("Edited simulation {}".format(
+            name
+        ))
+        self.simulation_status(name)
 
     @classmethod
     def export_simulation(cls, name=None, path=None):
         SimulationManager().export_simulation(name, path)
+        print("Exported simulation {} to {}".format(
+            name, path
+        ))
 
     @classmethod
     def run_simulation(self, name=None):
@@ -240,6 +252,8 @@ class RynLib:
     """
     Defines all of the overall RynLib config things
     """
+    from RynLib import VERSION_NUMBER
+    VERSION_NUMBER = VERSION_NUMBER
     root = "/config"
     config_file = "config.py"
     mpi_dir = "/usr/lib/mpi"
