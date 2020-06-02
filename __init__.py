@@ -15,7 +15,7 @@ Some of these, like the MPI, are set automatically, unless there's an override o
 
 Everything has been designed to run inside a container, which adds another layer of complexity.
 """
-VERSION_NUMBER = "1.0.0" # bump this when you make changes -- uses semantic versioning rules
+VERSION_NUMBER = "1.0.1" # bump this when you make changes -- uses semantic versioning rules
 
 import RynLib.Interface as Interface
 import RynLib.DoMyCode as DoMyCode

@@ -7,8 +7,8 @@ FROM rynimg-old-build
 RUN rm -rf /home/RynLib
 ADD . /home/RynLib
 
-ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/ext/lib
-ENV PATH=$PATH:/ext/bin
+ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/entos/lib:/ext/lib
+ENV PATH=$PATH:/opt/entos:/ext/bin
 
 RUN mkdir -p /tests
 RUN pip3 install memory_profiler matplotlib

@@ -59,10 +59,12 @@ class PotentialCaller:
                          extra_compile_args=["-fopenmp", '-std=c++11'],
                          extra_link_args=["-fopenmp"],
                          include_dirs=[
+                             "/lib/x86_64-linux-gnu",
                              os.path.join(TBB_Ubutu, "include"),
                              os.path.join(TBB_Ubutu, "lib", "intel64", "gcc4.8")
                          ],
                          runtime_dirs=[
+                             "/lib/x86_64-linux-gnu",
                              os.path.join(TBB_Ubutu, "lib", "intel64", "gcc4.8")
                          ],
                          linked_libs=['tbb'],

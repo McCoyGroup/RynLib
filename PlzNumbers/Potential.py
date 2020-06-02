@@ -24,6 +24,7 @@ class Potential:
 
                  #Validation
                  atom_pattern = None,
+                 working_directory = None,
 
                  #Template Options
                  wrap_potential = None,
@@ -118,6 +119,7 @@ class Potential:
 
         self._atoms = None
         self._args = ()
+        self._args_validated = False
 
         if wrap_potential:
             if potential_directory is None:
@@ -177,10 +179,11 @@ class Potential:
             transpose_call = transpose_call
         )
 
-
         self._args_pat = arguments
         self._atom_pat = atom_pattern
         self._real_args = None
+
+        self.working_directory = working_directory
 
     def __repr__(self):
         if self._real_args is None:
@@ -316,6 +319,12 @@ class Potential:
     def bind_arguments(self, args):
         args = self._validate_args(args)
         self._args = args
+    @property
+    def args(self):
+        if not self._args_validated:
+            self._args = self._validate_args(self._args)
+            self._args_validated = True
+        return self._args
     def __call__(self, coordinates, *extra_args, **extra_kwargs):
         if self._atoms is not None:
             atoms = self._atoms
@@ -324,12 +333,23 @@ class Potential:
             extra_args = extra_args[1:]
         else:
             atoms = []
+
         if atoms is not self._atoms:
             self._validate_atoms(atoms)
         if len(extra_args) == 0 and len(extra_kwargs) == 0:
-            extra_args = self._args
+            extra_args = self.args
         elif len(extra_args) > 0:
             self._validate_args(extra_args)
         elif len(extra_kwargs) > 0:
             extra_args = self._validate_args(extra_kwargs)
-        return self.caller(coordinates, atoms, *extra_args)
+
+        if self.working_directory is not None:
+            curdir = os.getcwd()
+            try:
+                os.chdir(self.working_directory)
+                pot = self.caller(coordinates, atoms, *extra_args)
+            finally:
+                os.chdir(curdir)
+        else:
+            pot = self.caller(coordinates, atoms, *extra_args)
+        return pot

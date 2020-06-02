@@ -126,7 +126,7 @@ function extract_entos {
   fi
 
   cid=$(docker run -d --entrypoint=touch $img);
-  docker cp $cid:/entos $out;
+  docker cp $cid:/opt/entos $out;
   docker rm $cid;
 
   echo "Extracted Entos to $out";
@@ -206,7 +206,7 @@ function rynlib_shifter() {
     fi
 
     if [[ -d "$entos" ]]; then
-      vols="$vols;$entos:/entos";
+      vols="$vols;$entos:/opt/entos";
     fi
     if [[ -d "$ext" ]]; then
       vols="$vols;$ext:/ext";
@@ -265,7 +265,7 @@ function rynlib_singularity() {
     if [[ "$prof" != "" ]]; then shift 2; fi
 
     if [[ "$entos" = "" ]]; then
-      entos="$PWD/entos";
+      entos="$PWD/opt/entos";
     fi
 
     if [[ "$config" = "" ]]; then
@@ -283,7 +283,7 @@ function rynlib_singularity() {
     fi
 
     if [[ -d "$entos" ]]; then
-      vols="$vols,$entos:/entos";
+      vols="$vols,$entos:/opt/entos";
     fi
     if [[ -d "$ext" ]]; then
       vols="$vols,$ext:/ext";
@@ -401,7 +401,7 @@ function rynlib_docker() {
     fi
 
     if [[ -d "$entos" ]]; then
-      vols="$vols --mount type=bind,source=$entos,target=/entos";
+      vols="$vols --mount type=bind,source=$entos,target=/opt/entos";
     fi
     if [[ -d "$ext" ]]; then
       vols="$vols --mount type=bind,source=$ext,target=/ext";

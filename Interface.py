@@ -212,6 +212,7 @@ class PotentialInterface:
             test=os.path.join(RynLib.test_data, "test_entos.py"),
             wrap_potential=True,
             function_name="MillerGroup_entosPotential",
+            working_directory="/opt/entos",
             arguments=(("only_hf", 'bool'),),
             linked_libs=["entos"],
             include_dirs=[os.path.dirname(entos)],
@@ -272,7 +273,7 @@ class RynLib:
         if 'hyak' in node:
             env = dict(
                 containerizer="singularity",
-                entos_binary="/entos/lib/libentos.so",
+                entos_binary="/opt/entos/lib/libentos.so",
                 root_directory="#",
                 simulation_directory="#/simulations",
                 sampler_directory="#/impsamps",
@@ -281,7 +282,7 @@ class RynLib:
         elif 'cori' in node:
             env = dict(
                 containerizer="shifter",
-                entos_binary="/entos/lib/libentos.so",
+                entos_binary="/opt/entos/lib/libentos.so",
                 root_directory="#",
                 simulation_directory="#/simulations",
                 sampler_directory="#/impsamps",
@@ -290,7 +291,7 @@ class RynLib:
         else:
             env = dict(
                 containerizer="docker",
-                entos_binary="/entos/lib/libentos.so",
+                entos_binary="/opt/entos/lib/libentos.so",
                 root_directory="#",
                 simulation_directory="#/simulations",
                 sampler_directory="#/impsamps",
@@ -573,8 +574,13 @@ class RynLib:
             PotentialInterface.configure_entos()
 
         print("Testing Entos:")
-        print("Energy w/ MOBML: {}".format(potential_manager.test_potential('entos', parameters=[False])))
-        print("Energy w/o MOBML: {}".format(potential_manager.test_potential('entos', parameters=[True])))
+        # try:
+        #     val = potential_manager.test_potential('entos')
+        # except Exception as E:
+        #     val = E.args[0]
+        # print("Energy (no hf_only flag): {}".format(val))
+        print("Energy w/ MOBML: {}".format(potential_manager.test_potential('entos', parameters=dict(only_hf=False))))
+        print("Energy w/o MOBML: {}".format(potential_manager.test_potential('entos', parameters=dict(only_hf=True))))
 
     @classmethod
     def test_HO(cls):

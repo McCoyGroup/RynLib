@@ -13,61 +13,50 @@
 #   DEFAULT CONFIG FOR ENTOS
 #       Defines the base configuration needed in case we want to link in a version of Entos to use
 #
-FROM ubuntu:eoan-20200410
+
+##############################################################################################################
+
+#
+#   VERY KINDLY GIVEN TO USE BY PETER BYGRAVE
+#
+#
+FROM ubuntu:focal-20200319
 
 ARG DEBIAN_FRONTEND=noninteractive
 
 RUN \
  apt-get update &&\
- apt-get -y install g++ &&\
- apt-get -y install libboost-dev libboost-filesystem-dev libboost-system-dev &&\
- apt-get -y install libarmadillo-dev &&\
- apt-get -y install libxc-dev &&\
- apt-get -y install git &&\
- apt-get -y install cmake &&\
- apt-get -y install xsltproc &&\
  apt-get -y install ccache &&\
+ apt-get -y install g++ &&\
+ apt-get -y install git &&\
+ apt-get -y install intel-mkl &&\
+ apt-get -y install libarmadillo-dev &&\
+ apt-get -y install libboost-dev &&\
+ apt-get -y install libboost-filesystem-dev libboost-system-dev libboost-thread-dev &&\
+ apt-get -y install libxc-dev &&\
+ apt-get -y install make &&\
+ apt-get -y install python &&\
+ apt-get -y install wget &&\
+ apt-get -y install xsltproc &&\
  apt-get clean
 
-# Install most up-to-date Intel MKL to support as many Intel chips as possible
-# See https://software.intel.com/en-us/articles/installing-intel-free-libs-and-python-apt-repo
-RUN \
-  apt-get update &&\
-  apt-get -y install wget &&\
-  apt-get -y install gnupg &&\
-  apt-get -y install apt-transport-https && \
-  wget https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS-2019.PUB && \
-  apt-key add GPG-PUB-KEY-INTEL-SW-PRODUCTS-2019.PUB && \
-  rm GPG-PUB-KEY-INTEL-SW-PRODUCTS-2019.PUB
-
-ARG ITR=2020.0-166
-ARG IRS=2020.0.166
-RUN \
-  echo deb https://apt.repos.intel.com/tbb all main > /etc/apt/sources.list.d/intel-tbb.list &&\
-  apt-get update && apt-get -y install intel-tbb-devel-$ITR
-RUN \
-  echo deb https://apt.repos.intel.com/mkl all main > /etc/apt/sources.list.d/intel-mkl.list &&\
-  apt-get update && apt-get -y install intel-mkl-tbb-$ITR
-RUN \
-  rm /opt/intel/compilers_and_libraries_$IRS/linux/mkl/lib/intel64_lin/*.a && \
-  echo "/opt/intel/compilers_and_libraries_$IRS/linux/mkl/lib/intel64_lin/" >> /etc/ld.so.conf.d/intel.conf && \
-  echo "/opt/intel/compilers_and_libraries_$IRS/linux/tbb/lib/intel64/gcc4.8/" >> /etc/ld.so.conf.d/intel.conf && \
-  ldconfig &&\
-  echo "source /opt/intel/compilers_and_libraries_$IRS/linux/mkl/bin/mklvars.sh intel64" >> /etc/bash.bashrc &&\
-  echo "source /opt/intel/compilers_and_libraries_$IRS/linux/tbb/bin/tbbvars.sh intel64" >> /etc/bash.bashrc &&\
-  echo "source /opt/intel/compilers_and_libraries_$IRS/linux/mkl/bin/mklvars.sh intel64" >> /etc/profile &&\
-  echo "source /opt/intel/compilers_and_libraries_$IRS/linux/tbb/bin/tbbvars.sh intel64" >> /etc/profile &&\
-  apt-get clean
-
-ENV BASH_ENV=/etc/bash.bashrc
 ENV MKL_THREADING_LAYER=TBB
+
+# 2020-04-16 apt only has cmake-3.16.3, upgrading to 3.17 enables
+# `cmake -DBLA_VENDOR=Intel10_64_dyn` to find libmkl-rt.so via FindBLAS.cmake
+RUN \
+  cd /opt/ &&\
+  wget https://github.com/Kitware/CMake/releases/download/v3.17.1/cmake-3.17.1-Linux-x86_64.tar.gz &&\
+  tar xf cmake-3.17.1-Linux-x86_64.tar.gz &&\
+  rm cmake-3.17.1-Linux-x86_64.tar.gz
+
+ENV PATH=/opt/cmake-3.17.1-Linux-x86_64/bin/:${PATH}
 
 # libecpint
 RUN \
-  apt-get -y install git python &&\
-  git clone https://github.com/moritzBens/libecpint /libecpint &&\
+  git clone https://github.com/peterbygrave/libecpint /libecpint &&\
   cd /libecpint &&\
-  git checkout 2d40bce92f229c9a477e618c6008c0622e241d48 &&\
+  git checkout v0.0.0 &&\
   mkdir /libecpint_build &&\
   cd /libecpint_build &&\
   cmake -DCMAKE_CXX_FLAGS=-O3 ../libecpint &&\
@@ -78,47 +67,55 @@ RUN \
   rm -r /libecpint*
 
 # libcint
-# Explicitly override FindBLAS.cmake by including it in libcint's ./cmake/ folder.
-# CMake's default FindBLAS is incapable of finding libmkl_rt.so and will find
-# libmkl_intel.so which is OpenMP threaded. This override libentos.so's link to
-# libmkl_rt.so and kill performance in entos because it is not TBB parallelised.
-# See Issue #1082
+#
+# Setting -DBLA_VENDOR=Intel10_64_dyn to find libmkl-rt.so
+#  - See Issue #1082
 RUN \
-  apt-get -y install wget &&\
   wget https://github.com/sunqm/libcint/archive/v3.0.18.tar.gz --content-disposition &&\
   tar xf libcint-3.0.18.tar.gz &&\
-  echo "set(BLAS_FOUND TRUE)" > /libcint-3.0.18/cmake/FindBLAS.cmake &&\
-  echo "set(BLAS_LIBRARIES \"/opt/intel/compilers_and_libraries_2020.0.166/linux/mkl/lib/intel64_lin/libmkl_rt.so\")" >> /libcint-3.0.18/cmake/FindBLAS.cmake &&\
   mkdir libcint_build &&\
   cd libcint_build &&\
-  cmake /libcint-3.0.18/ &&\
+  cmake /libcint-3.0.18/ -DBLA_VENDOR=Intel10_64_dyn &&\
   make -j $(nproc) &&\
   make install &&\
   cd / &&\
   rm -r /libcint*
 
-# libOpenMM.so (Entos uses it but we never will)
+# OpenMM
+# Explicitly disable building of LGPL-licensed CUDA and OpenCL platforms
+# to ensure that only MIT and MIT-like licensed elements of OpenMM are included
+# in containers
 RUN \
-  apt-get -y install graphviz &&\
-  apt-get -y install doxygen
-RUN \
+  apt-get -y install libfftw3-3 doxygen swig &&\
   wget https://github.com/openmm/openmm/archive/7.4.1.tar.gz --content-disposition &&\
-  tar xf openmm-7.4.1.tar.gz
-RUN \
-  mkdir openmm_build &&\
-  cd openmm_build &&\
-  cmake -DOPENMM_BUILD_C_AND_FORTRAN_WRAPPERS=OFF -DOPENMM_BUILD_PYTHON_WRAPPERS=OFF /openmm-7.4.1/ &&\
+  tar xf openmm-7.4.1.tar.gz &&\
+  mkdir /openmm_build &&\
+  cd /openmm_build &&\
+  cmake /openmm-7.4.1 -D OPENMM_BUILD_CUDA_LIB:BOOL=OFF -D OPENMM_BUILD_OPENCL_LIB:BOOL=OFF &&\
   make -j $(nproc) &&\
   make install &&\
   cd / &&\
   rm -r /openmm*
+
+ENV CMAKE_PREFIX_PATH=/usr/local/openmm:${CMAKE_PREFIX_PATH}
+
+# Additional libraries for expire version
+RUN \
+apt-get -y install libboost-date-time-dev &&\
+apt-get -y install faketime &&\
+apt-get clean
+
+ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/entos/lib
+ENV PATH=$PATH:/opt/entos
+
+#########################################################################################################################
 
 #
 #   RynLib Config:
 #       Defines core utilities that RynLib will want to use and which we don't want to have to link in later
 #
 RUN \
-  apt-get -y install python3.7-dev python3-pip &&\
+  apt-get -y install python3-pip &&\
   pip3 install numpy &&\
   pip3 install scipy &&\
   pip3 install wget &&\
