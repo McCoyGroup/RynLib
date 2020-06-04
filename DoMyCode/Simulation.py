@@ -578,16 +578,18 @@ class Simulation:
         """
 
         energy_threshold = self.energy_error_value # cutoff above which potential is really an error
-        pick_spec = energies <= energy_threshold and weights > 0.0
+        pick_spec = np.logical_and(energies <= energy_threshold, weights > 0.0)
         e_pick = energies[pick_spec]
         w_pick = weights[pick_spec]
         if len(w_pick) == 0:
             self.ignore_errors = False
             raise ValueError("All walkers have a weight of zero")
         Vbar = np.average(e_pick, weights=w_pick, axis = 0)
-        num_walkers = len(weights)
         # we assume here that all walkers were initialized with a weight of one
-        correction=np.sum(weights-np.ones(num_walkers), axis = 0)/num_walkers
+        # we also have to account for the fact that we zero out a bunch of weights to kill the walkers...
+        num_walkers = len(weights)
+        zeros = np.sum(weights <= 0.0)
+        correction=(np.sum(w_pick-np.ones(len(w_pick)), axis = 0) - zeros)/num_walkers
         vref = Vbar - (self.alpha * correction)
         return vref
 
@@ -675,7 +677,7 @@ class Simulation:
             # Applying min-weight threshold
             if on_step or i == nsteps - 1:
                 if threshold is not None:
-                    w_spec = weights < threshold
+                    w_spec = np.logical_and(weights < threshold, weights > 0.0)
                     num_bad = np.sum(w_spec)
                     if num_bad > 0:
                         self.log_print("    Dropping {} walkers below min weight threshold",

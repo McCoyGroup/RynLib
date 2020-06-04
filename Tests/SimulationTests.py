@@ -27,7 +27,7 @@ class SimulationTests(TestCase):
         self.assertTrue(1000 < zpe and zpe < 4000)
         SimulationInterface.archive_simulation("test_HO")
 
-    @debugTest
+    @validationTest
     def test_SimpleHOMPI(self):
         if 'PythonHO' not in self.pm.list_potentials():
             PotentialInterface.add_potential("PythonHO", src=TestManager.test_data("HOSimulation/HOPyPot"))
