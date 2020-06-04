@@ -31,8 +31,11 @@ class Simulation:
         "potential", "steps_per_propagation",
         "mpi_manager", "importance_sampler",
         "num_wavefunctions", "atomic_units",
-        "ignore_errors", "branching_threshold",
-        "parallelize_diffusion", "branch_on_cores",
+        "ignore_errors",
+        "branching_threshold", "min_potential_threshold",
+        "max_weight_threshold",
+        "parallelize_diffusion",
+        "branch_on_cores", "branch_on_steps",
         "random_seed"
     ]
     def __init__(self, params):
@@ -64,6 +67,10 @@ class Simulation:
             num_wavefunctions = 0,
             ignore_errors = False,
             branching_threshold = 1.0,
+            energy_error_value = 10e8,
+            max_weight_threshold = None,
+            min_potential_threshold= None,
+            branch_on_steps = False,
             parallelize_diffusion=True,
             branch_on_cores = False,
             random_seed = None
@@ -130,8 +137,13 @@ class Simulation:
         self.atomic_units = atomic_units
         self.ignore_errors = ignore_errors
 
+        # branching flags
         self.branch_on_cores = branch_on_cores
         self.branching_threshold = branching_threshold
+        self.min_potential_threshold = min_potential_threshold
+        self.max_weight_threshold = max_weight_threshold
+        self.branch_on_steps = branch_on_steps
+        self.energy_error_value = energy_error_value
 
         if alpha is None:
             alpha = 1.0 / (2.0 * time_step)
@@ -565,12 +577,16 @@ class Simulation:
         :rtype: float
         """
 
-        energy_threshold = 10.8 # cutoff above which potential is really an error
-        pick_spec = energies < energy_threshold
+        energy_threshold = self.energy_error_value # cutoff above which potential is really an error
+        pick_spec = energies <= energy_threshold and weights > 0.0
         e_pick = energies[pick_spec]
         w_pick = weights[pick_spec]
+        if len(w_pick) == 0:
+            self.ignore_errors = False
+            raise ValueError("All walkers have a weight of zero")
         Vbar = np.average(e_pick, weights=w_pick, axis = 0)
         num_walkers = len(weights)
+        # we assume here that all walkers were initialized with a weight of one
         correction=np.sum(weights-np.ones(num_walkers), axis = 0)/num_walkers
         vref = Vbar - (self.alpha * correction)
         return vref
@@ -585,20 +601,96 @@ class Simulation:
         :return:
         :rtype: np.ndarray
         """
-        for e in energies: # this is basically a reduce call, but there's no real reason not to keep it like this
+        if self.branch_on_steps:
+            on_step = True
+            threshold = self.branching_threshold / self.walkers.num_walkers
+        else:
+            on_step = False
+            threshold = None
+
+        if self.min_potential_threshold is not None:
+            e_min = self.min_potential_threshold
+        else:
+            e_min = None
+
+        if self.max_weight_threshold is not None:
+            max_w = self.max_weight_threshold
+        else:
+            max_w = None
+
+        if e_min is not None:
+            self.log_print("    Applying min energy threshold of {}",
+                          e_min,
+                          verbosity=self.logger.LogLevel.DATA
+                          )
+        if threshold is not None:
+            self.log_print("    Applying weight threshold of {}",
+                          threshold,
+                          verbosity=self.logger.LogLevel.DATA
+                          )
+        if max_w is not None:
+            self.log_print("    Applying max weight threshold of {}",
+                          max_w,
+                          verbosity=self.logger.LogLevel.DATA
+                          )
+
+        nsteps = len(energies)
+        for i, e in enumerate(energies):
             self.log_print("    Energy: Min {} | Max {} | Mean {}",
                            np.min(e), np.max(e), np.average(e),
                            verbosity=self.logger.LogLevel.DATA
                            )
+
+            # Applying energy threshold
+            if e_min is not None:
+                e_spec = e < e_min
+                num_bad = np.sum(e_spec)
+                if num_bad > 0:
+                    self.log_print("    Dropping {} walkers below energy threshold",
+                                   num_bad,
+                                   verbosity=self.logger.LogLevel.DATA
+                                   )
+                    e[e_spec] = self.energy_error_value
+                    weights[e_spec] = -1.0
+
+            # Computing new weights
             Vref = self._compute_vref(e, weights)
             self.reference_potentials.append(Vref) # a constant time operation
             new_wts = np.nan_to_num(np.exp(-1.0 * (e - Vref) * self.time_step))
             weights *= new_wts
+
+            # Applying max-weight threshold
+            if on_step or i == nsteps - 1:
+                if max_w is not None:
+                    w_spec = weights > max_w
+                    num_bad = np.sum(w_spec)
+                    if num_bad > 0:
+                        self.log_print("    Dropping {} walkers above max weight threshold",
+                                       num_bad,
+                                       verbosity=self.logger.LogLevel.DATA
+                                       )
+                        e[w_spec] = self.energy_error_value
+                        weights[w_spec] = -1.0
+
+            # Applying min-weight threshold
+            if on_step or i == nsteps - 1:
+                if threshold is not None:
+                    w_spec = weights < threshold
+                    num_bad = np.sum(w_spec)
+                    if num_bad > 0:
+                        self.log_print("    Dropping {} walkers below min weight threshold",
+                                       num_bad,
+                                       verbosity=self.logger.LogLevel.DATA
+                                       )
+                        e[w_spec] = self.energy_error_value
+                        weights[w_spec] = -1.0
+
             self.log_print(
                 "    Weight: Min {} | Max {} | Mean {}",
                 np.min(weights), np.max(weights), np.average(weights),
                 verbosity=self.logger.LogLevel.DATA
             )
+
         return weights
 
     @staticmethod
@@ -656,12 +748,12 @@ class Simulation:
             '\n    '.join([
                 'Walkers being removed: {}',
                 'Threshold: {}',
-                'Energy: Max {} | Min {} | Mean {}',
-                'Weight: Max {} | Min {} | Mean {}'
+                'Energy: Min {} | Max {} | Mean {}',
+                'Weight: Min {} | Max {} | Mean {}'
                 ]),
             num_elim, threshold,
-            np.max(branch_energies), np.min(branch_energies), np.average(branch_energies),
-            np.max(branch_weights), np.min(branch_weights), np.average(branch_weights),
+            np.min(branch_energies), np.max(branch_energies), np.average(branch_energies),
+            np.min(branch_weights), np.max(branch_weights), np.average(branch_weights),
             verbosity=self.logger.LogLevel.STATUS
             )
         # self.log_print('Min/Max weight in ensemble: {}/{}', np.min(weights), np.max(weights), verbosity=self.logger.LogLevel.STATUS)
@@ -679,11 +771,11 @@ class Simulation:
         self.log_print(
             '\n    '.join([
                 'Done branching:',
-                'Energy: Max {} | Min {} | Mean {}',
-                'Weight: Max {} | Min {} | Mean {}'
+                'Energy: Min {} | Max {} | Mean {}',
+                'Weight: Min {} | Max {} | Mean {}'
             ]),
-            np.max(energies[-1]), np.min(energies[-1]), np.average(energies[-1]),
-            np.max(weights), np.min(weights), np.average(weights),
+            np.min(energies[-1]), np.max(energies[-1]), np.average(energies[-1]),
+            np.min(weights), np.max(weights), np.average(weights),
             verbosity=self.logger.LogLevel.STATUS
         )
 
