@@ -3,6 +3,7 @@
 #include "PyAllUp.hpp"
 #include "Potators.hpp"
 #include <csignal>
+#include <sstream>
 #include <iostream>
 #include "tbb/parallel_for.h"
 #include "wchar.h"
@@ -13,30 +14,71 @@ void _printOutWalkerStuff(
     const std::string &bad_walkers,
     const char* err_string
     ) {
+
+    std::string err_msg = err_string;
+    err_msg += " \n This walker was bad: ( ";
+    for (size_t i = 0; i < walker_coords.size(); i++) {
+        err_msg += "(";
+        for (int j = 0; j < 3; j++) {
+            err_msg += std::to_string(walker_coords[i][j]);
+            if (j < 2) {
+                err_msg += ", ";
+            } else {
+                err_msg += ")";
+            }
+        }
+        err_msg += ")";
+        if (i < walker_coords.size() - 1) {
+            err_msg += ", ";
+        }
+    }
+    err_msg += " )";
+
     if (!bad_walkers.empty()) {
         const char* fout = bad_walkers.c_str();
         FILE *err = fopen(fout, "a");
-        fprintf(err, "%s \n", err_string);
-        fprintf(err, "This walker was bad: ( ");
-        for (size_t i = 0; i < walker_coords.size(); i++) {
-            fprintf(err, "(%f, %f, %f)", walker_coords[i][0], walker_coords[i][1], walker_coords[i][2]);
-            if (i < walker_coords.size() - 1) {
-                fprintf(err, ", ");
-            }
-        }
-        fprintf(err, " )\n");
+        fprintf(err, "%s\n", err_msg.c_str());
         fclose(err);
     } else {
-        printf("%s", err_string);
-        printf("This walker was bad: ( ");
-        for ( size_t i = 0; i < walker_coords.size(); i++) {
-            printf("(%f, %f, %f)", walker_coords[i][0], walker_coords[i][1], walker_coords[i][2]);
-            if ( i < walker_coords.size()-1 ) {
-                printf(", ");
+        printf("%s\n", err_msg.c_str());
+    }
+
+}
+
+void _printOutWalkerStuff(
+        FlatCoordinates walker_coords,
+        const std::string &bad_walkers,
+        const char* err_string
+) {
+
+    std::string err_msg = err_string;
+    err_msg += " \n This walker was bad: ( ";
+    for (size_t i = 0; i < walker_coords.size()/3; i++) {
+        err_msg += "(";
+        for (int j = 0; j < 3; j++) {
+            err_msg += std::to_string(walker_coords[i*3 + j]);
+            if (j < 2) {
+                err_msg += ", ";
+            } else {
+                err_msg += ")";
             }
         }
-        printf(" )\n");
+        err_msg += ")";
+        if (i < walker_coords.size() - 1) {
+            err_msg += ", ";
+        }
     }
+    err_msg += " )";
+
+    if (!bad_walkers.empty()) {
+        const char* fout = bad_walkers.c_str();
+        FILE *err = fopen(fout, "a");
+        fprintf(err, "%s\n", err_msg.c_str());
+        fclose(err);
+    } else {
+        printf("%s\n", err_msg.c_str());
+    }
+
 }
 
 void _sigillHandler( int signum ) {

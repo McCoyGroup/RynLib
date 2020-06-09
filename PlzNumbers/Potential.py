@@ -312,7 +312,7 @@ class Potential:
                     if t1 is not None and not isinstance(obj, t1[1]):
                         raise ValueError("Argument mismatch: argument at {} is expected to be of type {} (got {})".format(
                             i,
-                            t1.__name__,
+                            t1[1].__name__,
                             type(obj).__name__
                         ))
         return argtuple

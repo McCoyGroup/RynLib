@@ -19,9 +19,22 @@ class PotentialTests(TestCase):
         except:
             pass
 
-    @validationTest
+    @debugTest
     def test_HarmonicOscillator(self):
         RynLib.test_HO()
+
+    @debugTest
+    def test_HandleException(self):
+        potential_manager = PotentialManager()
+        if 'HarmonicOscillator' not in potential_manager.list_potentials():
+            PotentialInterface.configure_HO()
+        ho = potential_manager.load_potential("HarmonicOscillator")
+        womp = ho([[0., 0., 0.], [0., 0., 0.]], ["H", "H"], re=1.0, k=2.0)
+        with open("bad_walkers.txt") as wat:
+            rumpus = wat.read()
+
+        self.assertGreater(womp, 1.e8)
+        self.assertTrue("This walker was bad" in rumpus)
 
     @validationTest
     def test_PythonHO(self):
