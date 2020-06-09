@@ -365,7 +365,9 @@ class PotentialCaller:
                 else:
                     shp = poots.shape
                     poots = poots.reshape(shp[1], shp[0]).transpose()
-        return poots[0] if smol_guy else poots
+        if poots is not None:
+            poots = poots[0] if smol_guy else poots
+        return poots
 
     def __call__(self, walkers, atoms, *extra_args):
         """
