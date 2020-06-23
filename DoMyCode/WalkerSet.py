@@ -52,7 +52,7 @@ class WalkerSet:
             initial_walker = np.load(initial_walker)
         initial_walker = np.asarray(initial_walker)
         if len(initial_walker.shape) == 2:
-            initial_walker = np.array([ initial_walker ] * num_walkers)
+            initial_walker = np.array([initial_walker] * num_walkers)
         elif len(initial_walker) > num_walkers or len(initial_walker) < num_walkers:
             walker_choice_inds = np.random.randint(0, initial_walker.shape[0], num_walkers)
             initial_walker = initial_walker[walker_choice_inds]

@@ -100,6 +100,12 @@ class SimulationInterface:
 
     @classmethod
     def test_HO_imp(cls):
+        im = ImportanceSamplerManager()
+        if "HOSampler" not in im.list_samplers():
+            SimulationInterface.add_sampler(
+                "HOSampler",
+                source=os.path.join(RynLib.test_data, "HOSimulation", "HOTrialWavefunction")
+            )
         sm = SimulationManager()
         if "test_HO_imp" in sm.list_simulations():
             sm.remove_simulation("test_HO_imp")

@@ -18,7 +18,8 @@
 RYNLIB_IMAGE_NAME="rynimg"
 RYNLIB_DOCKER_IMAGE="mccoygroup/rynlib:$RYNLIB_IMAGE_NAME"
 RYNLIB_SINGULARITY_EXTENSION="-centos"
-RYNLIB_SHIFTER_IMAGE="registry.services.nersc.gov/b3m2a1/$RYNLIB_IMAGE_NAME"
+#RYNLIB_SHIFTER_IMAGE="registry.services.nersc.gov/b3m2a1/$RYNLIB_IMAGE_NAME:latest"
+RYNLIB_SHIFTER_IMAGE="docker:$RYNLIB_DOCKER_IMAGE"
 
 function rynlib_git_update() {
   local cur;
@@ -156,7 +157,7 @@ function rynlib_update_shifter() {
   local img="$RYNLIB_IMAGE";
 
   if [[ "$img" = "" ]]; then
-    img="$RYNLIB_SHIFTER_IMAGE:latest";
+    img="$RYNLIB_SHIFTER_IMAGE";
   fi
 
   rynlib_git_update;
@@ -175,12 +176,31 @@ function rynlib_shifter() {
     local do_echo="";
     local mpi="";
     local arg_count;
+    local python_version="python3";
+    local entrypoint;
 
     arg_count=$(mcargcount $@)
     vols=$(mcoptvalue $RYNLIB_OPT_PATTERN "V" ${@:1:arg_count})
     do_echo=$(mcoptvalue $RYNLIB_OPT_PATTERN "e" ${@:1:arg_count})
     mpi=$(mcoptvalue $RYNLIB_OPT_PATTERN "n" ${@:1:arg_count})
-
+    wdir=$(mcoptvalue $RYNLIB_OPT_PATTERN "W" ${@:1:arg_count})
+    enter=$(mcoptvalue $RYNLIB_OPT_PATTERN "E" ${@:1:arg_count})
+    prof=$(mcoptvalue $RYNLIB_OPT_PATTERN "M" ${@:1:arg_count})
+    if [[ "$vols" != "" ]]; then shift 2; fi
+    if [[ "$do_echo" != "" ]]; then shift; fi
+    if [[ "$mpi" != "" ]]; then
+      shift 2;
+      local escaped="+";
+      local real=" --";
+      mpi=${mpi//$escaped/$real}
+      escaped="="
+      real=" "
+      mpi=${mpi//$escaped/$real}
+    fi
+    if [[ "$lib" != "" ]]; then shift 2; fi
+    if [[ "$wdir" != "" ]]; then shift 2; fi
+    if [[ "$enter" != "" ]]; then shift 2; fi
+    if [[ "$prof" != "" ]]; then shift 2; fi
 
     if [[ "$entos" = "" ]]; then
       entos="$PWD/entos";
@@ -191,8 +211,9 @@ function rynlib_shifter() {
     fi
 
     if [[ "$img" = "" ]]; then
-      img="$RYNLIB_SHIFTER_IMAGE:latest";
+      img="$RYNLIB_SHIFTER_IMAGE";
     fi
+    img="--image=$img";
 
     if [[ "$vols" == "" ]]; then
       vols="$config:/config";
@@ -206,21 +227,41 @@ function rynlib_shifter() {
     fi
 
     if [[ -d "$entos" ]]; then
-      vols="$vols;$entos:/opt/entos";
+      vols="$vols,$entos:/opt/entos";
     fi
     if [[ -d "$ext" ]]; then
-      vols="$vols;$ext:/ext";
+      vols="$vols,$ext:/ext";
     fi
+    local escaped=",";
+    local real=" --volume=";
+    vols=${vols//$escaped/$real}
+    vols="--volume=$vols";
 
+    # Set the entrypoint and define any args we need to pass
+    cmd="shifter $img $vols"
+    if [[ "$wdir" != "" ]]; then
+      cmd="$cmd --workdir=$wdir"
+    fi
+    if [[ "$prof" != "" ]]; then
+      enter="mprof $python_version /home/RynLib/CLI.py"
+      cmd2="$cmd2 $vols mprof plot --output=$prof"
+    elif [[ "$mpi" != "" ]]; then
+      #Set the working directory
+      enter="/usr/lib/mpi/bin/mpirun $python_version /home/RynLib/CLI.py"
+      call="-n $mpi $call"
+    elif [[ "$enter" == "" ]]; then
+      enter="$python_version /home/RynLib/CLI.py"
+    fi
+    cmd="$cmd $enter"
+
+    #We might want to just echo the command
     if [[ "$do_echo" == "" ]]; then
-      if [[ "$mpi" == "" ]]; then
-        shifter --volume=$vols --image=$img python3.7 /home/RynLib/CLI.py $@
-      else
-        shifter --volume=$vols --image=$img /usr/lib/mpi/bin/mpirun -n $mpi python3.7 /home/RynLib/CLI.py $@
+      $cmd $call $@
+      if [[ "$cmd2" != "" ]]; then
+        $cmd2
       fi
     else
-      shift;
-      echo "shifter --volume=$vols --image=$img python3.7 /home/RynLib/CLI.py $@"
+      echo "$cmd $call"
     fi
 }
 
