@@ -178,11 +178,13 @@ function rynlib_shifter() {
     local arg_count;
     local python_version="python3";
     local entrypoint;
+    local lib;
 
     arg_count=$(mcargcount $@)
     vols=$(mcoptvalue $RYNLIB_OPT_PATTERN "V" ${@:1:arg_count})
     do_echo=$(mcoptvalue $RYNLIB_OPT_PATTERN "e" ${@:1:arg_count})
     mpi=$(mcoptvalue $RYNLIB_OPT_PATTERN "n" ${@:1:arg_count})
+    lib=$(mcoptvalue $RYNLIB_OPT_PATTERN "L" ${@:1:arg_count})
     wdir=$(mcoptvalue $RYNLIB_OPT_PATTERN "W" ${@:1:arg_count})
     enter=$(mcoptvalue $RYNLIB_OPT_PATTERN "E" ${@:1:arg_count})
     prof=$(mcoptvalue $RYNLIB_OPT_PATTERN "M" ${@:1:arg_count})
