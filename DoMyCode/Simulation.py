@@ -108,32 +108,6 @@ class Simulation:
             mpi_manager = MPIManager()
         # elif isinstance(mpi_manager, str) and mpi_manager == "serial":
         #     mpi_manager = None
-
-        if isinstance(walker_set, str):
-            walker_set = WalkerSet.from_file(walker_set, mpi_manager=mpi_manager)
-        elif isinstance(walker_set, dict):
-            walker_set['mpi_manager']=mpi_manager
-            walker_set = WalkerSet(**walker_set)
-
-
-        self.parallelize_diffusion = parallelize_diffusion
-
-        self.walkers = walker_set if isinstance(walker_set, WalkerSet) else WalkerSet(walker_set)
-        if isinstance(potential, str):
-            potential = PotentialManager().load_potential(potential)
-            potential.bind_atoms(walker_set.atoms)
-        elif isinstance(potential, dict):
-            pot = PotentialManager().load_potential(potential["name"])
-            pot.bind_atoms(walker_set.atoms)
-            if 'parameters' in potential:
-                pot.bind_arguments(potential['parameters'])
-            potential = pot
-
-        if not parallelize_diffusion:
-            potential.mpi_manager = mpi_manager
-        else:
-            potential.mpi_manager = None
-        self.potential = potential
         self.atomic_units = atomic_units
         self.ignore_errors = ignore_errors
 
@@ -144,6 +118,7 @@ class Simulation:
         self.max_weight_threshold = max_weight_threshold
         self.branch_on_steps = branch_on_steps
         self.energy_error_value = energy_error_value
+        self.parallelize_diffusion = parallelize_diffusion
 
         if alpha is None:
             alpha = 1.0 / (2.0 * time_step)
@@ -160,12 +135,14 @@ class Simulation:
             self.full_energies = None
             self.full_weights = None
 
-        self.walkers.initialize(time_step)
         self.time_step = time_step
 
         self.wavefunctions = deque()
         self.num_wavefunctions = num_wavefunctions
 
+        # Load all core objects
+
+        # MPI Manager
         self.mpi_manager = mpi_manager
         try:
             self.world_rank = 0 if mpi_manager is None else mpi_manager.world_rank
@@ -177,30 +154,69 @@ class Simulation:
             raise
         self.dummied = self.world_rank != 0
 
+        # Random Seed
         if random_seed is not None:
             if self.dummied:
                 random_seed += self.world_rank
             np.random.seed(random_seed)
         self.random_seed = random_seed
 
+        ### Walkers
+        if isinstance(walker_set, str):
+            walker_set = WalkerSet.from_file(walker_set, mpi_manager=mpi_manager)
+        elif isinstance(walker_set, dict):
+            walker_set['mpi_manager']=mpi_manager
+            walker_set = WalkerSet(**walker_set)
+
+        self.walkers = walker_set if isinstance(walker_set, WalkerSet) else WalkerSet(walker_set)
+        self.walkers.initialize(time_step)
+
+        ### Potential
+        if isinstance(potential, str):
+            potential = PotentialManager().load_potential(potential)
+            potential.bind_atoms(walker_set.atoms)
+        elif isinstance(potential, dict):
+            pot = PotentialManager().load_potential(potential["name"])
+            pot.bind_atoms(walker_set.atoms)
+            if 'parameters' in potential:
+                pot.bind_arguments(potential['parameters'])
+            potential = pot
+        self.potential = potential
+
+        ### Importance Sampler
         if isinstance(importance_sampler, dict):
             params = importance_sampler["parameters"]
             importance_sampler = importance_sampler["name"]
         else:
             params = None
+
         if isinstance(importance_sampler, str):
             importance_sampler = ImportanceSamplerManager().load_sampler(importance_sampler)
+
         self.imp_samp = importance_sampler
         if self.imp_samp is not None:
+            # if self.parallelize_diffusion:
+            #     raise ValueError("Can't both do parallel diffusion & importance sampling, just by the way this is currently implemented")
+            # else:
+            #     parallelize_diffusion = False
             if params is None:
                 params = ()
+            if not parallelize_diffusion:
+                mpi = self.mpi_manager
+            else:
+                mpi = None
             self.imp_samp.init_params(
                 self.walkers.sigmas,
                 self.time_step,
-                self.mpi_manager,
+                mpi,
                 self.walkers.atoms,
                 *params
             )
+
+        if not self.parallelize_diffusion:
+            potential.mpi_manager = self.mpi_manager
+        else:
+            potential.mpi_manager = None
 
     @property
     def config_string(self):

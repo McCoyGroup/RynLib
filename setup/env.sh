@@ -218,19 +218,16 @@ function rynlib_shifter() {
     if [[ "$vols" == "" ]]; then
       vols="$config:/config";
     else
-      shift;
       vols="$vols;$config:/config";
     fi
-
-    if [[ "$mpi" != "" ]]; then
-      shift; shift
-    fi
-
     if [[ -d "$entos" ]]; then
       vols="$vols,$entos:/opt/entos";
     fi
     if [[ -d "$ext" ]]; then
       vols="$vols,$ext:/ext";
+    fi
+    if [[ -d "$lib" ]]; then
+      vols="$vols,$lib:/home/RynLib"
     fi
     local escaped=",";
     local real=" --volume=";

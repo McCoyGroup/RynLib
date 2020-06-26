@@ -69,7 +69,7 @@ class SimulationTests(TestCase):
             print(out_stuff)
         self.assertTrue(clean_end)
 
-    @validationTest
+    @debugTest
     def test_SimpleHOImp(self):
         SimulationInterface.test_HO_imp()
         f = self.sm.simulation_output_folder("test_HO_imp")

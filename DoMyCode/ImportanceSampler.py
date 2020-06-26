@@ -149,19 +149,29 @@ class ImportanceSampler:
 
         trial_wvfn = self.caller
         much_psi = trial_wvfn(coords)
-        much_dims = much_psi.ndim
-        ndims = self._psi[0].ndim
-        for i in range(ndims - much_dims):
-            much_psi = np.expand_dims(much_psi, axis=-1)
-        much_psi = np.copy(np.broadcast_to(much_psi, self._psi[0].shape))
+        if self.dummied:
+            for atom_label in range(coords.shape[-2]):
+                for xyz in range(3):
+                    trial_wvfn(coords)
+                    # coords[:, atom_label, xyz] -= dx
+                    # much_psi[:, 0, atom_label, xyz] = trial_wvfn(coords)
+                    # coords[:, atom_label, xyz] += 2. * dx
+                    # much_psi[:, 2, atom_label, xyz] = trial_wvfn(coords)
+                    # coords[:, atom_label, xyz] -= dx
+        else:
+            much_dims = much_psi.ndim
+            ndims = self._psi[0].ndim
+            for i in range(ndims - much_dims):
+                much_psi = np.expand_dims(much_psi, axis=-1)
+            much_psi = np.copy(np.broadcast_to(much_psi, self._psi[0].shape))
 
-        for atom_label in range(coords.shape[-2]):
-            for xyz in range(3):
-                coords[:, atom_label, xyz] -= dx
-                much_psi[:, 0, atom_label, xyz] = trial_wvfn(coords)
-                coords[:, atom_label, xyz] += 2. * dx
-                much_psi[:, 2, atom_label, xyz] = trial_wvfn(coords)
-                coords[:, atom_label, xyz] -= dx
+            for atom_label in range(coords.shape[-2]):
+                for xyz in range(3):
+                    coords[:, atom_label, xyz] -= dx
+                    much_psi[:, 0, atom_label, xyz] = trial_wvfn(coords)
+                    coords[:, atom_label, xyz] += 2. * dx
+                    much_psi[:, 2, atom_label, xyz] = trial_wvfn(coords)
+                    coords[:, atom_label, xyz] -= dx
         return much_psi
 
     def metropolis(self, Fqx, Fqy, x, y, psi1, psi2):
