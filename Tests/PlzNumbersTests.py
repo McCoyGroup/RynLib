@@ -23,7 +23,7 @@ class PotentialTests(TestCase):
     def test_HarmonicOscillator(self):
         RynLib.test_HO()
 
-    @debugTest
+    @inactiveTest
     def test_HandleException(self):
         potential_manager = PotentialManager()
         if 'HarmonicOscillator' not in potential_manager.list_potentials():
