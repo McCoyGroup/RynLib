@@ -150,6 +150,8 @@ class CLI:
         parse_dict = self.get_parse_dict(
             ("--debug", dict(default=False, type=get_bool, dest='debug')),
             ("--testdir", dict(default="", type=str, dest='test_dir')),
+            ("--name", dict(default="", type=str, dest='name')),
+            ("--suite", dict(default="", type=str, dest='suite'))
         )
         RynLib.run_tests(**parse_dict)
 
@@ -287,9 +289,17 @@ class CLI:
     def cli_method_sim_test_sampler(self):
         """Tests an importance sampler. Args: NAME"""
         parse_dict = self.get_parse_dict(
-            ("name",)
+            ("name",),
+            ("--input", dict(default="", type=str, dest='input_file'))
         )
         SimulationInterface.test_sampler(**parse_dict)
+    def cli_method_sim_test_sampler_mpi(self):
+        """Tests an importance sampler. Args: NAME"""
+        parse_dict = self.get_parse_dict(
+            ("name",),
+            ("--input", dict(default="", type=str, dest='input_file'))
+        )
+        SimulationInterface.test_sampler_mpi(**parse_dict)
 
     def cli_method_sim_test_HO(self):
         """Runs a harmonic oscillator DMC as a test"""

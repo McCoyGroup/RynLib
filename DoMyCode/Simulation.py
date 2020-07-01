@@ -4,7 +4,8 @@ Defines the core DMC simulation
 
 import os, numpy as np, time
 from .WalkerSet import WalkerSet
-from .ImportanceSampler import ImportanceSampler, ImportanceSamplerManager
+from .ImportanceSampler import ImportanceSampler
+from .ImportanceSamplerManager import ImportanceSamplerManager
 from ..RynUtils import ParameterManager, CLoader
 from ..Dumpi import *
 from ..PlzNumbers import PotentialManager, Potential
@@ -428,7 +429,7 @@ class Simulation:
                                np.min(ke), np.max(ke), np.average(ke),
                                verbosity=self.logger.LogLevel.DATA
                                )
-            energies += ke
+                energies += ke
         return energies
     def apply_branching(self, energies):
         if not self.branch_on_cores:

@@ -7,6 +7,10 @@ FROM rynimg-old-build
 RUN rm -rf /home/RynLib
 ADD . /home/RynLib
 
+RUN \
+  cd /home/Peeves &&\
+  git pull
+
 ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/entos/lib:/ext/lib
 ENV PATH=$PATH:/opt/entos:/ext/bin
 

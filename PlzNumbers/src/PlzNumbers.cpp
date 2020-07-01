@@ -325,7 +325,6 @@ PyObject *PlzNumbers_callPyPotVec( PyObject* self, PyObject* args ) {
         );
     }
 
-//    _printObject("wtf ??? %s\n", pot_vals);
     return pot_vals;
 
 //    bool main_core = true;

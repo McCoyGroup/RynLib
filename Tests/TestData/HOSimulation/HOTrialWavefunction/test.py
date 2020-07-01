@@ -7,7 +7,7 @@ config = dict(
                     [0.0, 0.0, 0.0],
                     [1.0, 0.0, 0.0]
                 ],
-            num_walkers=100
+            walkers_per_core=25
         ),
     time_step=1,
     steps_per_propagation=5,

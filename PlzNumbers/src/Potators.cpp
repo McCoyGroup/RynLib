@@ -677,11 +677,11 @@ PyObject* _mpiGetPyPot(
         return NULL;
     }
 
-    PyObject* args = PyTuple_New(3);
+    PyObject* args = PyTuple_Pack(3, walkers, atoms, extra);
     // We use SET_ITEM not SetItem because we _don't_ want to give our references to `args`
-    PyTuple_SET_ITEM(args, 0, walkers);
-    PyTuple_SET_ITEM(args, 1, atoms);
-    PyTuple_SET_ITEM(args, 2, extra);
+//    PyTuple_SET_ITEM(args, 0, walkers);
+//    PyTuple_SET_ITEM(args, 1, atoms);
+//    PyTuple_SET_ITEM(args, 2, extra);
 
     PyObject* pot_vals = PyObject_CallObject(pot_func, args);
     if (pot_vals == NULL) {
@@ -692,11 +692,11 @@ PyObject* _mpiGetPyPot(
 
     RawPotentialBuffer pots = _GetDoubleDataArray(pot_vals);
 
-//    Py_XDECREF(args);
+    Py_XDECREF(args);
 
     // we don't work with the walker data at this point
     free(walker_buf);
-    Py_XDECREF(walkers);
+//    Py_XDECREF(walkers); For some reason with this on we get a segfault? Need to track down why, unless it's an issue with PyTuple_SET_ITEM
 
     RawPotentialBuffer pot_buf = NULL;
     PyObject *potVals = NULL;
@@ -720,6 +720,7 @@ PyObject* _mpiGetPyPot(
     );
     Py_XDECREF(gather);
     Py_XDECREF(pot_vals);
+
 
     if ( world_rank > 0 ) {
         Py_RETURN_NONE;

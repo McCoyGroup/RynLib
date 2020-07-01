@@ -1,6 +1,6 @@
 from Peeves.TestUtils import *
 from unittest import TestCase
-from ..Interface import RynLib
+from RynLib.Interface import RynLib
 from RynLib.RynUtils.ConfigManager import *
 import os
 

@@ -160,9 +160,28 @@ class SimulationInterface:
 
     @classmethod
     def test_sampler(cls, name=None):
+        import numpy as np
+
         print("Testing importance sampler {}".format(name))
-        ke = ImportanceSamplerManager().test_sampler(name)
-        print("Sampler returned local kinetic energy {}".format(ke))
+        ke, meta = ImportanceSamplerManager().test_sampler(name)
+        print("Sampler returned average local kinetic energy {}".format(np.average(ke, axis=1)))
+
+    @classmethod
+    def test_sampler_mpi(cls, name=None, input_file=None, **opts):
+        import numpy as np
+
+        samp = ImportanceSamplerManager().test_sampler_mpi(name, input_file=input_file, **opts)
+        mpi = next(samp)
+        if mpi.world_rank == 0:
+            print("Testing importance sampler {}".format(name))
+            print(mpi)
+        ke, meta = next(samp)
+        mpi.finalize_MPI()
+        if mpi.world_rank == 0:
+            print(meta['walkers'])
+            print("Took {}s ({}s/walker)".format(meta['timing'], meta['average'])),
+            print("Sampler returned average local kinetic energy {}".format(np.average(ke, axis=1)))
+        mpi.finalize_MPI()
 
 class PotentialInterface:
     """
@@ -375,7 +394,7 @@ class RynLib:
         #     cls.reload_dumpi()
 
     @classmethod
-    def run_tests(cls, test_dir=None, debug=False):
+    def run_tests(cls, test_dir=None, debug=False, name=None, suite=None):
         import sys
 
         curdir = os.getcwd()
@@ -395,9 +414,16 @@ class RynLib:
 
             os.chdir(os.path.dirname(os.path.dirname(__file__)))
             if debug:
+
                 sys.argv = [argv[0], "-d"]
             else:
                 sys.argv = [argv[0], "-v", "-d"]
+
+            if name is not None:
+                sys.argv.extend(["-n",  name])
+            if suite is not None:
+                sys.argv.extend(["-f", suite])
+
             import RynLib.Tests.run_tests
         finally:
             sys.argv = argv

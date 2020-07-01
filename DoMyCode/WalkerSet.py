@@ -130,6 +130,8 @@ class WalkerSet:
         for i, d in enumerate(disps): # loop over steps
             if importance_sampler is not None:
                 bloop = importance_sampler.accept_step(i, bloop, d)
+                if importance_sampler.mpi_manager is not None:
+                    importance_sampler.mpi_manager.wait()
             else:
                 bloop = bloop + d
             crds[i] = bloop
