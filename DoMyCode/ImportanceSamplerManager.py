@@ -93,6 +93,9 @@ class ImportanceSamplerManager:
             elif isinstance(walkers, dict):
                 walkers = WalkerSet(mpi_manager=mpi_manager, **walkers)
 
+            if 'random_seed' in cfig:
+                np.random.seed(cfig['random_seed'])
+
             if 'time_step' in cfig:
                 time_step = cfig["time_step"]
             else:
@@ -118,17 +121,18 @@ class ImportanceSamplerManager:
             else:
                 parameters = ()
 
-            sampler.init_params(sigmas, time_step, mpi_manager, walkers.atoms, *parameters)
-
-            # print(walkers.coords.shape)
-
             if 'atomic_units' in cfig:
                 atomic_units = cfig["atomic_units"]
             else:
                 atomic_units = False
 
+            sampler.init_params(sigmas, time_step, mpi_manager, walkers.atoms, *parameters, atomic_units=atomic_units)
+
+            # print(walkers.coords.shape)
+
             start = time.time()
             disp_walks = walkers.displace(steps_per_propagation, importance_sampler=sampler, atomic_units=atomic_units)
+            disp_walks2 = disp_walks[-1, -1]
             ke = sampler.local_kin(disp_walks)
             end = time.time()
 

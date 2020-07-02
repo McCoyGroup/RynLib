@@ -103,6 +103,7 @@ class WalkerSet:
             self.sigmas = np.sqrt((2.0 * D * deltaT) / self.masses)
 
     def get_displacements(self, steps = 1, coords = None, atomic_units = False):
+
         if coords is None:
             coords = self.coords
         shape = (steps, ) + coords.shape[:-2] + coords.shape[-1:]
@@ -113,11 +114,11 @@ class WalkerSet:
         disps = np.transpose(disps, (1, 2, 0, 3))
 
         if not atomic_units:
-            disps = Constants.convert(disps, "angstroms", in_AU = False)
+            disps = Constants.convert(disps, "angstroms", in_AU=False)
 
         return disps
 
-    def get_displaced_coords(self, n=1, coords = None, importance_sampler = None, atomic_units = False):
+    def get_displaced_coords(self, n=1, coords = None, importance_sampler = None, atomic_units=False):
         # this is a kinda crummy way to get this, but it allows us to get our n sets of displacements
         if coords is None:
             coords = self.coords
@@ -129,6 +130,8 @@ class WalkerSet:
         disps = self.get_displacements(n, coords, atomic_units=atomic_units)
         for i, d in enumerate(disps): # loop over steps
             if importance_sampler is not None:
+                if importance_sampler.atomic_units is not atomic_units:
+                    raise ValueError("Importance sampler and walker set disagree on units")
                 bloop = importance_sampler.accept_step(i, bloop, d)
                 if importance_sampler.mpi_manager is not None:
                     importance_sampler.mpi_manager.wait()
