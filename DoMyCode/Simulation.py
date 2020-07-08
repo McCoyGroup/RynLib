@@ -211,7 +211,8 @@ class Simulation:
                 self.time_step,
                 mpi,
                 self.walkers.atoms,
-                *params
+                *params,
+                atomic_units=self.atomic_units
             )
 
         if not self.parallelize_diffusion:
