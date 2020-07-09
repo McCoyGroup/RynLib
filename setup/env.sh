@@ -345,7 +345,7 @@ function rynlib_singularity() {
         if [[ "$wdir" != "" ]]; then
           cmd2="$cmd2 -W $wdir"
         fi
-        cmd2="$cmd2 $vols $img mprof plot --output=$prof"
+        cmd2="$cmd2 --bind $vols $img mprof plot --output=$prof"
       elif [[ "$mpi" != "" ]]; then
         #Set the working directory
         enter="/usr/lib/mpi/bin/mpirun"
@@ -357,6 +357,8 @@ function rynlib_singularity() {
         cmd="singularity run"
         call=""
       fi
+    else
+      call=""
     fi
 
     if [[ "$wdir" != "" ]]; then
@@ -369,7 +371,7 @@ function rynlib_singularity() {
     fi
     #We might want to just echo the command
     if [[ "$do_echo" == "" ]]; then
-      $cmd $img $call $enter$@
+      $cmd $img $enter$call $@
       if [[ "$cmd2" != "" ]]; then
         $cmd2
       fi
