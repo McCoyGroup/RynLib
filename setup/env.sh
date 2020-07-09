@@ -242,7 +242,7 @@ function rynlib_shifter() {
       cmd="$cmd --workdir=$wdir"
     fi
     if [[ "$prof" != "" ]]; then
-      enter="mprof $python_version /home/RynLib/CLI.py"
+      enter="mprof run $python_version /home/RynLib/CLI.py"
       cmd2="$cmd2 $vols mprof plot --output=$prof"
     elif [[ "$mpi" != "" ]]; then
       #Set the working directory
@@ -261,6 +261,9 @@ function rynlib_shifter() {
       fi
     else
       echo "$cmd $call"
+      if [[ "$cmd2" != "" ]]; then
+        echo "&&$cmd2"
+      fi
     fi
 }
 
@@ -498,6 +501,9 @@ function rynlib_docker() {
       fi
     else
       echo "$cmd $img $call"
+      if [[ "$cmd2" != "" ]]; then
+        echo "&&$cmd2"
+      fi
     fi
 }
 
