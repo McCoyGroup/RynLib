@@ -359,16 +359,22 @@ function rynlib_singularity() {
     if [[ "$wdir" != "" ]]; then
       cmd="$cmd -W $wdir"
     fi
-    cmd="$cmd --bind $vols $enter"
+    cmd="$cmd --bind $vols"
 
+    if [[ "enter" != "" ]]; then
+      enter="$enter "
+    fi
     #We might want to just echo the command
     if [[ "$do_echo" == "" ]]; then
-      $cmd $img $call $@
+      $cmd $img $call $enter$@
       if [[ "$cmd2" != "" ]]; then
         $cmd2
       fi
     else
-      echo "$cmd $img $call"
+      echo "$cmd $img $enter$call"
+      if [[ "$cmd2" != "" ]]; then
+        echo "&&$cmd2"
+      fi
     fi
 }
 
