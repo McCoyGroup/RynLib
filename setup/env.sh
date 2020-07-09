@@ -337,7 +337,7 @@ function rynlib_singularity() {
     if [[ "$enter" == "" ]]; then
       call="python3 /home/RynLib/CLI.py"
       if [[ "$prof" != "" ]]; then
-        enter="mprof"
+        enter="mprof run"
         cmd2="singularity exec"
         if [[ "$wdir" != "" ]]; then
           cmd2="$cmd2 -W $wdir"
