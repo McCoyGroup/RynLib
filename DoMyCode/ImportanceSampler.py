@@ -216,6 +216,9 @@ class ImportanceSampler:
         psi_2 = psi2[:, 1, 0, 0]
         psi_ratio = (psi_2 / psi_1) ** 2
         sigma = self.sigmas
+        if not self.atomic_units:
+            y = Constants.convert(y, "angstroms", in_AU=True)
+            x = Constants.convert(x, "angstroms", in_AU=True)
         a = np.exp(1. / 2. * (Fqx + Fqy) * (sigma ** 2 / 4. * (Fqx - Fqy) - (y - x)))
         a = np.prod(np.prod(a, axis=1), axis=1) * psi_ratio
         return a
