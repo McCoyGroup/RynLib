@@ -181,7 +181,7 @@ class ImportanceSampler:
 
             if not self.atomic_units:
                 # _only_ these displacements need to be done in Angstroms if we're not working in A.U.
-                dx = Constants.convert(dx, "angstroms", in_AU=False)
+                dx = Constants.convert(dx, "angstroms", in_AU=True)
             for atom_label in range(coords.shape[-2]):
                 for xyz in range(3):
                     coords[:, atom_label, xyz] -= dx
@@ -217,8 +217,8 @@ class ImportanceSampler:
         psi_ratio = (psi_2 / psi_1) ** 2
         sigma = self.sigmas
         if not self.atomic_units:
-            y = Constants.convert(y, "angstroms", in_AU=False)
-            x = Constants.convert(x, "angstroms", in_AU=False)
+            y = Constants.convert(y, "angstroms", in_AU=True)
+            x = Constants.convert(x, "angstroms", in_AU=True)
         a = np.exp(1. / 2. * (Fqx + Fqy) * (sigma ** 2 / 4. * (Fqx - Fqy) - (y - x)))
         a = np.prod(np.prod(a, axis=1), axis=1) * psi_ratio
         return a
