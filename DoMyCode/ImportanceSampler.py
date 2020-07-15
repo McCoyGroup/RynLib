@@ -181,7 +181,7 @@ class ImportanceSampler:
 
             if not self.atomic_units:
                 # _only_ these displacements need to be done in Angstroms if we're not working in A.U.
-                dx = Constants.convert(dx, "angstroms", in_AU=True)
+                dx = Constants.convert(dx, "angstroms", in_AU=False)
             for atom_label in range(coords.shape[-2]):
                 for xyz in range(3):
                     coords[:, atom_label, xyz] -= dx
