@@ -105,7 +105,7 @@ class ImportanceSampler:
             sigma = self.sigmas
             d = sigma**2/2.*fx
             if not self.atomic_units:
-                d = Constants.convert(d, "angstroms", in_AU=True)
+                d = Constants.convert(d, "angstroms", in_AU=False)
             new = coords + disp + d
             fy, psi2 = self.drift(new)
             a = self.metropolis(fx, fy, coords, new, psi1, psi2)
