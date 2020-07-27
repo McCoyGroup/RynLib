@@ -68,8 +68,7 @@ class SimulationManager:
             sim = Simulation(params)
             mpi_manager = sim.mpi_manager
             main = (mpi_manager is None) or (mpi_manager.world_rank == 0)
-            if main and self.simulation_ran(name):
-                sim.reload()
+            sim.reload()
         finally:
             os.chdir(curdir)
 

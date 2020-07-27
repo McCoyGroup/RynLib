@@ -313,37 +313,39 @@ class Simulation:
         # LOAD WALKERS
         step_num = len(energies)
         self.counter.step_num = step_num
-        if not os.path.isfile(walkers_file):
-            walkers_file = os.path.join(self.logger.checkpoint_folder, walkers_file.format(n=step_num))
-        walkers = WalkerSet.load(walkers_file)
-        self.walkers=walkers
 
-        # LOAD WAVEFUNCTIONS
-        wavefunctions_directory=self.logger.wavefunctions_folder
-        if not os.path.isdir(wavefunctions_directory):
-            wavefunctions_directory = os.path.join(output_folder, wavefunctions_directory)
-        wfs = []
-        if os.path.isdir(wavefunctions_directory):
-            for f in os.listdir(wavefunctions_directory):
-                if f.endswith(".npy"):
-                    wfs.append(
-                        ( int(f.split("_")[-1].split(".")[0]), np.load(os.path.join(wavefunctions_directory, f)))
-                    )
-                wfs = sorted(wfs, key=lambda a:a[0])
-        self.wavefunctions = deque(wfs)
-        self.num_wavefunctions = len(self.wavefunctions)
+        if not self.dummied:
+            if not os.path.isfile(walkers_file):
+                walkers_file = os.path.join(self.logger.checkpoint_folder, walkers_file.format(n=step_num))
+            walkers = WalkerSet.load(walkers_file)
+            self.walkers=walkers
 
-        # LOAD FULL WEIGHTS (if saved)
-        if not os.path.isfile(full_weights_file):
-            full_weights_file = os.path.join(output_folder, full_weights_file)
-        if os.path.isfile(full_weights_file):
-            self.full_weights = deque(np.load(full_weights_file))
+            # LOAD WAVEFUNCTIONS
+            wavefunctions_directory=self.logger.wavefunctions_folder
+            if not os.path.isdir(wavefunctions_directory):
+                wavefunctions_directory = os.path.join(output_folder, wavefunctions_directory)
+            wfs = []
+            if os.path.isdir(wavefunctions_directory):
+                for f in os.listdir(wavefunctions_directory):
+                    if f.endswith(".npz"):
+                        wfs.append(
+                            ( int(f.split("_")[-1].split(".")[0]), np.load(os.path.join(wavefunctions_directory, f)))
+                        )
+                    wfs = sorted(wfs, key=lambda a:a[0])
+            self.wavefunctions = deque(wfs)
+            self.num_wavefunctions = len(self.wavefunctions)
 
-        # LOAD FULL ENERGIES (if saved)
-        if not os.path.isfile(full_energies_file):
-            full_energies_file = os.path.join(output_folder, full_energies_file)
-        if os.path.isfile(full_energies_file):
-            self.full_energies = deque(np.load(full_energies_file))
+            # LOAD FULL WEIGHTS (if saved)
+            if not os.path.isfile(full_weights_file):
+                full_weights_file = os.path.join(output_folder, full_weights_file)
+            if os.path.isfile(full_weights_file):
+                self.full_weights = deque(np.load(full_weights_file))
+
+            # LOAD FULL ENERGIES (if saved)
+            if not os.path.isfile(full_energies_file):
+                full_energies_file = os.path.join(output_folder, full_energies_file)
+            if os.path.isfile(full_energies_file):
+                self.full_energies = deque(np.load(full_energies_file))
 
         return self
 
