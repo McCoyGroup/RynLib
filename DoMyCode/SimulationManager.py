@@ -54,7 +54,9 @@ class SimulationManager:
 
     def simulation_ran(self, name):
         self.check_simulation(name)
-        return os.path.isdir(self.simulation_output_folder(name))
+        out_folder = self.simulation_output_folder(name)
+        main = os.path.isdir(out_folder)
+        return main and os.path.isfile(os.path.join(out_folder, 'energies.npy'))
 
     def load_simulation(self, name):
 
