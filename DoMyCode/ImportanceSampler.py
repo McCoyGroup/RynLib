@@ -77,6 +77,14 @@ class ImportanceSampler:
         return self._psi
 
     def setup_psi(self, crds):
+        """
+        Sets up
+
+        :param crds:
+        :type crds:
+        :return:
+        :rtype:
+        """
         if self._psi is None:
             self._psi = np.empty(crds.shape[:2] + (3,) + crds.shape[2:], dtype=float)
 

@@ -137,6 +137,7 @@ class WalkerSet:
                 if importance_sampler.atomic_units is not atomic_units:
                     raise ValueError("Importance sampler and walker set disagree on units")
                 bloop, accept = importance_sampler.accept_step(i, bloop, d)
+                bloop = np.copy(bloop)
                 rej[i] = accept
                 if importance_sampler.mpi_manager is not None:
                     importance_sampler.mpi_manager.wait()
