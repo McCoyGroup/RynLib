@@ -462,8 +462,11 @@ class Simulation:
         if not self.parallelize_diffusion or self.mpi_manager is None:
             self.log_print("Moving coordinates {} steps", nsteps, verbosity=self.logger.LogLevel.STEPS)
             start = time.time()
-            coord_sets = self.walkers.displace(nsteps, importance_sampler=self.imp_samp, atomic_units=self.atomic_units)
+            coord_sets, rejections = self.walkers.displace(nsteps, importance_sampler=self.imp_samp, atomic_units=self.atomic_units)
             end = time.time()
+            if rejections is not None:
+                for r in rejections:
+                    self.log_print("    metropolis rejected {} walkers", r, verbosity=self.logger.LogLevel.STATUS)
             self.log_print("    took {}s", end - start, verbosity=self.logger.LogLevel.STATUS)
             self.log_print("Computing potential energy", verbosity=self.logger.LogLevel.STATUS)
             start = time.time()
@@ -486,7 +489,10 @@ class Simulation:
             small_walkers = send_walkers(coords, self.mpi_manager)
 
             self.walkers.coords = small_walkers
-            coord_sets = self.walkers.get_displaced_coords(nsteps, importance_sampler=self.imp_samp, atomic_units=self.atomic_units)
+            coord_sets, rejections = self.walkers.get_displaced_coords(nsteps, importance_sampler=self.imp_samp, atomic_units=self.atomic_units)
+            if rejections is not None:
+                for r in rejections:
+                    self.log_print("    metropolis rejected {} walkers", r, verbosity=self.logger.LogLevel.STATUS)
 
             end = time.time()
             self.log_print("    took {}s", end - start, verbosity=self.logger.LogLevel.STATUS)

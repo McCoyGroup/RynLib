@@ -94,12 +94,13 @@ class ImportanceSampler:
 
         if self.dummied:
             # gotta do the appropriate number of MPI calls, but don't want to actually compute anything
+            psi1 = None
             for i in range(2):
                 if self.derivs is None:
                     psi1 = self.psi_calc(coords)
                 else:
-                    psi1 = None
                     der = self.derivs[0](coords)
+            accept = None
         else:
             fx, psi1 = self.drift(coords)
             sigma = self.sigmas
@@ -113,13 +114,13 @@ class ImportanceSampler:
             accept = np.argwhere(a > check)
             coords[accept] = new[accept]
             psi1[accept] = psi2[accept]
-        return coords, psi1
+        return coords, psi1, len(coords) - len(accept)
 
     def accept_step(self, step_no, coords, disp):
-        coords, psi = self.accept(coords, disp)
+        coords, psi, accept = self.accept(coords, disp)
         if not self.dummied:
             self._psi[step_no] = psi
-        return coords
+        return coords, accept
 
     def drift(self, coords, dx=None):
         """

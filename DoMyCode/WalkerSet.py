@@ -108,7 +108,7 @@ class WalkerSet:
             coords = self.coords
         shape = (steps, ) + coords.shape[:-2] + coords.shape[-1:]
         disps = np.array([
-            np.random.normal(0.0, sig, size = shape) for sig in self.sigmas
+            np.random.normal(0.0, sig, size=shape) for sig in self.sigmas
         ])
 
         disps = np.transpose(disps, (1, 2, 0, 3))
@@ -118,7 +118,7 @@ class WalkerSet:
 
         return disps
 
-    def get_displaced_coords(self, n=1, coords = None, importance_sampler = None, atomic_units=False):
+    def get_displaced_coords(self, n=1, coords=None, importance_sampler=None, atomic_units=False):
         # this is a kinda crummy way to get this, but it allows us to get our n sets of displacements
         if coords is None:
             coords = self.coords
@@ -128,22 +128,27 @@ class WalkerSet:
         bloop = coords.astype(float)
         # print("wat...?", id(self.coords))
         disps = self.get_displacements(n, coords, atomic_units=atomic_units)
+        if importance_sampler is not None:
+            rej = [None] * n
+        else:
+            rej = None
         for i, d in enumerate(disps): # loop over steps
             if importance_sampler is not None:
                 if importance_sampler.atomic_units is not atomic_units:
                     raise ValueError("Importance sampler and walker set disagree on units")
-                bloop = importance_sampler.accept_step(i, bloop, d)
+                bloop, accept = importance_sampler.accept_step(i, bloop, d)
+                rej[i] = accept
                 if importance_sampler.mpi_manager is not None:
                     importance_sampler.mpi_manager.wait()
             else:
                 bloop = bloop + d
             crds[i] = bloop
-        return crds
+        return crds, rej
 
     def displace(self, n=1, importance_sampler = None, atomic_units=False):
-        coords = self.get_displaced_coords(n, importance_sampler=importance_sampler, atomic_units=atomic_units)
+        coords, rej = self.get_displaced_coords(n, importance_sampler=importance_sampler, atomic_units=atomic_units)
         self.coords = coords[-1]
-        return coords
+        return coords, rej
 
     def _setup_dw(self):
         self.parents = np.arange(self.num_walkers)
