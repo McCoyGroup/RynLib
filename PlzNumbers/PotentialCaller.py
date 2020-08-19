@@ -365,7 +365,7 @@ class PotentialCaller:
                 else:
                     shp = poots.shape
                     poots = poots.reshape(shp[1], shp[0]).transpose()
-        if poots is not None:
+        if poots is not None and self.mpi_manager is not None:
             poots = poots[0] if smol_guy else poots
         return poots
 

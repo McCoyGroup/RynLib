@@ -133,15 +133,23 @@ class ImportanceSampler:
         :return:
         :rtype:
         """
-        if dx is None:
-            dx = self.dx
 
-        if self.derivs is None:
-            psi = self.psi_calc(coords, dx=dx)
-            der = (psi[:, 2] - psi[:, 0]) / dx / psi[:, 1]
+        psi = None
+        der = None
+        if self.dummied:
+            # gotta do the appropriate number of MPI calls, but don't want to actually compute anything
+            self.psi_calc(coords, dx=dx)
+        
         else:
-            psi = None
-            der = self.derivs[0](coords)
+            if dx is None:
+                dx = self.dx
+
+            if self.derivs is None:
+                psi = self.psi_calc(coords, dx=dx)
+                der = (psi[:, 2] - psi[:, 0]) / dx / psi[:, 1]
+            else:
+                psi = None
+                der = self.derivs[0](coords)
         return der, psi
 
     def psi_calc(self, coords, dx=None):
@@ -163,6 +171,7 @@ class ImportanceSampler:
 
         trial_wvfn = self.caller
         much_psi = trial_wvfn(coords)
+
         if self.dummied:
             for atom_label in range(coords.shape[-2]):
                 for xyz in range(3):
@@ -176,8 +185,11 @@ class ImportanceSampler:
         else:
             much_dims = much_psi.ndim
             ndims = self._psi[0].ndim
+            # Assumes that much_psi is a vector of values
+            # this can get fucked with the PotentialCaller (potentially)
             for i in range(ndims - much_dims):
                 much_psi = np.expand_dims(much_psi, axis=-1)
+            
             much_psi = np.copy(np.broadcast_to(much_psi, self._psi[0].shape))
 
             if not self.atomic_units:
@@ -185,11 +197,11 @@ class ImportanceSampler:
                 dx = Constants.convert(dx, "angstroms", in_AU=False)
             for atom_label in range(coords.shape[-2]):
                 for xyz in range(3):
-                    coords[:, atom_label, xyz] -= dx
-                    much_psi[:, 0, atom_label, xyz] = trial_wvfn(coords)
-                    coords[:, atom_label, xyz] += 2. * dx
-                    much_psi[:, 2, atom_label, xyz] = trial_wvfn(coords)
-                    coords[:, atom_label, xyz] -= dx
+                    coords[..., atom_label, xyz] -= dx
+                    much_psi[..., 0, atom_label, xyz] = trial_wvfn(coords)
+                    coords[..., atom_label, xyz] += 2. * dx
+                    much_psi[..., 2, atom_label, xyz] = trial_wvfn(coords)
+                    coords[..., atom_label, xyz] -= dx
         return much_psi
 
     def metropolis(self, Fqx, Fqy, x, y, psi1, psi2):
