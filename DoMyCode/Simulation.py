@@ -433,10 +433,6 @@ class Simulation:
                                verbosity=self.logger.LogLevel.DATA
                                )
             if energies is not None and ke is not None:
-<<<<<<< HEAD
-
-=======
->>>>>>> bb0f780f0b6a81abfc033a169078ba89c4a76b27
                 energies += ke
         return energies
     def apply_branching(self, energies):
