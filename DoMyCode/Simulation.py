@@ -434,7 +434,10 @@ class Simulation:
                                )
             if energies is not None and ke is not None:
 <<<<<<< HEAD
+<<<<<<< HEAD
 
+=======
+>>>>>>> 12d70772a269ed76dba720679e9b5576565e9561
 =======
 >>>>>>> 12d70772a269ed76dba720679e9b5576565e9561
                 energies += ke
