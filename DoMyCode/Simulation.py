@@ -433,7 +433,10 @@ class Simulation:
                                verbosity=self.logger.LogLevel.DATA
                                )
             if energies is not None and ke is not None:
+<<<<<<< HEAD
 
+=======
+>>>>>>> bb0f780f0b6a81abfc033a169078ba89c4a76b27
                 energies += ke
         return energies
     def apply_branching(self, energies):
@@ -590,7 +593,7 @@ class Simulation:
             self.counter.increment(nsteps)
             # self.garbage_collect()
 
-        if self.mpi_manager is not None:
+        if self.mpi_manager is not None and not self.counter.done: # just in case the subsidiary and main cores get off
             # self.log_print("waiting for friends", verbosity=self.logger.LogLevel.STATUS)
             self.mpi_manager.wait()
 
