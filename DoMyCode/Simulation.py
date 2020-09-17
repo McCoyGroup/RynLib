@@ -432,6 +432,8 @@ class Simulation:
                                np.min(ke), np.max(ke), np.average(ke),
                                verbosity=self.logger.LogLevel.DATA
                                )
+            if energies is not None and ke is not None:
+
                 energies += ke
         return energies
     def apply_branching(self, energies):
