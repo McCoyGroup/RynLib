@@ -114,7 +114,9 @@ class ImportanceSampler:
             accept = np.argwhere(a > check)
             coords[accept] = new[accept]
             psi1[accept] = psi2[accept]
-        return coords, psi1, len(coords) - len(accept)
+
+        num_rej = len(coords) - len(accept) if accept is not None else None
+        return coords, psi1, num_rej
 
     def accept_step(self, step_no, coords, disp):
         coords, psi, accept = self.accept(coords, disp)
