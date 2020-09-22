@@ -46,6 +46,8 @@ PyObject *_fillWalkersNumPyArray(
 
 void _printObject(const char* fmtString, PyObject *obj);
 
+bool _pyPrintStr(const char* raw_str, const char* end="\n");
+
 #define RYNLIB_PYALLUP_HPP
 
 #endif //RYNLIB_PYALLUP_HPP

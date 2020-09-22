@@ -20,7 +20,8 @@ class PotentialCaller:
         "vectorized_potential",
         "error_value",
         "fortran_potential",
-        "transpose_call"
+        "transpose_call",
+        "debug_print"
     ]
     def __init__(self,
                  potential, *ignore,
@@ -30,7 +31,8 @@ class PotentialCaller:
                  vectorized_potential = False,
                  error_value = 10.e9,
                  fortran_potential=False,
-                 transpose_call=None
+                 transpose_call=None,
+                 debug_print=False
                  ):
         if len(ignore) > 0:
             raise ValueError("Only one positional argument (for the potential) accepted")
@@ -47,6 +49,7 @@ class PotentialCaller:
         if transpose_call is None:
             transpose_call = fortran_potential
         self.transpose_call = transpose_call
+        self.debug_print = debug_print
 
     @classmethod
     def load_lib(cls):
@@ -115,6 +118,7 @@ class PotentialCaller:
                 self.bad_walkers_file,
                 float(self.error_value),
                 bool(self.raw_array_potential),
+                bool(self.debug_print),
                 extra_bools,
                 extra_ints,
                 extra_floats
@@ -355,6 +359,7 @@ class PotentialCaller:
                 float(self.error_value),
                 bool(self.raw_array_potential),
                 bool(self.vectorized_potential),
+                bool(self.debug_print),
                 self.mpi_manager,
                 bool(omp),
                 bool(tbb)

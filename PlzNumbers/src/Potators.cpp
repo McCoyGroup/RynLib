@@ -9,18 +9,34 @@
 #include "wchar.h"
 using namespace tbb;
 
-void _printOutWalkerStuff(
-    Coordinates walker_coords,
-    const std::string &bad_walkers,
-    const char* err_string
-    ) {
-
-    std::string err_msg = err_string;
-    err_msg += " \n This walker was bad: ( ";
+std::string _appendWalkerStr(const char* base_str, const char* msg, Coordinates &walker_coords) {
+    std::string walks = base_str;
+    walks += msg;
     for (size_t i = 0; i < walker_coords.size(); i++) {
+        walks += "(";
+        for (int j = 0; j < 3; j++) {
+            walks += std::to_string(walker_coords[i][j]);
+            if (j < 2) {
+                walks += ", ";
+            } else {
+                walks += ")";
+            }
+        }
+        walks += ")";
+        if (i < walker_coords.size() - 1) {
+            walks += ", ";
+        }
+    }
+    walks += " )";
+    return walks;
+}
+std::string _appendWalkerStr(const char* base_str, const char* msg, FlatCoordinates &walker_coords) {
+    std::string err_msg = base_str;
+    err_msg += msg;
+    for (size_t i = 0; i < walker_coords.size()/3; i++) {
         err_msg += "(";
         for (int j = 0; j < 3; j++) {
-            err_msg += std::to_string(walker_coords[i][j]);
+            err_msg += std::to_string(walker_coords[i*3 + j]);
             if (j < 2) {
                 err_msg += ", ";
             } else {
@@ -33,6 +49,16 @@ void _printOutWalkerStuff(
         }
     }
     err_msg += " )";
+    return err_msg;
+}
+
+void _printOutWalkerStuff(
+    Coordinates walker_coords,
+    const std::string &bad_walkers,
+    const char* err_string
+    ) {
+
+    std::string err_msg = _appendWalkerStr(err_string, " \n This walker was bad: ( ", walker_coords);
 
     if (!bad_walkers.empty()) {
         const char* fout = bad_walkers.c_str();
@@ -51,25 +77,7 @@ void _printOutWalkerStuff(
         const char* err_string
 ) {
 
-    std::string err_msg = err_string;
-    err_msg += " \n This walker was bad: ( ";
-    for (size_t i = 0; i < walker_coords.size()/3; i++) {
-        err_msg += "(";
-        for (int j = 0; j < 3; j++) {
-            err_msg += std::to_string(walker_coords[i*3 + j]);
-            if (j < 2) {
-                err_msg += ", ";
-            } else {
-                err_msg += ")";
-            }
-        }
-        err_msg += ")";
-        if (i < walker_coords.size() - 1) {
-            err_msg += ", ";
-        }
-    }
-    err_msg += " )";
-
+    std::string err_msg = _appendWalkerStr(err_string, " \n This walker was bad: ( ", walker_coords);
     if (!bad_walkers.empty()) {
         const char* fout = bad_walkers.c_str();
         FILE *err = fopen(fout, "a");
@@ -91,13 +99,13 @@ void _sigsevHandler( int signum ) {
     abort();
 }
 
-// Basic method for computing a potential via the global potential bound in POOTY_PATOOTY
 double _doopAPot(
         Coordinates &walker_coords,
         Names &atoms,
         PotentialFunction pot_func,
         std::string &bad_walkers_file,
         double err_val,
+        bool debug_print,
         ExtraBools &extra_bools,
         ExtraInts &extra_ints,
         ExtraFloats &extra_floats,
@@ -109,18 +117,23 @@ double _doopAPot(
     try {
         signal(SIGSEGV, _sigsevHandler);
         signal(SIGILL, _sigillHandler);
+        if (debug_print) {
+            std::string walker_string = _appendWalkerStr("Walker before call: ", "", walker_coords);
+            _pyPrintStr(walker_string.c_str());
+        }
         pot = pot_func(walker_coords, atoms, extra_bools, extra_ints, extra_floats);
 
     } catch (std::exception &e) {
         if (retries > 0){
             return _doopAPot(
-                    walker_coords, atoms, pot_func, bad_walkers_file, err_val,
+                    walker_coords, atoms, pot_func,
+                    bad_walkers_file, err_val, debug_print,
                     extra_bools, extra_ints, extra_floats,
                     retries-1
                     );
         } else {
-//            PyErr_SetString(PyExc_ValueError, e.what());
             // pushed error reporting into bad_walkers_file
+            // should probably revise yet again to print all of this stuff to python's stderr...
             _printOutWalkerStuff(
                 walker_coords,
                 bad_walkers_file,
@@ -138,6 +151,7 @@ double _doopAPot(
         FlatPotentialFunction pot_func,
         std::string &bad_walkers_file,
         double err_val,
+        bool debug_print,
         ExtraBools &extra_bools,
         ExtraInts &extra_ints,
         ExtraFloats &extra_floats,
@@ -150,12 +164,17 @@ double _doopAPot(
 
         signal(SIGSEGV, _sigsevHandler);
         signal(SIGILL, _sigillHandler);
+        if (debug_print) {
+            std::string walker_string = _appendWalkerStr("Walker before call: ", "", walker_coords);
+            _pyPrintStr(walker_string.c_str());
+        }
         pot = pot_func(walker_coords, atoms, extra_bools, extra_ints, extra_floats);
 
     } catch (std::exception &e) {
         if (retries > 0){
             return _doopAPot(
-                    walker_coords, atoms, pot_func, bad_walkers_file, err_val,
+                    walker_coords, atoms, pot_func,
+                    bad_walkers_file, err_val, debug_print,
                     extra_bools, extra_ints, extra_floats,
                     retries-1
             );
@@ -345,6 +364,7 @@ Real_t _getPotFlat(
         FlatPotentialFunction pot,
         std::string bad_file,
         double err_val,
+        bool debug_print,
         ExtraBools& extra_bools,
         ExtraInts& extra_ints,
         ExtraFloats& extra_floats
@@ -363,6 +383,7 @@ Real_t _getPotFlat(
             pot,
             bad_file,
             err_val,
+            debug_print,
             extra_bools,
             extra_ints,
             extra_floats
@@ -376,6 +397,7 @@ Real_t _getPot(
         PotentialFunction pot,
         std::string bad_file,
         double err_val,
+        bool debug_print,
         ExtraBools& extra_bools,
         ExtraInts& extra_ints,
         ExtraFloats& extra_floats
@@ -392,6 +414,7 @@ Real_t _getPot(
             pot,
             bad_file,
             err_val,
+            debug_print,
             extra_bools,
             extra_ints,
             extra_floats
@@ -410,6 +433,7 @@ class PotentialCaller {
     ExtraInts& extra_ints;
     ExtraFloats& extra_floats;
     Real_t err_val;
+    bool debug_print;
     std::string bad_file;
     bool use_openMP;
     bool use_TBB;
@@ -433,6 +457,7 @@ class PotentialCaller {
             ExtraInts& arg_extra_ints,
             ExtraFloats& arg_extra_floats,
             Real_t arg_err_val,
+            bool arg_debug_print,
             PyObject* bad_walkers_file,
             bool arg_use_openMP,
             bool arg_use_TBB
@@ -448,6 +473,7 @@ class PotentialCaller {
             extra_ints(arg_extra_ints),
             extra_floats(arg_extra_floats),
             err_val(arg_err_val),
+            debug_print(arg_debug_print),
             use_openMP(arg_use_openMP),
             use_TBB(arg_use_TBB)
     {
@@ -477,7 +503,7 @@ class PotentialCaller {
                     n, ncalls, i, walkers_to_core,
                     num_atoms, atoms,
                     flat_pot,
-                    bad_file, err_val,
+                    bad_file, err_val, debug_print,
                     extra_bools, extra_ints, extra_floats
             );
         } else {
@@ -486,7 +512,7 @@ class PotentialCaller {
                     n, ncalls, i, walkers_to_core,
                     num_atoms, atoms,
                     pot,
-                    bad_file, err_val,
+                    bad_file, err_val, debug_print,
                     extra_bools, extra_ints, extra_floats
             );
         }
@@ -575,6 +601,7 @@ PotentialArray _mpiGetPot(
         Py_ssize_t num_atoms,
         PyObject* bad_walkers_file,
         double err_val,
+        bool debug_print,
         ExtraBools &extra_bools,
         ExtraInts &extra_ints,
         ExtraFloats &extra_floats,
@@ -596,6 +623,7 @@ PotentialArray _mpiGetPot(
             extra_ints,
             extra_floats,
             err_val,
+            debug_print,
             bad_walkers_file,
             use_openMP,
             use_TBB
@@ -625,6 +653,7 @@ PotentialArray _noMPIGetPot(
         Py_ssize_t num_atoms,
         PyObject* bad_walkers_file,
         double err_val,
+        bool debug_print,
         ExtraBools &extra_bools,
         ExtraInts &extra_ints,
         ExtraFloats &extra_floats,
@@ -644,6 +673,7 @@ PotentialArray _noMPIGetPot(
             extra_ints,
             extra_floats,
             err_val,
+            debug_print,
             bad_walkers_file,
             use_openMP,
             use_TBB

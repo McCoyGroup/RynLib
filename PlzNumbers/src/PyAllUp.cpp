@@ -220,3 +220,19 @@ void _printObject(const char* fmtString, PyObject *obj) {
     Py_XDECREF(repr);
     Py_XDECREF(str);
 }
+
+bool _pyPrintStr(const char* raw_str, const char* end="\n") {
+//    printf("Printing %s", raw_str);
+    PyObject *sys = PyImport_ImportModule("sys");
+    if (sys == NULL) { return -1; }
+    PyObject *stdout_obj = PyObject_GetAttrString(sys, "stdout");
+    if (sys == NULL) { Py_XDECREF(sys); return -1; }
+    std::string full_str = raw_str;
+    full_str += end;
+    PyObject* res = PyObject_CallMethod(stdout_obj, "write", "s", full_str.c_str());
+    bool success = (res != NULL);
+    Py_XDECREF(sys);
+    Py_XDECREF(stdout_obj);
+    Py_XDECREF(res);
+    return success;
+}
