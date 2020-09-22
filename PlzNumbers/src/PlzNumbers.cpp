@@ -50,13 +50,13 @@ PyObject *PlzNumbers_callPot(PyObject* self, PyObject* args ) {
     PyObject* ext_bool, *ext_int, *ext_float;
     PyObject* bad_walkers_str;
     double err_val;
-    int raw_array_pot;
+    int raw_array_pot, debug_print;
 
     if (
          !PyArg_ParseTuple(args,
-                 "OOOOdpOOO",
+                 "OOOOdppOOO",
                  &coords, &atoms, &pot_function, &bad_walkers_str,
-                 &err_val, &raw_array_pot,
+                 &err_val, &raw_array_pot, &debug_print,
                  &ext_bool, &ext_int, &ext_float
            )
         ) return NULL;
@@ -79,7 +79,11 @@ PyObject *PlzNumbers_callPot(PyObject* self, PyObject* args ) {
     std::string bad_walkers_file =  _GetPyString(bad_walkers_str, str);
     Py_XDECREF(str);
 
-//    printf("Raw? %s\n", raw_array_pot ? "yes":"no");
+//    if (debug_print) {
+//        const char debug_str[500];
+//        sprintf(debug_str, "Raw? %s\n", raw_array_pot ? "yes":"no")
+//        _pyPrintStr(debug_str);
+//    }
 
     Real_t pot;
     if (raw_array_pot) {
@@ -92,6 +96,7 @@ PyObject *PlzNumbers_callPot(PyObject* self, PyObject* args ) {
                 pot_f,
                 bad_walkers_file,
                 err_val,
+                debug_print,
                 extra_bools,
                 extra_ints,
                 extra_floats
@@ -105,6 +110,7 @@ PyObject *PlzNumbers_callPot(PyObject* self, PyObject* args ) {
                 pot_f,
                 bad_walkers_file,
                 err_val,
+                debug_print,
                 extra_bools,
                 extra_ints,
                 extra_floats
@@ -124,13 +130,13 @@ PyObject *PlzNumbers_callPotVec( PyObject* self, PyObject* args ) {
 
     PyObject* coords, *atoms, *pot_function, *extra_args, *bad_walkers_file;
     double err_val;
-    int raw_array_pot, vectorized_potential;
+    int raw_array_pot, vectorized_potential, debug_print;
     PyObject* manager;
     int use_openMP, use_TBB;
 
     if ( !PyArg_ParseTuple(
             args,
-            "OOOOOdppOpp",
+            "OOOOOdpppOpp",
             &coords,
             &atoms,
             &pot_function,
@@ -139,6 +145,7 @@ PyObject *PlzNumbers_callPotVec( PyObject* self, PyObject* args ) {
             &err_val,
             &raw_array_pot,
             &vectorized_potential,
+            &debug_print,
             &manager,
             &use_openMP,
             &use_TBB
@@ -147,7 +154,9 @@ PyObject *PlzNumbers_callPotVec( PyObject* self, PyObject* args ) {
 
     // Assumes we get n atom type names
 
-//    printf("this is super annoying...\n");
+//    if (debug_print) {
+//        printf("this is super annoying...\n");
+//    }
 
     Py_ssize_t num_atoms = PyObject_Length(atoms);
 //    printf("how many of these are there...%d\n", num_atoms);
@@ -219,6 +228,7 @@ PyObject *PlzNumbers_callPotVec( PyObject* self, PyObject* args ) {
                 num_atoms,
                 bad_walkers_file,
                 err_val,
+                debug_print,
                 extra_bools,
                 extra_ints,
                 extra_floats,
@@ -239,6 +249,7 @@ PyObject *PlzNumbers_callPotVec( PyObject* self, PyObject* args ) {
                 num_atoms,
                 bad_walkers_file,
                 err_val,
+                debug_print,
                 extra_bools,
                 extra_ints,
                 extra_floats,

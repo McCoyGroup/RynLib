@@ -37,7 +37,8 @@ class Simulation:
         "max_weight_threshold",
         "parallelize_diffusion",
         "branch_on_cores", "branch_on_steps",
-        "random_seed"
+        "random_seed",
+        "pre_run_script", "post_run_script"
     ]
     def __init__(self, params):
         """Initializes the simulation from the simulation parameters
@@ -74,7 +75,9 @@ class Simulation:
             branch_on_steps = False,
             parallelize_diffusion=True,
             branch_on_cores = False,
-            random_seed = None
+            random_seed = None,
+            pre_run_script=None,
+            post_run_script=None
             ):
         """
 
@@ -220,6 +223,9 @@ class Simulation:
         else:
             potential.mpi_manager = None
 
+        self.pre_run_script=pre_run_script
+        self.post_run_script=post_run_script
+
     @property
     def config_string(self):
         from ..Interface import RynLib
@@ -237,7 +243,19 @@ class Simulation:
             "{}: {}".format(k, getattr(self, k)) for k in [
                 "potential",
                 "imp_samp",
-                'mpi_manager'
+                'mpi_manager',
+                'branching_threshold',
+                'branch_on_steps',
+                'branch_on_cores',
+                'parallelize_diffusion',
+                'random_seed',
+                'pre_run_script',
+                'post_run_script',
+                'atomic_units',
+                'ignore_errors',
+                'min_potential_threshold',
+                'max_potential_threshold',
+                'energy_error_value'
             ]
         ])
         walk_props = "\n".join([
@@ -365,6 +383,11 @@ class Simulation:
 
         if not self.counter.done:
 
+            if self.pre_run_script is not None:
+                with open(self.pre_run_script) as script:
+                    blob = script.read()
+                code_blob = compile(blob, self.pre_run_script, 'exec')
+                exec(code_blob, globals(), {'simulation': self})
             try:
                 self.log_print(self.config_string)
                 self.log_print("-"*50)
@@ -400,6 +423,12 @@ class Simulation:
                 if isinstance(self.imp_samp, ImportanceSampler):
                     self.imp_samp.clean_up()
                 self.timer.stop()
+
+        if self.post_run_script is not None:
+            with open(self.post_run_script) as script:
+                blob = script.read()
+            code_blob = compile(blob, self.post_run_script, 'exec')
+            exec(code_blob, globals(), {'simulation': self})
 
     @classmethod
     def load_lib(cls):
