@@ -254,7 +254,7 @@ class Simulation:
                 'atomic_units',
                 'ignore_errors',
                 'min_potential_threshold',
-                'max_potential_threshold',
+                'max_weight_threshold',
                 'energy_error_value'
             ]
         ])
