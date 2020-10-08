@@ -175,6 +175,9 @@ class Simulation:
         self.walkers = walker_set if isinstance(walker_set, WalkerSet) else WalkerSet(walker_set)
         self.walkers.initialize(time_step)
 
+        # define a set of masks for tracking info about walkers
+        self.masks = WalkerMask(self.walkers)
+
         ### Potential
         if isinstance(potential, str):
             potential = PotentialManager().load_potential(potential)
@@ -659,6 +662,9 @@ class Simulation:
         :return:
         :rtype: np.ndarray
         """
+
+        self.masks.reset()
+
         if self.branch_on_steps:
             on_step = True
             threshold = self.branching_threshold / self.walkers.num_walkers
@@ -708,6 +714,7 @@ class Simulation:
                                    num_bad,
                                    verbosity=self.logger.LogLevel.DATA
                                    )
+                    self.masks[w_spec] = self.masks.EnergyTooLow
                     e[e_spec] = self.energy_error_value
                     weights[e_spec] = -1.0
 
@@ -723,12 +730,13 @@ class Simulation:
                     w_spec = weights > max_w
                     num_bad = np.sum(w_spec)
                     if num_bad > 0:
-                        self.log_print("    Dropping {} walkers above max weight threshold",
+                        self.log_print("    Marking {} walkers above max weight threshold for branching",
                                        num_bad,
                                        verbosity=self.logger.LogLevel.DATA
                                        )
-                        e[w_spec] = self.energy_error_value
-                        weights[w_spec] = -1.0
+                        self.masks[w_spec] = self.masks.WeightTooHigh
+                        # e[w_spec] = self.energy_error_value
+                        # weights[w_spec] = -1.0
 
             # Applying min-weight threshold
             if on_step or i == nsteps - 1:
@@ -740,8 +748,9 @@ class Simulation:
                                        num_bad,
                                        verbosity=self.logger.LogLevel.DATA
                                        )
-                        e[w_spec] = self.energy_error_value
-                        weights[w_spec] = -1.0
+                        self.masks[w_spec] = self.masks.WeightTooLow
+                        # e[w_spec] = self.energy_error_value
+                        # weights[w_spec] = -1.0
 
             self.log_print(
                 "    Weight: Min {} | Max {} | Mean {}",
@@ -814,17 +823,39 @@ class Simulation:
             np.min(branch_weights), np.max(branch_weights), np.average(branch_weights),
             verbosity=self.logger.LogLevel.STATUS
             )
-        # self.log_print('Min/Max weight in ensemble: {}/{}', np.min(weights), np.max(weights), verbosity=self.logger.LogLevel.STATUS)
 
-        # for dying in eliminated_walkers:  # gotta do it iteratively to get the max_weight_walker right...
-        #     cloning = np.argmax(weights)
-        #     # print(cloning)
-        #     parents[dying] = parents[cloning]
-        #     walkers[dying] = walkers[cloning]
-        #     weights[dying] = weights[cloning] / 2.0
-        #     weights[cloning] /= 2.0
         while len(eliminated_walkers) > 0:
             eliminated_walkers = self.chop_weights(eliminated_walkers, weights, parents, walkers, energies)
+
+        high_weight_pos = self.masks.where(self.masks.WeightTooHigh)
+        if len(high_weight_pos) > 0:
+            max_thresh = self.max_weight_threshold
+            high_weights = weights[high_weight_pos]
+            still_too_high = np.where(high_weights) > max_thresh
+
+            if len(still_too_high) > 0:
+                num_high = len(still_too_high)
+                still_too_high_pos = high_weight_pos[still_too_high]
+                still_too_high_energies = energies[-1][still_too_high_pos]
+                still_too_high_weights = energies[-1][still_too_high_pos]
+
+                self.log_print(
+                    '\n    '.join([
+                        'High-Weight Walkers: {}',
+                        "Threshold: {}",
+                        'Energy: Min {} | Max {} | Mean {}',
+                        'Weight: Min {} | Max {} | Mean {}'
+                    ]),
+                    num_high,
+                    max_thresh,
+                    np.min(still_too_high_energies), np.max(still_too_high_energies), np.average(still_too_high_energies),
+                    np.min(still_too_high_weights), np.max(still_too_high_weights), np.average(still_too_high_weights),
+                    verbosity=self.logger.LogLevel.Data
+                )
+
+            eliminated_walkers = np.argpartition(weights, num_high)[:num_high]
+            while len(eliminated_walkers) > 0:
+                eliminated_walkers = self.chop_weights(eliminated_walkers, weights, parents, walkers, energies)
 
         self.log_print(
             '\n    '.join([
