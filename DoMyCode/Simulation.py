@@ -626,7 +626,8 @@ class Simulation:
             self.mpi_manager.wait()
 
     def _compute_vref(self, energies, weights):
-        """Takes a single set of energies and weights and computes the average potential
+        """
+        Takes a single set of energies and weights and computes the average potential
 
         :param energies: single set of energies
         :type energies:
@@ -749,8 +750,8 @@ class Simulation:
                                        verbosity=self.logger.LogLevel.DATA
                                        )
                         self.masks[w_spec] = self.masks.WeightTooLow
-                        # e[w_spec] = self.energy_error_value
-                        # weights[w_spec] = -1.0
+                        e[w_spec] = self.energy_error_value
+                        weights[w_spec] = -1.0
 
             self.log_print(
                 "    Weight: Min {} | Max {} | Mean {}",
@@ -827,17 +828,31 @@ class Simulation:
         while len(eliminated_walkers) > 0:
             eliminated_walkers = self.chop_weights(eliminated_walkers, weights, parents, walkers, energies)
 
-        high_weight_pos = self.masks.where(self.masks.WeightTooHigh)
+        # WalkerMasks.where basicall just returns a np.where statement
+        # so we pull the first index 
+        high_weight_pos = self.masks.where(self.masks.WeightTooHigh)[0]
         if len(high_weight_pos) > 0:
+            # after branching, we check if there is anything still
+            # above the max weight threshold
             max_thresh = self.max_weight_threshold
             high_weights = weights[high_weight_pos]
-            still_too_high = np.where(high_weights) > max_thresh
+            # from the walkers that originally had weights above the threshold
+            # take the ones that _still_ have weights above the threshold
+            still_too_high = np.where(high_weights > max_thresh)[0]
+            
+            # self.log_print("high_wpos {} \n still_high {}", 
+            #     high_weight_pos,
+            #     still_too_high,
+            #     verbosity=self.logger.LogLevel.STATUS
+            # )
 
             if len(still_too_high) > 0:
+                # figure out the energies & weights of this shit heads
+                # so that we can print out info about them
                 num_high = len(still_too_high)
                 still_too_high_pos = high_weight_pos[still_too_high]
                 still_too_high_energies = energies[-1][still_too_high_pos]
-                still_too_high_weights = energies[-1][still_too_high_pos]
+                still_too_high_weights = weights[still_too_high_pos]
 
                 self.log_print(
                     '\n    '.join([
@@ -850,12 +865,18 @@ class Simulation:
                     max_thresh,
                     np.min(still_too_high_energies), np.max(still_too_high_energies), np.average(still_too_high_energies),
                     np.min(still_too_high_weights), np.max(still_too_high_weights), np.average(still_too_high_weights),
-                    verbosity=self.logger.LogLevel.Data
+                    verbosity=self.logger.LogLevel.STATUS
                 )
 
-            eliminated_walkers = np.argpartition(weights, num_high)[:num_high]
-            while len(eliminated_walkers) > 0:
-                eliminated_walkers = self.chop_weights(eliminated_walkers, weights, parents, walkers, energies)
+                # branch num_high low-weight walkers
+                # implicitly, this _should_ branch the high-weight walkers
+                # unless one of these walkers has such a high weight that it protects
+                # one of the other high weight walkers from being branched
+                # if this happens...we don't care because Anne asserts this should be very
+                # unlikely
+                eliminated_walkers = np.argpartition(weights, num_high)[:num_high]
+                while len(eliminated_walkers) > 0:
+                    eliminated_walkers = self.chop_weights(eliminated_walkers, weights, parents, walkers, energies)
 
         self.log_print(
             '\n    '.join([

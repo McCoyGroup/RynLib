@@ -27,12 +27,12 @@ class WalkerMask:
     def reset(self):
         self.mask[:] = self.Masks.Unmarked.value
 
-    def __setitem__(self, key, value):
-        if isinstance(value, self.Masks):
-            value = self.Masks.value
-        self.mask[key] = value
+    def __setitem__(self, key, mask):
+        if isinstance(mask, self.Masks):
+            mask = mask.value
+        self.mask[key] = mask
 
-    def where(self, value):
-        if isinstance(value, self.Masks):
-            value = self.Masks.value
-        return np.where(self.mask == value)
+    def where(self, mask):
+        if isinstance(mask, self.Masks):
+            mask = mask.value
+        return np.where(self.mask == mask)
