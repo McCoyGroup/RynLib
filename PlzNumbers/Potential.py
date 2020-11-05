@@ -46,6 +46,7 @@ class Potential:
                  macros=None,
                  source_files=None,
                  build_script=None,
+                 build_kwargs=None,
                  requires_make=False,
                  out_dir=None,
                  cleanup_build=True,
@@ -166,7 +167,8 @@ class Potential:
             out_dir=out_dir,
             cleanup_build=cleanup_build,
             python_potential=python_potential,
-            pointer_name=pointer_name
+            pointer_name=pointer_name,
+            build_kwargs=build_kwargs
         )
 
         self._caller = None

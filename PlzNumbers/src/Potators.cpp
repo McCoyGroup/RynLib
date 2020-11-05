@@ -12,6 +12,7 @@ using namespace tbb;
 std::string _appendWalkerStr(const char* base_str, const char* msg, Coordinates &walker_coords) {
     std::string walks = base_str;
     walks += msg;
+    walks += "(";
     for (size_t i = 0; i < walker_coords.size(); i++) {
         walks += "(";
         for (int j = 0; j < 3; j++) {
@@ -33,6 +34,7 @@ std::string _appendWalkerStr(const char* base_str, const char* msg, Coordinates 
 std::string _appendWalkerStr(const char* base_str, const char* msg, FlatCoordinates &walker_coords) {
     std::string err_msg = base_str;
     err_msg += msg;
+    walks += "(";
     for (size_t i = 0; i < walker_coords.size()/3; i++) {
         err_msg += "(";
         for (int j = 0; j < 3; j++) {
@@ -43,7 +45,6 @@ std::string _appendWalkerStr(const char* base_str, const char* msg, FlatCoordina
                 err_msg += ")";
             }
         }
-        err_msg += ")";
         if (i < walker_coords.size() - 1) {
             err_msg += ", ";
         }
@@ -119,7 +120,7 @@ double _doopAPot(
         signal(SIGILL, _sigillHandler);
         if (debug_print) {
             std::string walker_string = _appendWalkerStr("Walker before call: ", "", walker_coords);
-            _pyPrintStr(walker_string.c_str());
+            printf(walker_string.c_str());
         }
         pot = pot_func(walker_coords, atoms, extra_bools, extra_ints, extra_floats);
 
@@ -166,7 +167,7 @@ double _doopAPot(
         signal(SIGILL, _sigillHandler);
         if (debug_print) {
             std::string walker_string = _appendWalkerStr("Walker before call: ", "", walker_coords);
-            _pyPrintStr(walker_string.c_str());
+            printf(walker_string.c_str());
         }
         pot = pot_func(walker_coords, atoms, extra_bools, extra_ints, extra_floats);
 

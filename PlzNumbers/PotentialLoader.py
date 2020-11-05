@@ -23,7 +23,8 @@ class PotentialLoader:
         "build_script",
         "requires_make",
         "out_dir",
-        "cleanup_build"
+        "cleanup_build",
+        'build_kwargs'
     ]
     def __init__(self,
                  name,
@@ -41,7 +42,8 @@ class PotentialLoader:
                  out_dir=None,
                  python_potential=False,
                  cleanup_build=True,
-                 pointer_name=None
+                 pointer_name=None,
+                 build_kwargs=None
                  ):
         self.python_potential = python_potential
         # if python_potential is False:
@@ -58,7 +60,8 @@ class PotentialLoader:
                               build_script=build_script,
                               requires_make=requires_make,
                               out_dir=out_dir,
-                              cleanup_build=cleanup_build
+                              cleanup_build=cleanup_build,
+                              **({} if build_kwargs is None else build_kwargs)
                               )
         # else:
         #     self.c_loader = None
