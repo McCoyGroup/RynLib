@@ -21,7 +21,8 @@ class PotentialCaller:
         "error_value",
         "fortran_potential",
         "transpose_call",
-        "debug_print"
+        "debug_print",
+        "caller_retries"
     ]
     def __init__(self,
                  potential, *ignore,
@@ -33,7 +34,8 @@ class PotentialCaller:
                  fortran_potential=False,
                  transpose_call=None,
                  debug_print=False,
-                 catch_abort=False
+                 catch_abort=False,
+                 caller_retries=1
                  ):
         if len(ignore) > 0:
             raise ValueError("Only one positional argument (for the potential) accepted")
@@ -52,6 +54,7 @@ class PotentialCaller:
         self.transpose_call = transpose_call
         self.debug_print = debug_print
         self.catch_abort=catch_abort
+        self.caller_retries=caller_retries
 
     @classmethod
     def load_lib(cls):
@@ -133,6 +136,7 @@ class PotentialCaller:
                 float(self.error_value),
                 bool(self.raw_array_potential),
                 bool(self.debug_print),
+                int(self.caller_retries),
                 extra_bools,
                 extra_ints,
                 extra_floats
@@ -374,6 +378,7 @@ class PotentialCaller:
                 bool(self.raw_array_potential),
                 bool(self.vectorized_potential),
                 bool(self.debug_print),
+                int(self.caller_retries),
                 self.mpi_manager,
                 bool(omp),
                 bool(tbb)
