@@ -60,7 +60,8 @@ class Potential:
                  vectorized_potential=False,
                  error_value=10.e9,
                  transpose_call=None,
-                 debug_print=False
+                 debug_print=False,
+                 catch_abort=False
                  ):
         """
 

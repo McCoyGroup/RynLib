@@ -2,7 +2,7 @@
 Provides a Caller that Potential uses to actually evaluate the potential
 """
 
-import numpy as np, os, multiprocessing as mp, itertools as it, sys
+import numpy as np, os, multiprocessing as mp, sys, signal
 from ..RynUtils import CLoader
 
 __all__ = [
@@ -32,7 +32,8 @@ class PotentialCaller:
                  error_value = 10.e9,
                  fortran_potential=False,
                  transpose_call=None,
-                 debug_print=False
+                 debug_print=False,
+                 catch_abort=False
                  ):
         if len(ignore) > 0:
             raise ValueError("Only one positional argument (for the potential) accepted")
@@ -50,6 +51,7 @@ class PotentialCaller:
             transpose_call = fortran_potential
         self.transpose_call = transpose_call
         self.debug_print = debug_print
+        self.catch_abort=catch_abort
 
     @classmethod
     def load_lib(cls):
@@ -103,6 +105,18 @@ class PotentialCaller:
         :return:
         :rtype:
         """
+
+        if self.catch_abort is not False or self.catch_abort is not None:
+            if self.catch_abort is True:
+                def handler(*args, **kwargs):
+                    raise RuntimeError("Abort occurred?")
+            elif isinstance(self.catch_abort, str) and self.catch_abort=="ignore":
+                def handler(*args, **kwargs):
+                    print("Abort occurred?")
+            else:
+                handler = self.catch_abort
+                
+            signal.signal(signal.SIGABRT, handler)
 
         if self._py_pot:
             return self.potential(walker, atoms, (extra_bools, extra_ints, extra_floats))
