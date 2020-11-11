@@ -34,7 +34,7 @@ std::string _appendWalkerStr(const char* base_str, const char* msg, Coordinates 
 std::string _appendWalkerStr(const char* base_str, const char* msg, FlatCoordinates &walker_coords) {
     std::string err_msg = base_str;
     err_msg += msg;
-    walks += "(";
+    err_msg += "(";
     for (size_t i = 0; i < walker_coords.size()/3; i++) {
         err_msg += "(";
         for (int j = 0; j < 3; j++) {
@@ -120,7 +120,7 @@ double _doopAPot(
         signal(SIGILL, _sigillHandler);
         if (debug_print) {
             std::string walker_string = _appendWalkerStr("Walker before call: ", "", walker_coords);
-            printf(walker_string.c_str());
+            printf("%s\n", walker_string.c_str());
         }
         pot = pot_func(walker_coords, atoms, extra_bools, extra_ints, extra_floats);
 
@@ -135,11 +135,20 @@ double _doopAPot(
         } else {
             // pushed error reporting into bad_walkers_file
             // should probably revise yet again to print all of this stuff to python's stderr...
-            _printOutWalkerStuff(
-                walker_coords,
-                bad_walkers_file,
-                e.what()
+            if (debug_print) {
+                std::string no_str="";
+                _printOutWalkerStuff(
+                        walker_coords,
+                        no_str,
+                        e.what()
                 );
+            } else {
+                _printOutWalkerStuff(
+                    walker_coords,
+                    bad_walkers_file,
+                    e.what()
+                    );
+            }
             pot = err_val;
         }
     }
@@ -167,7 +176,7 @@ double _doopAPot(
         signal(SIGILL, _sigillHandler);
         if (debug_print) {
             std::string walker_string = _appendWalkerStr("Walker before call: ", "", walker_coords);
-            printf(walker_string.c_str());
+            printf("%s\n", walker_string.c_str());
         }
         pot = pot_func(walker_coords, atoms, extra_bools, extra_ints, extra_floats);
 
@@ -180,11 +189,20 @@ double _doopAPot(
                     retries-1
             );
         } else {
-//            _printOutWalkerStuff(
-//                    walker_coords,
-//                    bad_walkers_file,
-//                    e.what()
-//            );
+            if (debug_print) {
+                std::string no_str="";
+                _printOutWalkerStuff(
+                        walker_coords,
+                        no_str,
+                        e.what()
+                );
+            } else {
+                _printOutWalkerStuff(
+                    walker_coords,
+                    bad_walkers_file,
+                    e.what()
+                    );
+            }
             pot = err_val;
         }
     }
@@ -366,6 +384,7 @@ Real_t _getPotFlat(
         std::string bad_file,
         double err_val,
         bool debug_print,
+        int retries,
         ExtraBools& extra_bools,
         ExtraInts& extra_ints,
         ExtraFloats& extra_floats
@@ -387,7 +406,8 @@ Real_t _getPotFlat(
             debug_print,
             extra_bools,
             extra_ints,
-            extra_floats
+            extra_floats,
+            retries
     );
 }
 Real_t _getPot(
@@ -399,6 +419,7 @@ Real_t _getPot(
         std::string bad_file,
         double err_val,
         bool debug_print,
+        int retries,
         ExtraBools& extra_bools,
         ExtraInts& extra_ints,
         ExtraFloats& extra_floats
@@ -418,7 +439,8 @@ Real_t _getPot(
             debug_print,
             extra_bools,
             extra_ints,
-            extra_floats
+            extra_floats,
+            retries
     );
 }
 
@@ -435,6 +457,7 @@ class PotentialCaller {
     ExtraFloats& extra_floats;
     Real_t err_val;
     bool debug_print;
+    int retries;
     std::string bad_file;
     bool use_openMP;
     bool use_TBB;
@@ -459,6 +482,7 @@ class PotentialCaller {
             ExtraFloats& arg_extra_floats,
             Real_t arg_err_val,
             bool arg_debug_print,
+            int arg_retries,
             PyObject* bad_walkers_file,
             bool arg_use_openMP,
             bool arg_use_TBB
@@ -475,6 +499,7 @@ class PotentialCaller {
             extra_floats(arg_extra_floats),
             err_val(arg_err_val),
             debug_print(arg_debug_print),
+            retries(arg_retries),
             use_openMP(arg_use_openMP),
             use_TBB(arg_use_TBB)
     {
@@ -504,7 +529,7 @@ class PotentialCaller {
                     n, ncalls, i, walkers_to_core,
                     num_atoms, atoms,
                     flat_pot,
-                    bad_file, err_val, debug_print,
+                    bad_file, err_val, debug_print, retries,
                     extra_bools, extra_ints, extra_floats
             );
         } else {
@@ -513,7 +538,7 @@ class PotentialCaller {
                     n, ncalls, i, walkers_to_core,
                     num_atoms, atoms,
                     pot,
-                    bad_file, err_val, debug_print,
+                    bad_file, err_val, debug_print, retries,
                     extra_bools, extra_ints, extra_floats
             );
         }
@@ -603,6 +628,7 @@ PotentialArray _mpiGetPot(
         PyObject* bad_walkers_file,
         double err_val,
         bool debug_print,
+        int retries,
         ExtraBools &extra_bools,
         ExtraInts &extra_ints,
         ExtraFloats &extra_floats,
@@ -625,6 +651,7 @@ PotentialArray _mpiGetPot(
             extra_floats,
             err_val,
             debug_print,
+            retries,
             bad_walkers_file,
             use_openMP,
             use_TBB
@@ -655,6 +682,7 @@ PotentialArray _noMPIGetPot(
         PyObject* bad_walkers_file,
         double err_val,
         bool debug_print,
+        int retries,
         ExtraBools &extra_bools,
         ExtraInts &extra_ints,
         ExtraFloats &extra_floats,
@@ -675,6 +703,7 @@ PotentialArray _noMPIGetPot(
             extra_floats,
             err_val,
             debug_print,
+            retries,
             bad_walkers_file,
             use_openMP,
             use_TBB

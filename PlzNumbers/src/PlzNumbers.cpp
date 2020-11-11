@@ -50,13 +50,13 @@ PyObject *PlzNumbers_callPot(PyObject* self, PyObject* args ) {
     PyObject* ext_bool, *ext_int, *ext_float;
     PyObject* bad_walkers_str;
     double err_val;
-    int raw_array_pot, debug_print;
+    int raw_array_pot, debug_print, retries;
 
     if (
          !PyArg_ParseTuple(args,
-                 "OOOOdppOOO",
+                 "OOOOdpppOOO",
                  &coords, &atoms, &pot_function, &bad_walkers_str,
-                 &err_val, &raw_array_pot, &debug_print,
+                 &err_val, &raw_array_pot, &debug_print, &retries,
                  &ext_bool, &ext_int, &ext_float
            )
         ) return NULL;
@@ -99,7 +99,8 @@ PyObject *PlzNumbers_callPot(PyObject* self, PyObject* args ) {
                 debug_print,
                 extra_bools,
                 extra_ints,
-                extra_floats
+                extra_floats,
+                retries
         );
     } else {
         PotentialFunction pot_f = (PotentialFunction) PyCapsule_GetPointer(pot_function, "_potential");
@@ -113,7 +114,8 @@ PyObject *PlzNumbers_callPot(PyObject* self, PyObject* args ) {
                 debug_print,
                 extra_bools,
                 extra_ints,
-                extra_floats
+                extra_floats,
+                retries
         );
     }
 
@@ -132,11 +134,11 @@ PyObject *PlzNumbers_callPotVec( PyObject* self, PyObject* args ) {
     double err_val;
     int raw_array_pot, vectorized_potential, debug_print;
     PyObject* manager;
-    int use_openMP, use_TBB;
+    int use_openMP, use_TBB, retries;
 
     if ( !PyArg_ParseTuple(
             args,
-            "OOOOOdpppOpp",
+            "OOOOOdppppOpp",
             &coords,
             &atoms,
             &pot_function,
@@ -146,6 +148,7 @@ PyObject *PlzNumbers_callPotVec( PyObject* self, PyObject* args ) {
             &raw_array_pot,
             &vectorized_potential,
             &debug_print,
+            &retries,
             &manager,
             &use_openMP,
             &use_TBB
@@ -229,6 +232,7 @@ PyObject *PlzNumbers_callPotVec( PyObject* self, PyObject* args ) {
                 bad_walkers_file,
                 err_val,
                 debug_print,
+                retries,
                 extra_bools,
                 extra_ints,
                 extra_floats,
@@ -250,6 +254,7 @@ PyObject *PlzNumbers_callPotVec( PyObject* self, PyObject* args ) {
                 bad_walkers_file,
                 err_val,
                 debug_print,
+                retries,
                 extra_bools,
                 extra_ints,
                 extra_floats,

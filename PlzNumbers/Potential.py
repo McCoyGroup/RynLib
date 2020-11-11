@@ -55,16 +55,16 @@ class Potential:
                  fortran_potential=False,
 
                  #Caller Options
-                 bad_walker_file="bad_walkers.txt",
+                 bad_walker_file="",#"bad_walkers.txt",
                  mpi_manager=None,
                  vectorized_potential=False,
                  error_value=10.e9,
                  transpose_call=None,
                  debug_print=False,
-                 catch_abort=False
+                 catch_abort=False,
+                 caller_retries=1
                  ):
         """
-
         :param name:
         :type name:
         :param potential_source:
@@ -181,7 +181,8 @@ class Potential:
             error_value=error_value,
             fortran_potential=fortran_potential,
             transpose_call=transpose_call,
-            debug_print=debug_print
+            debug_print=debug_print,
+            caller_retries=caller_retries
         )
 
         self._args_pat = arguments
