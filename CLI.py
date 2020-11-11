@@ -405,6 +405,14 @@ class CLI:
             ("--input", dict(default="", type=str, dest='input_file'))
         )
         PotentialInterface.test_potential_mpi(**parse_dict)
+
+    def cli_method_pot_test_serial(self):
+        """Tests a generic potential under looping. Args: NAME"""
+        parse_dict = self.get_parse_dict(
+            ("name",),
+            ("--input", dict(default="", type=str, dest='input_file'))
+        )
+        PotentialInterface.test_potential_serial(**parse_dict)
     #endregion
 
     def run(self):

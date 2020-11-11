@@ -274,6 +274,10 @@ class PotentialInterface:
     def test_potential_mpi(self, name=None, input_file=None, **opts):
         PotentialManager().test_potential_mpi(name, input_file=input_file, **opts)
 
+    @classmethod
+    def test_potential_serial(self, name=None, input_file=None, **opts):
+        PotentialManager().test_potential_serial(name, input_file=input_file, **opts)
+
 class RynLib:
     """
     Defines all of the overall RynLib config things

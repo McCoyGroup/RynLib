@@ -115,7 +115,7 @@ class PotentialCaller:
                     print("Abort occurred?")
             else:
                 handler = self.catch_abort
-                
+
             signal.signal(signal.SIGABRT, handler)
 
         if self._py_pot:

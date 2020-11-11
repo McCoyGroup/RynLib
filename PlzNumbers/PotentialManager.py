@@ -162,6 +162,112 @@ class PotentialManager:
                 pot.clean_up()
             os.chdir(curdir)
 
+    def test_potential_serial(self, name,
+                           input_file=None,
+                           coordinates=None,
+                           parameters=None,
+                           atoms=None,
+                           walkers_per_core=8,
+                           time_step=1,
+                           # displacement_radius=.5,
+                           iterations=1,
+                           steps_per_call=5,
+                           print_walkers=False,
+                           random_seed=None,
+                           copy_geometry=False,
+                           **opts
+                           ):
+        import numpy as np, time
+        from ..DoMyCode import WalkerSet
+
+        pdir = self.manager.config_loc(name)
+        curdir = os.getcwd()
+        pot = None
+        try:
+            os.chdir(pdir)
+            if input_file is None:
+                inp = os.path.join(pdir, "test.py")
+                if os.path.exists(inp):
+                    input_file = inp
+
+            pot = self.load_potential(name)
+
+            if input_file is not None:
+                cfig = ConfigSerializer.deserialize(input_file, attribute="config")
+            else:
+                cfig = {}
+
+            walkers = coordinates if coordinates is not None else cfig["coordinates"]
+            if isinstance(walkers, str):
+                walkers = np.load(walkers)
+
+            try:
+                params = parameters if parameters is not None else cfig["parameters"]
+            except (AttributeError, KeyError):
+                params = []
+
+            atoms = atoms if atoms is not None else cfig["atoms"]
+
+            pot.bind_atoms(atoms)
+            pot.bind_arguments(params)
+
+            w = WalkerSet(
+                atoms=atoms,
+                initial_walker=walkers,
+                mpi_manager=None,
+                walkers_per_core=walkers_per_core
+            )
+            w.initialize(time_step)
+
+            print("Testing Serially Over: {}".format(w))
+            #
+            # randomly permute things
+            #
+            if copy_geometry:
+                testWalkersss = np.broadcast_to(w.coords, (steps_per_call,) + w.coords.shape)
+            else:
+                if random_seed is not None:
+                    np.random.seed(random_seed)
+                testWalkersss = w.get_displaced_coords(steps_per_call)
+                if isinstance(testWalkersss, tuple):
+                    testWalkersss = testWalkersss[0]
+            test_iterations = iterations
+            test_results = np.zeros((test_iterations,))
+            lets_get_going = time.time()
+            nsteps = steps_per_call
+
+            #
+            # run tests
+            #
+            pot.mpi_manager = None
+            test_results_for_real = np.zeros((test_iterations, nsteps, w.num_walkers))
+            for ttt in range(test_iterations):
+                t0 = time.time()
+                # call the potential
+                # print(testAtoms)
+                test_result = pot(testWalkersss)
+                # then we gotta transpose back to the input layout
+                test_results_for_real[ttt] = test_result
+                test_results[ttt] = time.time() - t0
+            gotta_go_fast = time.time() - lets_get_going
+
+            test_result = test_results_for_real[0]
+            print(
+                "Mean energy {}".format(np.average(test_result)),
+                sep="\n"
+            )
+            print("Total time: {}s (over {} iterations)".format(gotta_go_fast, test_iterations))
+            print("Average total: {}s Average time per walker: {}s".format(
+                np.average(test_results),
+                np.average(test_results) / w.num_walkers / nsteps)
+            )
+
+            return test_results
+        finally:
+            if pot is not None:
+                pot.clean_up()
+            os.chdir(curdir)
+
     def test_potential_mpi(self, name,
                            input_file=None,
                            coordinates=None,
@@ -269,6 +375,8 @@ class PotentialManager:
             testWalkersss = np.broadcast_to(w.coords, (steps_per_call,) + w.coords.shape)
         else:
             testWalkersss = w.get_displaced_coords(steps_per_call)
+            if isinstance(testWalkersss, tuple):
+                testWalkersss = testWalkersss[0]
         test_iterations = iterations
         test_results = np.zeros((test_iterations,))
         lets_get_going = time.time()
