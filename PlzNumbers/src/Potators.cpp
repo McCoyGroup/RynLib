@@ -654,7 +654,7 @@ class PotentialCaller {
 
             tbb::parallel_for(
                 tbb::blocked_range<size_t>(0, walkers_to_core),
-                [&](const blocked_range<int>& r) {
+                [&](const tbb::blocked_range<int>& r) {
                    for (size_t i=r.begin(); i<r.end(); ++i) {
                         int this_thread = tbb::task_arena::current_thread_index();
                         if(debug_print) printf("Calling %ld on thread %d!\n", i, this_thread);
