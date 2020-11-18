@@ -5,6 +5,7 @@
 #include <csignal>
 #include <sstream>
 #include <iostream>
+#include <thread>
 #include "tbb/parallel_for.h"
 #include "tbb/task_scheduler_observer.h"
 
@@ -635,13 +636,17 @@ class PotentialCaller {
     }
 
     PotentialArray apply() {
+
         if (use_openMP) {
-            if (debug_print) printf("Parallelization: %s\n", "OpenMP");
+            const auto processor_count = std::thread::hardware_concurrency();
+            if (debug_print) printf("Parallelization over %d threads: %s\n", processor_count, "OpenMP");
             omp_call();
         } else if (use_TBB) {
+            const auto processor_count = std::thread::hardware_concurrency();
             if (debug_print) printf("Parallelization: %s\n", "TBB");
             tbb_call();
         } else {
+            if (debug_print) printf("Serial Evaluation\n", processor_count, "OpenMP");
             serial_call();
         }
         return pots;
