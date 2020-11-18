@@ -581,15 +581,21 @@ class PotentialCaller {
 
     class TBBCaller {
         PotentialCaller *caller;
+        RawPotentialBuffer data;
+        size_t block_n;
     public:
-        TBBCaller(PotentialCaller *arg_caller) : caller(arg_caller) {}
+        TBBCaller(
+          PotentialCaller *arg_caller,
+          RawPotentialBuffer arg_data
+          size_t arg_block_n
+          ) : caller(arg_caller), data(arg_data), block_n(arg_block_n) {}
 
-        // Gotta make this work to get TBB to work...
+        // For some reason I don't seem to be seeing a speed up????
         void operator()( const blocked_range<size_t>& r ) const {
             for( size_t i=r.begin(); i!=r.end(); ++i ) {
 //                printf("Calling with %s: %d\n", "TBB", i);
-                Real_t pot_val = caller->eval_pot(i);
-                caller->assign_current(i, pot_val);
+                Real_t pot_val = caller->eval_pot(block_n, i);
+                data[i] = pot_val; // this feels dangerous but is also not crashing...?
             }
         }
     };
@@ -601,7 +607,7 @@ class PotentialCaller {
             if (debug_print) printf("TBB: calling over block %d of size %d\n", n, walkers_to_core);
             cur_data = pots[n].data();
             _n_current = n;
-            parallel_for(blocked_range<size_t>(0, walkers_to_core), TBBCaller(this));
+            parallel_for(blocked_range<size_t>(0, walkers_to_core), TBBCaller(this, cur_data, n));
         }
     }
 
