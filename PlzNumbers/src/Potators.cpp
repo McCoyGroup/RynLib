@@ -612,7 +612,7 @@ class PotentialCaller {
         // For some reason I don't seem to be seeing a speed up????
         void operator()( const tbb::blocked_range<size_t>& r ) const {
             for( size_t i=r.begin(); i!=r.end(); ++i ) {
-                int this_thread = = tbb::task_arena::current_thread_index();
+                int this_thread = tbb::task_arena::current_thread_index();
                 if(debug_print) printf("Calling %ld on thread %d!\n", i, this_thread);
 //                printf("Calling with %s: %d\n", "TBB", i);
                 Real_t pot_val = caller->eval_pot(block_n, i);
@@ -626,7 +626,7 @@ class PotentialCaller {
 
     void tbb_call() {
         for (int n = 0; n < ncalls_loop; n++) {
-            int num_threads = tbb_thread_counter.get_concurrency();
+//            int num_threads = tbb_thread_counter.get_concurrency();
             if (debug_print) printf("TBB: calling block %d of size %d\n", n, walkers_to_core);
             cur_data = pots[n].data();
             _n_current = n;
