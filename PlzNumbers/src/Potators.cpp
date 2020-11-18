@@ -657,7 +657,7 @@ class PotentialCaller {
             if (debug_print) printf("Parallelization over %d threads: %s\n", processor_count, "OpenMP");
             omp_call();
         } else if (use_TBB) {
-            tbb::task_scheduler_init init(6 - 1); // not sure _why_ I need to do this, but the default was being set to 1?
+            tbb::task_scheduler_init init(walkers_to_core); // not sure _why_ I need to do this, but the default was being set to 1?
             const auto tbb_default = tbb::task_scheduler_init::default_num_threads();
             if (debug_print) printf("Parallelization over %d threads: %s (%d by default)\n", processor_count, "TBB", tbb_default);
             tbb_call();
