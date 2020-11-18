@@ -449,17 +449,6 @@ Real_t _getPot(
     );
 }
 
-// thank you StackOverflow
-class tbb_tracker: public tbb::task_scheduler_observer {
-        tbb::atomic<int> num_threads;
-    public:
-        tbb_tracker() : num_threads() { observe(true); }
-        /*override*/ void on_scheduler_entry( bool ) { ++num_threads; }
-        /*override*/ void on_scheduler_exit( bool ) { --num_threads; }
-
-        int get_concurrency() { return num_threads; }
-};
-
 std::mutex WTFLock;
 class PotentialCaller {
     RawWalkerBuffer walker_buf;
@@ -669,7 +658,7 @@ class PotentialCaller {
             if (debug_print) printf("Parallelization over %d threads: %s\n", processor_count, "OpenMP");
             omp_call();
         } else if (use_TBB) {
-            tbb::task_scheduler_init init(processor_count - 1); // not sure _why_ I need to do this, but the default was being set to 1?
+            tbb::task_scheduler_init init(6 - 1); // not sure _why_ I need to do this, but the default was being set to 1?
             const auto tbb_default = tbb::task_scheduler_init::default_num_threads();
             if (debug_print) printf("Parallelization over %d threads: %s (%d by default)\n", processor_count, "TBB", tbb_default);
             tbb_call();
