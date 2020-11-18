@@ -601,7 +601,7 @@ class PotentialCaller {
         RawPotentialBuffer data;
         size_t block_n;
         bool debug_print;
-        std::mutex write_mutex;
+        std::mutex write_mutex{};
 
     public:
         TBBCaller(
