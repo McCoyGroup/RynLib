@@ -455,7 +455,7 @@ class tbb_tracker: public tbb::task_scheduler_observer {
         /*override*/ void on_scheduler_exit( bool ) { --num_threads; }
 
         int get_concurrency() { return num_threads; }
-}
+};
 
 class PotentialCaller {
     RawWalkerBuffer walker_buf;
@@ -479,7 +479,7 @@ class PotentialCaller {
     PotentialArray pots;
     int _n_current;
     RawPotentialBuffer cur_data;
-    tbb_tracker& tbb_thread_counter;
+    tbb_tracker* tbb_thread_counter;
 
     public:
 
@@ -533,7 +533,7 @@ class PotentialCaller {
         pots = PotentialArray(ncalls_loop, PotentialVector(walkers_to_core, 0));
         cur_data = NULL;
         _n_current = -1;
-        tbb_thread_counter = tbb_tracker();
+        tbb_thread_counter &tbb_tracker();
     }
 
     Real_t eval_pot(int n, int i) const {
@@ -626,7 +626,7 @@ class PotentialCaller {
 
     void tbb_call() {
         for (int n = 0; n < ncalls_loop; n++) {
-            int num_threads = tbb_thread_counter.get_concurrency();
+            int num_threads = tbb_thread_counter->get_concurrency();
             if (debug_print) printf("TBB: calling block %d of size %d over %d threads\n", n, walkers_to_core, num_threads);
             cur_data = pots[n].data();
             _n_current = n;
