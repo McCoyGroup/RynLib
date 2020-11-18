@@ -583,16 +583,22 @@ class PotentialCaller {
         PotentialCaller *caller;
         RawPotentialBuffer data;
         size_t block_n;
+        bool debug_print;
     public:
         TBBCaller(
           PotentialCaller *arg_caller,
           RawPotentialBuffer arg_data,
-          size_t arg_block_n
-          ) : caller(arg_caller), data(arg_data), block_n(arg_block_n) {}
+          size_t arg_block_n,
+          bool arg_debug_print
+          ) : caller(arg_caller),
+            data(arg_data),
+            block_n(arg_block_n),
+            debug_print(arg_debug_print) {}
 
         // For some reason I don't seem to be seeing a speed up????
         void operator()( const blocked_range<size_t>& r ) const {
             for( size_t i=r.begin(); i!=r.end(); ++i ) {
+                if(debug_print) printf("Calling %d!\n", i);
 //                printf("Calling with %s: %d\n", "TBB", i);
                 Real_t pot_val = caller->eval_pot(block_n, i);
                 data[i] = pot_val; // this feels dangerous but is also not crashing...?
