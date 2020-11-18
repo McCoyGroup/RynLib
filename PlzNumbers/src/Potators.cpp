@@ -9,7 +9,7 @@
 #include "tbb/parallel_for.h"
 #include "tbb/task_scheduler_observer.h"
 #include "tbb/task_scheduler_init.h"
-$include "tbb/mutex.h"
+#include "tbb/mutex.h"
 
 #include "wchar.h"
 //using namespace tbb;
