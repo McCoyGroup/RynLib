@@ -9,6 +9,7 @@
 #include "tbb/parallel_for.h"
 #include "tbb/task_scheduler_observer.h"
 #include "tbb/task_scheduler_init.h"
+$include "tbb/mutex.h"
 
 #include "wchar.h"
 //using namespace tbb;
@@ -600,6 +601,8 @@ class PotentialCaller {
         RawPotentialBuffer data;
         size_t block_n;
         bool debug_print;
+        tbb::mutex write_mutex;
+
     public:
         TBBCaller(
           PotentialCaller *arg_caller,
@@ -618,7 +621,10 @@ class PotentialCaller {
                 if(debug_print) printf("Calling %ld on thread %d!\n", i, this_thread);
 //                printf("Calling with %s: %d\n", "TBB", i);
                 Real_t pot_val = caller->eval_pot(block_n, i);
-                data[i] = pot_val; // this feels dangerous but is also not crashing...?
+                // try to protect _just_ the write
+                write_mutex.lock();
+                data[i] = pot_val;
+                write_mutex.unlock();
             }
         }
     };
@@ -627,6 +633,7 @@ class PotentialCaller {
     }
 
     void tbb_call() {
+
         for (int n = 0; n < ncalls_loop; n++) {
 //            int num_threads = tbb_thread_counter.get_concurrency();
             if (debug_print) printf("TBB: calling block %d of size %d\n", n, walkers_to_core);
