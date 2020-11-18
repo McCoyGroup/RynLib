@@ -586,6 +586,7 @@ class PotentialCaller {
         // Gotta make this work to get TBB to work...
         void operator()( const blocked_range<size_t>& r ) const {
             for( size_t i=r.begin(); i!=r.end(); ++i ) {
+                if (debug_print) printf("Calling with %s: %d\n", "TBB", i);
                 Real_t pot_val = caller->eval_pot(i);
                 caller->assign_current(i, pot_val);
             }
@@ -604,8 +605,10 @@ class PotentialCaller {
 
     PotentialArray apply() {
         if (use_openMP) {
+            if (debug_print) printf("Parallelization: %s\n", "OpenMP");
             omp_call();
         } else if (use_TBB) {
+            if (debug_print) printf("Parallelization: %s\n", "TBB");
             tbb_call();
         } else {
             serial_call();
