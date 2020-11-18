@@ -9,7 +9,7 @@
 #include "tbb/parallel_for.h"
 #include "tbb/task_scheduler_observer.h"
 #include "tbb/task_scheduler_init.h"
-#include "tbb/mutex.h"
+#include <mutex>
 
 #include "wchar.h"
 //using namespace tbb;
@@ -601,7 +601,7 @@ class PotentialCaller {
         RawPotentialBuffer data;
         size_t block_n;
         bool debug_print;
-        tbb::mutex write_mutex;
+        std::mutex write_mutex;
 
     public:
         TBBCaller(
