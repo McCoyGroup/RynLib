@@ -655,6 +655,7 @@ class PotentialCaller {
 
         const auto processor_count = std::thread::hardware_concurrency();
         if (use_openMP) {
+            tbb::task_scheduler_init init(1); // try to turn off TBB?
             if (debug_print) printf("Parallelization over %d threads: %s\n", processor_count, "OpenMP");
             omp_call();
         } else if (use_TBB) {
