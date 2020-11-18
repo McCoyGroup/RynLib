@@ -637,16 +637,15 @@ class PotentialCaller {
 
     PotentialArray apply() {
 
+        const auto processor_count = std::thread::hardware_concurrency();
         if (use_openMP) {
-            const auto processor_count = std::thread::hardware_concurrency();
             if (debug_print) printf("Parallelization over %d threads: %s\n", processor_count, "OpenMP");
             omp_call();
         } else if (use_TBB) {
-            const auto processor_count = std::thread::hardware_concurrency();
             if (debug_print) printf("Parallelization over %d threads: %s\n", processor_count, "TBB");
             tbb_call();
         } else {
-            if (debug_print) printf("Serial Evaluation (%d threads):\n", processor_count;
+            if (debug_print) printf("Serial Evaluation (%d threads):\n", processor_count);
             serial_call();
         }
         return pots;
