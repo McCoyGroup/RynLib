@@ -6,9 +6,10 @@
 #include <sstream>
 #include <iostream>
 #include "tbb/parallel_for.h"
+#include "tbb/task_scheduler_observer.h"
 
 #include "wchar.h"
-using namespace tbb;
+//using namespace tbb;
 
 std::string _appendWalkerStr(const char* base_str, const char* msg, Coordinates &walker_coords) {
     std::string walks = base_str;
@@ -610,7 +611,7 @@ class PotentialCaller {
             debug_print(arg_debug_print) {}
 
         // For some reason I don't seem to be seeing a speed up????
-        void operator()( const blocked_range<size_t>& r ) const {
+        void operator()( const tbb::blocked_range<size_t>& r ) const {
             for( size_t i=r.begin(); i!=r.end(); ++i ) {
                 if(debug_print) printf("Calling %ld!\n", i);
 //                printf("Calling with %s: %d\n", "TBB", i);
@@ -629,7 +630,7 @@ class PotentialCaller {
             if (debug_print) printf("TBB: calling block %d of size %d over %d threads\n", n, walkers_to_core, num_threads);
             cur_data = pots[n].data();
             _n_current = n;
-            parallel_for(blocked_range<size_t>(0, walkers_to_core), TBBCaller(this, cur_data, n, debug_print));
+            tbb::parallel_for(tbb::blocked_range<size_t>(0, walkers_to_core), TBBCaller(this, cur_data, n, debug_print));
         }
     }
 
