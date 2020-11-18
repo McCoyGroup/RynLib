@@ -608,8 +608,7 @@ class PotentialCaller {
           PotentialCaller *arg_caller,
           RawPotentialBuffer arg_data,
           size_t arg_block_n,
-          bool arg_debug_print,
-          std::mutex mtx
+          bool arg_debug_print
           ) : caller(arg_caller),
             data(arg_data),
             block_n(arg_block_n),
