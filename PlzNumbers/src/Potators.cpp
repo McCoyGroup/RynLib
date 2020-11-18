@@ -562,7 +562,7 @@ class PotentialCaller {
     void omp_call() {
 
         for (int n = 0; n < ncalls_loop; n++) {
-            if (debug_print) printf("OpenMP: calling over %d block of walkers\n", n);
+            if (debug_print) printf("OpenMP: calling over block %d of size %d\n", n, walkers_to_core);
             RawPotentialBuffer current_data;
             current_data = pots[n].data();
             #pragma omp parallel
@@ -598,7 +598,7 @@ class PotentialCaller {
     }
     void tbb_call() {
         for (int n = 0; n < ncalls_loop; n++) {
-            if (debug_print) printf("TBB: calling over %d block of walkers\n", n);
+            if (debug_print) printf("TBB: calling over block %d of size %d\n", n, walkers_to_core);
             cur_data = pots[n].data();
             _n_current = n;
             parallel_for(blocked_range<size_t>(0, walkers_to_core), TBBCaller(this));
