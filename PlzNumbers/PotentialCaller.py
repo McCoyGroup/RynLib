@@ -56,6 +56,7 @@ class PotentialCaller:
         self.catch_abort=catch_abort
         self.caller_retries=caller_retries
 
+    cpp_std = '-std=c++17'
     @classmethod
     def load_lib(cls):
         IRS_Ubuntu='2020.0.166'# needs to be synced with Dockerfile
@@ -64,7 +65,7 @@ class PotentialCaller:
         TBB_CentOS='/opt/intel/compilers_and_libraries_{IRS}/linux/tbb/'.format(IRS=IRS_CentOS)
         loader = CLoader("PlzNumbers",
                          os.path.dirname(os.path.abspath(__file__)),
-                         extra_compile_args=["-fopenmp", '-std=c++11'],
+                         extra_compile_args=["-fopenmp", cls.cpp_std],
                          extra_link_args=["-fopenmp"],
                          include_dirs=[
                              "/lib/x86_64-linux-gnu",
