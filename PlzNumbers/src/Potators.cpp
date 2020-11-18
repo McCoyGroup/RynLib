@@ -586,7 +586,7 @@ class PotentialCaller {
         // Gotta make this work to get TBB to work...
         void operator()( const blocked_range<size_t>& r ) const {
             for( size_t i=r.begin(); i!=r.end(); ++i ) {
-                if (debug_print) printf("Calling with %s: %d\n", "TBB", i);
+                printf("Calling with %s: %d\n", "TBB", i);
                 Real_t pot_val = caller->eval_pot(i);
                 caller->assign_current(i, pot_val);
             }
