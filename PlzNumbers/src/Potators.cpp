@@ -460,6 +460,7 @@ class tbb_tracker: public tbb::task_scheduler_observer {
         int get_concurrency() { return num_threads; }
 };
 
+std::mutex WTFLock;
 class PotentialCaller {
     RawWalkerBuffer walker_buf;
     int ncalls;
@@ -601,7 +602,6 @@ class PotentialCaller {
         RawPotentialBuffer data;
         size_t block_n;
         bool debug_print;
-        std::mutex write_mutex;
 
     public:
         TBBCaller(
@@ -613,8 +613,7 @@ class PotentialCaller {
           ) : caller(arg_caller),
             data(arg_data),
             block_n(arg_block_n),
-            debug_print(arg_debug_print),
-            write_mutex(mtx) {}
+            debug_print(arg_debug_print) {}
 
         // For some reason I don't seem to be seeing a speed up????
         void operator()( const tbb::blocked_range<size_t>& r ) const {
@@ -624,9 +623,9 @@ class PotentialCaller {
 //                printf("Calling with %s: %d\n", "TBB", i);
                 Real_t pot_val = caller->eval_pot(block_n, i);
                 // try to protect _just_ the write
-                write_mutex.lock();
+                WTFLock.lock();
                 data[i] = pot_val;
-                write_mutex.unlock();
+                WTFLock.unlock();
             }
         }
     };
@@ -636,14 +635,12 @@ class PotentialCaller {
 
     void tbb_call() {
 
-
-        std::mutex mtx;
         for (int n = 0; n < ncalls_loop; n++) {
 //            int num_threads = tbb_thread_counter.get_concurrency();
             if (debug_print) printf("TBB: calling block %d of size %d\n", n, walkers_to_core);
             cur_data = pots[n].data();
             _n_current = n;
-            tbb::parallel_for(tbb::blocked_range<size_t>(0, walkers_to_core), TBBCaller(this, cur_data, n, debug_print, mtx));
+            tbb::parallel_for(tbb::blocked_range<size_t>(0, walkers_to_core), TBBCaller(this, cur_data, n, debug_print));
         }
     }
 
