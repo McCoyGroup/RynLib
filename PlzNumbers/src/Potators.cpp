@@ -8,6 +8,7 @@
 #include <thread>
 #include "tbb/parallel_for.h"
 #include "tbb/task_scheduler_observer.h"
+#include "tbb/task_scheduler_init.h"
 
 #include "wchar.h"
 //using namespace tbb;
@@ -642,7 +643,8 @@ class PotentialCaller {
             if (debug_print) printf("Parallelization over %d threads: %s\n", processor_count, "OpenMP");
             omp_call();
         } else if (use_TBB) {
-            if (debug_print) printf("Parallelization over %d threads: %s\n", processor_count, "TBB");
+            const auto tbb_default = tbb::task_scheduler_init::default_num_threads()
+            if (debug_print) printf("Parallelization over %d threads: %s (%d by default)\n", processor_count, "TBB", tbb_default);
             tbb_call();
         } else {
             if (debug_print) printf("Serial Evaluation (%d threads):\n", processor_count);
