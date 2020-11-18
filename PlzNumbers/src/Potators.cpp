@@ -6,6 +6,7 @@
 #include <sstream>
 #include <iostream>
 #include "tbb/parallel_for.h"
+
 #include "wchar.h"
 using namespace tbb;
 
@@ -444,6 +445,17 @@ Real_t _getPot(
     );
 }
 
+// thank you StackOverflow
+class tbb_tracker: public tbb::task_scheduler_observer {
+        tbb::atomic<int> num_threads;
+    public:
+        tbb_tracker() : num_threads() { observe(true); }
+        /*override*/ void on_scheduler_entry( bool ) { ++num_threads; }
+        /*override*/ void on_scheduler_exit( bool ) { --num_threads; }
+
+        int get_concurrency() { return num_threads; }
+};
+
 class PotentialCaller {
     RawWalkerBuffer walker_buf;
     int ncalls;
@@ -466,6 +478,7 @@ class PotentialCaller {
     PotentialArray pots;
     int _n_current;
     RawPotentialBuffer cur_data;
+    tbb_tracker& tbb_thread_counter;
 
     public:
 
@@ -519,6 +532,7 @@ class PotentialCaller {
         pots = PotentialArray(ncalls_loop, PotentialVector(walkers_to_core, 0));
         cur_data = NULL;
         _n_current = -1;
+        tbb_tracker tbb_thread_counter();
     }
 
     Real_t eval_pot(int n, int i) const {
@@ -598,7 +612,7 @@ class PotentialCaller {
         // For some reason I don't seem to be seeing a speed up????
         void operator()( const blocked_range<size_t>& r ) const {
             for( size_t i=r.begin(); i!=r.end(); ++i ) {
-                if(debug_print) printf("Calling %d!\n", i);
+                if(debug_print) printf("Calling %ld!\n", i);
 //                printf("Calling with %s: %d\n", "TBB", i);
                 Real_t pot_val = caller->eval_pot(block_n, i);
                 data[i] = pot_val; // this feels dangerous but is also not crashing...?
@@ -608,9 +622,11 @@ class PotentialCaller {
     void assign_current(int i, Real_t pot_val) {
         cur_data[i] = pot_val;
     }
+
     void tbb_call() {
         for (int n = 0; n < ncalls_loop; n++) {
-            if (debug_print) printf("TBB: calling over block %d of size %d\n", n, walkers_to_core);
+            int num_threads = tbb_thread_counter.get_concurrency();
+            if (debug_print) printf("TBB: calling block %d of size %d over %d threads\n", n, walkers_to_core, num_threads);
             cur_data = pots[n].data();
             _n_current = n;
             parallel_for(blocked_range<size_t>(0, walkers_to_core), TBBCaller(this, cur_data, n, debug_print));
