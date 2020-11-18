@@ -75,7 +75,7 @@ class PotentialCaller:
                              "/lib/x86_64-linux-gnu",
                              os.path.join(TBB_Ubutu, "lib", "intel64", "gcc4.8")
                          ],
-                         linked_libs=['tbb'],
+                         linked_libs=['tbb', 'tbbmalloc', 'tbbmalloc_proxy'],
                          source_files=["PlzNumbers.cpp", "Potators.cpp", "PyAllUp.cpp"]
                 )
         return loader.load()

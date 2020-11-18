@@ -165,7 +165,7 @@ function rynlib_update_shifter() {
   shifterimg pull $img;
   };
 
-RYNLIB_OPT_PATTERN=":eV:n:L:M:W:E:";
+RYNLIB_OPT_PATTERN=":eV:n:L:M:W:E:F:";
 function rynlib_shifter() {
 
     local entos="$RYNLIB_ENTOS_PATH";
@@ -179,6 +179,8 @@ function rynlib_shifter() {
     local python_version="python3";
     local entrypoint;
     local lib;
+    local prof;
+    local env_file;
 
     arg_count=$(mcargcount $@)
     vols=$(mcoptvalue $RYNLIB_OPT_PATTERN "V" ${@:1:arg_count})
@@ -188,6 +190,7 @@ function rynlib_shifter() {
     wdir=$(mcoptvalue $RYNLIB_OPT_PATTERN "W" ${@:1:arg_count})
     enter=$(mcoptvalue $RYNLIB_OPT_PATTERN "E" ${@:1:arg_count})
     prof=$(mcoptvalue $RYNLIB_OPT_PATTERN "M" ${@:1:arg_count})
+    env_file=$(mcoptvalue $RYNLIB_OPT_PATTERN "F" ${@:1:arg_count})
     if [[ "$vols" != "" ]]; then shift 2; fi
     if [[ "$do_echo" != "" ]]; then shift; fi
     if [[ "$mpi" != "" ]]; then
@@ -203,6 +206,7 @@ function rynlib_shifter() {
     if [[ "$wdir" != "" ]]; then shift 2; fi
     if [[ "$enter" != "" ]]; then shift 2; fi
     if [[ "$prof" != "" ]]; then shift 2; fi
+    if [[ "$env_file" != "" ]]; then shift 2; fi
 
     if [[ "$entos" = "" ]]; then
       entos="$PWD/entos";
@@ -282,6 +286,7 @@ function rynlib_singularity() {
     local enter="";
     local cmd="";
     local cmd2="";
+    local env_file;
 
     arg_count=$(mcargcount $@)
     vols=$(mcoptvalue $RYNLIB_OPT_PATTERN "V" ${@:1:arg_count})
@@ -291,6 +296,7 @@ function rynlib_singularity() {
     wdir=$(mcoptvalue $RYNLIB_OPT_PATTERN "W" ${@:1:arg_count})
     enter=$(mcoptvalue $RYNLIB_OPT_PATTERN "E" ${@:1:arg_count})
     prof=$(mcoptvalue $RYNLIB_OPT_PATTERN "M" ${@:1:arg_count})
+    env_file=$(mcoptvalue $RYNLIB_OPT_PATTERN "F" ${@:1:arg_count})
     if [[ "$vols" != "" ]]; then shift 2; fi
     if [[ "$do_echo" != "" ]]; then shift; fi
     if [[ "$mpi" != "" ]]; then
@@ -306,6 +312,7 @@ function rynlib_singularity() {
     if [[ "$wdir" != "" ]]; then shift 2; fi
     if [[ "$enter" != "" ]]; then shift 2; fi
     if [[ "$prof" != "" ]]; then shift 2; fi
+    if [[ "$env_file" != "" ]]; then shift 2; fi
 
     if [[ "$entos" = "" ]]; then
       entos="$PWD/opt/entos";
@@ -400,6 +407,7 @@ function rynlib_docker() {
     local enter="";
     local cmd="";
     local cmd2="";
+    local env_file;
 
     arg_count=$(mcargcount $@)
     vols=$(mcoptvalue $RYNLIB_OPT_PATTERN "V" ${@:1:arg_count})
@@ -409,6 +417,7 @@ function rynlib_docker() {
     wdir=$(mcoptvalue $RYNLIB_OPT_PATTERN "W" ${@:1:arg_count})
     enter=$(mcoptvalue $RYNLIB_OPT_PATTERN "E" ${@:1:arg_count})
     prof=$(mcoptvalue $RYNLIB_OPT_PATTERN "M" ${@:1:arg_count})
+    env_file=$(mcoptvalue $RYNLIB_OPT_PATTERN "F" ${@:1:arg_count})
     if [[ "$vols" != "" ]]; then shift 2; fi
     if [[ "$do_echo" != "" ]]; then shift; fi
     if [[ "$mpi" != "" ]]; then
@@ -424,6 +433,7 @@ function rynlib_docker() {
     if [[ "$wdir" != "" ]]; then shift 2; fi
     if [[ "$enter" != "" ]]; then shift 2; fi
     if [[ "$prof" != "" ]]; then shift 2; fi
+    if [[ "$env_file" != "" ]]; then shift 2; fi
 
     if [[ "$entos" = "" ]]; then
       entos="$PWD/entos";
@@ -466,6 +476,9 @@ function rynlib_docker() {
     fi
     # Set the entrypoint and define any args we need to pass
     cmd="$runner run --rm $vols -it"
+    if [[ "$env_file" != "" ]];  then
+      cmd="$cmd --env-file=$env_file"
+    fi
     if [[ "$enter" == "" ]]; then
       call="python3 /home/RynLib/CLI.py"
       # if we want to profile our job, we really want to do 2 docker calls at once
