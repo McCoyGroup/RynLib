@@ -614,16 +614,12 @@ class PotentialCaller {
             block_n(arg_block_n),
             debug_print(arg_debug_print) {}
 
-        void operator()( const tbb::blocked_range<size_t>& r ) const {
-            for( size_t i=r.begin(); i!=r.end(); ++i ) {
+        void operator()(const tbb::blocked_range <size_t> &r) const {
+            for (size_t i = r.begin(); i != r.end(); ++i) {
                 int this_thread = tbb::task_arena::current_thread_index();
-                if(debug_print) printf("Calling %ld on thread %d!\n", i, this_thread);
-//                printf("Calling with %s: %d\n", "TBB", i);
+                if (debug_print) printf("Calling %ld on thread %d!\n", i, this_thread);
                 Real_t pot_val = caller->eval_pot(block_n, i);
-                // try to protect _just_ the write
-//                WTFLock.lock();
                 data[i] = pot_val;
-//                WTFLock.unlock();
             }
         }
 
@@ -653,19 +649,16 @@ class PotentialCaller {
 //            tbb::parallel_for(tbb::blocked_range<size_t>(0, walkers_to_core), TBBCaller(this, cur_data, n, debug_print));
 
             tbb::parallel_for(
-                tbb::blocked_range<size_t>(0, walkers_to_core),
-                [&](const tbb::blocked_range<size_t>& r) {
-                   for (size_t i=r.begin(); i<r.end(); ++i) {
-                        int this_thread = tbb::task_arena::current_thread_index();
-                        if(debug_print) printf("Calling %ld on thread %d!\n", i, this_thread);
-        //                printf("Calling with %s: %d\n", "TBB", i);
-                        Real_t pot_val = eval_pot(n, i);
-                        // try to protect _just_ the write
-        //                WTFLock.lock();
-                        cur_data[i] = pot_val;
-                       }
-                   }
-            )
+                    tbb::blocked_range<size_t>(0, walkers_to_core),
+                    [&](const tbb::blocked_range <size_t> &r) {
+                        for (size_t i = r.begin(); i < r.end(); ++i) {
+                            int this_thread = tbb::task_arena::current_thread_index();
+                            if (debug_print) printf("Calling %ld on thread %d!\n", i, this_thread);
+                            Real_t pot_val = eval_pot(n, i);
+                            cur_data[i] = pot_val;
+                        }
+                    }
+            );
         }
     }
 
