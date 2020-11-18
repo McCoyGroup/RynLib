@@ -654,7 +654,7 @@ class PotentialCaller {
 
             tbb::parallel_for(
                 tbb::blocked_range<size_t>(0, walkers_to_core),
-                [&](const tbb::blocked_range<int>& r) {
+                [&](const tbb::blocked_range<size_t>& r) {
                    for (size_t i=r.begin(); i<r.end(); ++i) {
                         int this_thread = tbb::task_arena::current_thread_index();
                         if(debug_print) printf("Calling %ld on thread %d!\n", i, this_thread);
@@ -662,7 +662,7 @@ class PotentialCaller {
                         Real_t pot_val = eval_pot(n, i);
                         // try to protect _just_ the write
         //                WTFLock.lock();
-                        data[i] = pot_val;
+                        cur_data[i] = pot_val;
                        }
                    }
             )
