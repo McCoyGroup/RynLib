@@ -472,7 +472,6 @@ class PotentialCaller {
     PotentialArray pots;
     int _n_current;
     RawPotentialBuffer cur_data;
-    tbb_tracker tbb_thread_counter{};
 
     public:
 
