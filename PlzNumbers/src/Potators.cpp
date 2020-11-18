@@ -613,7 +613,7 @@ class PotentialCaller {
             if (debug_print) printf("TBB: calling over block %d of size %d\n", n, walkers_to_core);
             cur_data = pots[n].data();
             _n_current = n;
-            parallel_for(blocked_range<size_t>(0, walkers_to_core), TBBCaller(this, cur_data, n));
+            parallel_for(blocked_range<size_t>(0, walkers_to_core), TBBCaller(this, cur_data, n, debug_print));
         }
     }
 
