@@ -586,7 +586,7 @@ class PotentialCaller {
     public:
         TBBCaller(
           PotentialCaller *arg_caller,
-          RawPotentialBuffer arg_data
+          RawPotentialBuffer arg_data,
           size_t arg_block_n
           ) : caller(arg_caller), data(arg_data), block_n(arg_block_n) {}
 
