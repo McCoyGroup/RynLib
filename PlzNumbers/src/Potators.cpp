@@ -128,6 +128,9 @@ double _doopAPot(
             printf("%s\n", walker_string.c_str());
         }
         pot = pot_func(walker_coords, atoms, extra_bools, extra_ints, extra_floats);
+        if (debug_print) {
+            printf("  got back energy: %f\n", pot);
+        }
 
     } catch (std::exception &e) {
         if (retries > 0){
@@ -449,7 +452,7 @@ Real_t _getPot(
     );
 }
 
-std::mutex WTFLock;
+//std::mutex WTFLock;
 class PotentialCaller {
     RawWalkerBuffer walker_buf;
     int ncalls;
