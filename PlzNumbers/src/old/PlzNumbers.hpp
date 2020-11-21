@@ -1,13 +1,12 @@
 
-#ifndef RYNLIB_PYTHONLAYER_HPP
-#define RYNLIB_PYTHONLAYER_HPP
+#ifndef PLZNUMBERS_H
+#define PLZNUMBERS_H
 
 #include "Python.h"
 
 // We'll do a bunch of typedefs and includes and stuff to make it easier to work with/debug this stuff
 
 #include "RynTypes.hpp"
-#include "PotentialCaller.hpp"
 
 /*
  * Python Interface
@@ -25,4 +24,4 @@ static PyObject *PlzNumbers_callPotVec
 static PyObject *PlzNumbers_callPyPotVec
         ( PyObject *, PyObject * );
 
-#endif //RYNLIB_PYTHONLAYER_HPP
+#endif

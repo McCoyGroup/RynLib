@@ -8,8 +8,12 @@
 //#include "PotentialCaller.hpp"
 #include "RynTypes.hpp"
 #include "CoordsManager.hpp"
+#include "PotValsManager.hpp"
+
 
 namespace rynlib {
+
+    using namespace common;
     namespace PlzNumbers {
 
         struct ExtraArgs {
@@ -34,15 +38,38 @@ namespace rynlib {
         class PotentialApplier {
             PotentialFunction pot;
             FlatPotentialFunction flat_pot;
+            VectorizedPotentialFunction v_pot;
+            VectorizedFlatPotentialFunction v_flat_pot;
             bool flat_mode;
+            bool vec_mode;
         public:
             PotentialApplier(
                     PotentialFunction pot_func,
-                    FlatPotentialFunction flat_pot_func
+                    FlatPotentialFunction flat_pot_func,
+                    VectorizedPotentialFunction vec_pot_func,
+                    VectorizedFlatPotentialFunction vec_flat_pot_func
             ) :
                     pot(pot_func),
-                    flat_pot(flat_pot_func) {
-                flat_mode = (pot == NULL); // We can get this from python
+                    flat_pot(flat_pot_func),
+                    v_pot(vec_pot_func),
+                    v_flat_pot(vec_flat_pot_func)
+                     {
+                if (pot != NULL) { // from Python
+                    flat_mode = false;
+                    vec_mode = false;
+                } else if (flat_pot != NULL)  {
+                    flat_mode = true;
+                    vec_mode = false;
+                } else if (v_pot != NULL)  {
+                    flat_mode = false;
+                    vec_mode = true;
+                } else if (v_flat_pot != NULL)  {
+                    flat_mode = true;
+                    vec_mode = true;
+                } else {
+                    throw std::logic_error("wat...no potential????");
+                }
+
             };
 
             Real_t call(
@@ -51,48 +78,50 @@ namespace rynlib {
                     std::vector<size_t > which
                     );
 
-            PotentialArray call_vectorized(
+            PotValsManager call_vectorized(
                     CoordsManager& coords,
                     ExtraArgs& extraArgs
             );
 
+            bool flat_caller() { return flat_mode; }
 
         };
 
         class ThreadingHandler {
+            PotentialApplier& pot;
             ThreadingMode mode;
         public:
-            PotentialArray call_potential(
+            ThreadingHandler(
+                    PotentialApplier& pot_func,
+                    ThreadingMode threading
+                    ) : pot(pot_func), mode(threading) {}
+
+            PotValsManager call_potential(
                     CoordsManager& coords,
-                    PotentialApplier& pot,
                     ExtraArgs& extraArgs
                     );
 
             void _call_omp(
-                    PotentialArray &pots,
+                    PotValsManager &pots,
                     CoordsManager &coords,
-                    PotentialApplier& pot,
                     ExtraArgs &args
             );
 
             void _call_tbb(
-                    PotentialArray &pots,
+                    PotValsManager &pots,
                     CoordsManager &coords,
-                    PotentialApplier& pot,
                     ExtraArgs &args
             );
 
             void _call_vec(
-                    PotentialArray &pots,
+                    PotValsManager &pots,
                     CoordsManager &coords,
-                    PotentialApplier& pot,
                     ExtraArgs &args
             );
 
             void _call_serial(
-                    PotentialArray &pots,
+                    PotValsManager &pots,
                     CoordsManager &coords,
-                    PotentialApplier& pot,
                     ExtraArgs &args
             );
 

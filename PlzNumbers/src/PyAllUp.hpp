@@ -1,53 +1,58 @@
-//
-// Created by Mark Boyer on 1/30/20.
-//
 
 #ifndef RYNLIB_PYALLUP_HPP
 
-const char *_GetPyString( PyObject* s, PyObject *pyStr);
+namespace rynlib {
+    namespace python {
 
-Py_ssize_t _FromInt( PyObject* );
+        const char *_GetPyString(PyObject *s, PyObject *pyStr);
 
-bool _FromBool( PyObject* );
+        Py_ssize_t _FromInt(PyObject *);
 
-Real_t _FromFloat( PyObject* );
+        bool _FromBool(PyObject *);
 
-Names _getAtomTypes( PyObject* atoms, Py_ssize_t num_atoms );
+        Real_t _FromFloat(PyObject *);
 
-Py_buffer _GetDataBuffer(PyObject *data);
+        Names _getAtomTypes(PyObject *atoms, Py_ssize_t num_atoms);
 
-double *_GetDoubleDataBufferArray(Py_buffer *view);
+        Py_buffer _GetDataBuffer(PyObject *data);
 
-double *_GetDoubleDataArray(PyObject *data);
+        double *_GetDoubleDataBufferArray(Py_buffer *view);
 
-PyObject *_getNumPyZerosMethod();
+        double *_GetDoubleDataArray(PyObject *data);
 
-PyObject *_getNumPyArray(int n, int m, const char *dtype);
-PyObject *_getNumPyArray(int n, int m, int l, const char *dtype);
-PyObject *_getNumPyArray(int n, int m, int l, int k, const char *dtype);
+        PyObject *_getNumPyZerosMethod();
 
-PyObject *_fillNumPyArray(
-        const PotentialArray &pot_vals,
-        const int ncalls,
-        const int num_walkers
-);
+        PyObject *_getNumPyArray(int n, int m, const char *dtype);
 
-PyObject *_fillNumPyArray(
-        RawPotentialBuffer coords,
-        const int ncalls,
-        const int num_walkers
-);
+        PyObject *_getNumPyArray(int n, int m, int l, const char *dtype);
 
-PyObject *_fillWalkersNumPyArray(
-        RawWalkerBuffer coords,
-        const int num_walkers,
-        const int natoms
-);
+        PyObject *_getNumPyArray(int n, int m, int l, int k, const char *dtype);
 
-void _printObject(const char* fmtString, PyObject *obj);
+        PyObject *_fillNumPyArray(
+                const PotentialArray &pot_vals,
+                const int ncalls,
+                const int num_walkers
+        );
 
-bool _pyPrintStr(const char* raw_str, const char* end="\n");
+        PyObject *_fillNumPyArray(
+                RawPotentialBuffer coords,
+                const int ncalls,
+                const int num_walkers
+        );
 
+        PyObject *_fillWalkersNumPyArray(
+                RawWalkerBuffer coords,
+                const int num_walkers,
+                const int natoms
+        );
+
+        void _printObject(const char *fmtString, PyObject *obj);
+
+        bool _pyPrintStr(const char *raw_str, const char *end = "\n");
+
+    }
+
+}
 #define RYNLIB_PYALLUP_HPP
 
 #endif //RYNLIB_PYALLUP_HPP

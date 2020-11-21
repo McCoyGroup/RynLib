@@ -15,6 +15,8 @@
 #endif
 
 namespace rynlib {
+
+    using namespace common;
     namespace PlzNumbers {
 
         // Old callers
@@ -212,6 +214,88 @@ namespace rynlib {
             return pot;
         };
 
+
+        PotValsManager _vecPotCall(
+                Configurations coords,
+                Names atoms,
+                std::vector<size_t > shape,
+                VectorizedPotentialFunction pot_func,
+                ExtraArgs &args,
+                int retries = 3
+        ) {
+
+            auto debug_print = args.debug_print;
+
+            if (debug_print) {
+                printf("calling vectorized potential on %ld walkers", coords.size());
+            }
+
+            PotValsManager pots;
+            try {
+
+                PotentialVector pot_vec = pot_func(coords,
+                                atoms,
+                                args.extra_bools,
+                                args.extra_ints,
+                                args.extra_floats
+                );
+                pots = PotValsManager(pot_vec, shape[0]);
+
+            } catch (std::exception &e) {
+                if (retries > 0) {
+                    pots = _vecPotCall(coords, atoms, shape, pot_func, args, retries - 1);
+
+                } else {
+                    printf("Error in vectorized call %s\n", e.what());
+                    pots = PotValsManager(shape[0], shape[1], args.err_val);
+                }
+            }
+
+            return pots;
+
+        }
+
+        PotValsManager _vecPotCall(
+                FlatConfigurations coords,
+                Names atoms,
+                std::vector<size_t > shape,
+                VectorizedFlatPotentialFunction pot_func,
+                ExtraArgs &args,
+                int retries = 3
+        ) {
+
+            auto debug_print = args.debug_print;
+
+            if (debug_print) {
+                printf("calling vectorized potential on %ld walkers", shape[0] * shape[1]);
+            }
+
+            PotValsManager pots;
+            try {
+
+                RawPotentialBuffer pot_dat = pot_func(coords,
+                                atoms,
+                                args.extra_bools,
+                                args.extra_ints,
+                                args.extra_floats
+                );
+                PotentialVector pot_vec(pot_dat, pot_dat + shape[0] * shape[1]);
+                pots = PotValsManager(pot_vec, shape[0]);
+
+            } catch (std::exception &e) {
+                if (retries > 0) {
+                    pots = _vecPotCall(coords, atoms, shape, pot_func, args, retries - 1);
+
+                } else {
+                    printf("Error in vectorized call %s\n", e.what());
+                    pots = PotValsManager(shape[0], shape[1], args.err_val);
+                }
+            }
+
+            return pots;
+
+        }
+
         Real_t PotentialApplier::call(
                 CoordsManager &coords,
                 ExtraArgs &args,
@@ -242,61 +326,62 @@ namespace rynlib {
             return pot_val;
         };
 
-        PotentialArray PotentialApplier::call_vectorized(
+        PotValsManager PotentialApplier::call_vectorized(
                 CoordsManager &coords,
                 ExtraArgs &args
         ) {
-            PotentialArray pot_vals;
+            PotValsManager pot_vals;
             if (flat_mode) {
                 auto walker = coords.get_flat_walkers();
                 auto atoms = coords.get_atoms();
-                pot_val = _doopAPot(
+                pot_vals = _vecPotCall(
                         walker,
                         atoms,
-                        flat_pot,
+                        coords.get_shape(),
+                        v_flat_pot,
                         args,
                         args.default_retries
                 );
             } else {
                 auto walker = coords.get_walkers();
                 auto atoms = coords.get_atoms();
-                pot_val = _doopAPot(
+                pot_vals = _vecPotCall(
                         walker,
                         atoms,
-                        pot,
+                        coords.get_shape(),
+                        v_pot,
                         args,
                         args.default_retries
                 );
             }
-            return pot_val;
+            return pot_vals;
         }
 
-        PotentialArray ThreadingHandler::call_potential(
+        PotValsManager ThreadingHandler::call_potential(
                 CoordsManager &coords,
-                PotentialApplier &pot,
                 ExtraArgs &args
         ) {
             auto shp = coords.get_shape();
             auto atoms = coords.get_atoms();
             auto ncalls = shp[0];
             auto nwalkers = shp[1];
-            PotentialArray pots(ncalls, PotentialVector(nwalkers, 0));
+            PotValsManager pots(ncalls, nwalkers);
 
             if (mode == ThreadingMode::OpenMP) {
-                ThreadingHandler::_call_omp(pots, coords, pot, args);
+                ThreadingHandler::_call_omp(pots, coords, args);
             } else if (mode == ThreadingMode::TBB) {
-                ThreadingHandler::_call_tbb(pots, coords, pot, args);
+                ThreadingHandler::_call_tbb(pots, coords, args);
             } else if (mode == ThreadingMode::VECTORIZED) {
-                ThreadingHandler::_call_vec(pots, coords, pot, args);
+                ThreadingHandler::_call_vec(pots, coords, args);
             } else {
-                ThreadingHandler::_call_serial(pots, coords, pot, args);
+                ThreadingHandler::_call_serial(pots, coords, args);
             }
 
             return pots;
         }
 
         void _loop_inner(
-                PotentialArray &pots,
+                PotValsManager &pots,
                 CoordsManager &coords,
                 PotentialApplier &pot_caller,
                 ExtraArgs &args,
@@ -306,7 +391,7 @@ namespace rynlib {
             auto n = (size_t) w / nwalkers;
             auto i = w % nwalkers;
 
-            RawPotentialBuffer current_data = pots[n].data();
+//            RawPotentialBuffer current_data = pots[n].data();
 
             std::vector<size_t> which{n, i};
             Real_t pot_val = pot_caller.call(
@@ -315,56 +400,21 @@ namespace rynlib {
                     which
             );
 
-            current_data[i] = pot_val;
-        }
-
-        PotentialArray _vecPotCall(
-                CoordsManager &coords,
-                PotentialApplier &pot_caller,
-                ExtraArgs &args,
-                int retries = 3
-        ) {
-
-            auto debug_print = args.debug_print;
-
-            if (debug_print) {
-                printf("calling vectorized potential on %ld walkers", coords.num_walkers());
-            }
-
-            PotentialArray pots;
-            try {
-
-                pots = pot_caller.call_vectorized(coords, args);
-
-            } catch (std::exception &e) {
-                if (retries > 0) {
-                    return _vecPotCall(coords, pot_caller, args, retries - 1);
-                } else {
-                    // pushed error reporting into bad_walkers_file
-                    // should probably revise yet again to print all of this stuff to python's stderr...
-                    printf("Error in vectorized call %s\n", e.what());
-                    for (auto p : pots ) {
-                        std::fill(p.begin(), p.end(), args.err_val);
-                    }
-                }
-            }
-
+            pots.assign(n, i, pot_val);
         }
 
         void ThreadingHandler::_call_vec(
-                PotentialArray &pots,
+                PotValsManager &pots,
                 CoordsManager &coords,
-                PotentialApplier &pot_caller,
                 ExtraArgs &args
         ) {
-            PotentialArray new_pots = _vecPotCall(coords, pot_caller, args);
-            pots.assign(new_pots.begin(), new_pots.end());
+            PotValsManager new_pots = pot.call_vectorized(coords, args);
+            pots.assign(new_pots);
         }
 
         void ThreadingHandler::_call_serial(
-                PotentialArray &pots,
+                PotValsManager &pots,
                 CoordsManager &coords,
-                PotentialApplier &pot_caller,
                 ExtraArgs &args
         ) {
 
@@ -380,7 +430,7 @@ namespace rynlib {
                 _loop_inner(
                         pots,
                         coords,
-                        pot_caller,
+                        pot,
                         args,
                         nwalkers,
                         w
@@ -389,9 +439,8 @@ namespace rynlib {
         }
 
         void ThreadingHandler::_call_omp(
-                PotentialArray &pots,
+                PotValsManager &pots,
                 CoordsManager &coords,
-                PotentialApplier &pot_caller,
                 ExtraArgs &args
         ) {
 #ifdef _OPENMP
@@ -408,7 +457,7 @@ namespace rynlib {
                 _loop_inner(
                         pots,
                         coords,
-                        pot_caller,
+                        pot,
                         args,
                         nwalkers,
                         w
@@ -421,9 +470,8 @@ namespace rynlib {
         }
 
         void ThreadingHandler::_call_tbb(
-                PotentialArray &pots,
+                PotValsManager &pots,
                 CoordsManager &coords,
-                PotentialApplier &pot_caller,
                 ExtraArgs &args
         ) {
 #ifdef _TBB
@@ -442,7 +490,7 @@ namespace rynlib {
                             _loop_inner(
                                     pots,
                                     coords,
-                                    pot_caller,
+                                    pot,
                                     args,
                                     nwalkers,
                                     w

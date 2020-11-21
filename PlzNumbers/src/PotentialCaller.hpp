@@ -20,30 +20,21 @@ namespace rynlib {
             ThreadingHandler &caller;
             ExtraArgs &extra_args;
 
-            bool debug_print;
-            std::string bad_walkers_file;
-            Real_t error_val;
-
         public:
 
             PotentialCaller(
                     CoordsManager& walkers,
                     MPIManager& mpi,
                     ThreadingHandler& threader,
-                    ExtraArgs& args,
-                    bool debug=false,
-                    std::string bad_walkers="",
-                    Real_t err=1.0e9
+                    ExtraArgs& args
                     ) :
                     walker_data(walkers),
                     mpi_manager(mpi),
                     caller(threader),
-                    extra_args(args),
-                    debug_print(debug),
-                    bad_walkers_file(bad_walkers),
-                    error_val(err)
+                    extra_args(args)
                     {};
-            PotentialArray get_pot() {};
+
+            PotValsManager get_pot();
 
         };
 
