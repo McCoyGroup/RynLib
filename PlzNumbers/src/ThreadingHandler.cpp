@@ -367,14 +367,23 @@ namespace rynlib {
             auto nwalkers = shp[1];
             PotValsManager pots(ncalls, nwalkers);
 
-            if (mode == ThreadingMode::OpenMP) {
-                ThreadingHandler::_call_omp(pots, coords, args);
-            } else if (mode == ThreadingMode::TBB) {
-                ThreadingHandler::_call_tbb(pots, coords, args);
-            } else if (mode == ThreadingMode::VECTORIZED) {
-                ThreadingHandler::_call_vec(pots, coords, args);
-            } else {
-                ThreadingHandler::_call_serial(pots, coords, args);
+            switch (mode) {
+                case (ThreadingMode::OpenMP) :
+                    ThreadingHandler::_call_omp(pots, coords, args);
+                    break;
+                case (ThreadingMode::TBB) :
+                    ThreadingHandler::_call_tbb(pots, coords, args);
+                    break;
+                case (ThreadingMode::VECTORIZED) :
+                    ThreadingHandler::_call_vec(pots, coords, args);
+                    break;
+                case (ThreadingMode::PYTHON) :
+                    ThreadingHandler::_call_python(pots, coords, args);
+                    break;
+                case (ThreadingMode::SERIAL) :
+                    ThreadingHandler::_call_serial(pots, coords, args);
+                default:
+                    throw std::runtime_error("Bad threading mode?");
             }
 
             return pots;

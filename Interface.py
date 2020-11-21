@@ -224,8 +224,8 @@ class PotentialInterface:
         PotentialManager().export_potential(name, dest)
 
     @classmethod
-    def compile_potential(self, name=None):
-        PotentialManager().compile_potential(name)
+    def compile_potential(self, name=None, recompile=False):
+        PotentialManager().compile_potential(name, recompile=recompile)
 
     @classmethod
     def configure_entos(cls):

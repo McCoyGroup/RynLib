@@ -216,6 +216,10 @@ function rynlib_shifter() {
       config="$PWD/config";
     fi
 
+    if [[ "$lib" = "" ]]; then
+      lib="$RYNLIB_PATH";
+    fi
+
     if [[ "$img" = "" ]]; then
       img="$RYNLIB_SHIFTER_IMAGE";
     fi
@@ -320,6 +324,10 @@ function rynlib_singularity() {
 
     if [[ "$config" = "" ]]; then
       config="$PWD/config";
+    fi
+
+    if [[ "$lib" = "" ]]; then
+      lib="$RYNLIB_PATH";
     fi
 
     if [[ "$img" = "" ]]; then
@@ -444,6 +452,10 @@ function rynlib_docker() {
     fi
 
     mkdir -p $config;
+
+    if [[ "$lib" = "" ]]; then
+      lib="$RYNLIB_PATH";
+    fi
 
     if [[ "$img" = "" ]]; then
       img="$RYNLIB_IMAGE_NAME";

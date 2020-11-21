@@ -22,54 +22,10 @@ namespace rynlib {
             PyObject* ext_int = PyTuple_GetItem(extra_args, 1);
             PyObject* ext_float = PyTuple_GetItem(extra_args, 2);
 
-            ExtraBools extra_bools;
-            ExtraInts extra_ints;
-            ExtraFloats extra_floats;
-
-            PyObject *iterator, *item;
-
-            iterator = PyObject_GetIter(ext_bool);
-            if (iterator == NULL) {
-                throw std::runtime_error("Iteration error");
-            }
-            while ((item = PyIter_Next(iterator))) {
-                extra_bools.push_back(_FromBool(item));
-                Py_DECREF(item);
-            }
-            Py_DECREF(iterator);
-            if (PyErr_Occurred()) {
-                throw std::runtime_error("Iteration error");
-            }
-
-            iterator = PyObject_GetIter(ext_int);
-            if (iterator == NULL) {
-                throw std::runtime_error("Iteration error");
-            }
-            while ((item = PyIter_Next(iterator))) {
-                extra_ints.push_back(_FromInt(item));
-                Py_DECREF(item);
-            }
-            Py_DECREF(iterator);
-            if (PyErr_Occurred()) {
-                throw std::runtime_error("Iteration error");
-            }
-
-            iterator = PyObject_GetIter(ext_float);
-            if (iterator == NULL) {
-                throw std::runtime_error("Iteration error");
-            }
-            while ((item = PyIter_Next(iterator))) {
-                extra_floats.push_back(_FromFloat(item));
-                Py_DECREF(item);
-            }
-            Py_DECREF(iterator);
-            if (PyErr_Occurred()) {
-                throw std::runtime_error("Iteration error");
-            }
-
-            PyObject *str = NULL;
-            std::string bad_walkers_file = _GetPyString(walkers_file, str);
-            Py_XDECREF(str);
+            auto extra_bools = from_python_iterable<bool>(ext_bool);
+            auto extra_ints = from_python_iterable<int>(ext_int);
+            auto extra_floats = from_python_iterable<double>(ext_float);
+            auto bad_walkers_file = from_python<std::string>(walkers_file);
 
             ExtraArgs args{
                     bad_walkers_file,
@@ -77,6 +33,7 @@ namespace rynlib {
                     debug_print,
                     retries,
 
+                    extra_args,
                     extra_bools,
                     extra_ints,
                     extra_floats
@@ -91,7 +48,8 @@ namespace rynlib {
                 bool raw_array_pot,
                 bool vectorized_potential,
                 bool use_openMP,
-                bool use_TBB
+                bool use_TBB,
+                bool python_potential
         ) {
             ThreadingMode mode = ThreadingMode::SERIAL;
             if (vectorized_potential) {
@@ -102,39 +60,29 @@ namespace rynlib {
                 mode = ThreadingMode::TBB;
             }
 
-            const char *func_name = "_potential";
             PotentialFunction pot_func = NULL;
             FlatPotentialFunction flat_pot_func = NULL;
             VectorizedPotentialFunction vec_pot_func = NULL;
             VectorizedFlatPotentialFunction vec_flat_pot_func = NULL;
-            if (vectorized_potential) {
-                if (raw_array_pot) {
-                    vec_flat_pot_func = (VectorizedFlatPotentialFunction) PyCapsule_GetPointer(capsule, func_name);
-                    if (vec_flat_pot_func == NULL) {
-                        throw std::runtime_error("Capsule error");
+            if (!python_potential) {
+                const char *func_name = "_potential";
+                if (vectorized_potential) {
+                    if (raw_array_pot) {
+                        vec_flat_pot_func = from_python_capsule<VectorizedFlatPotentialFunction>(capsule, func_name);
+                    } else {
+                        vec_pot_func = from_python_capsule<VectorizedPotentialFunction>(capsule, func_name);
                     }
                 } else {
-                    vec_pot_func = (VectorizedPotentialFunction) PyCapsule_GetPointer(capsule, func_name);
-                    if (vec_pot_func == NULL) {
-                        throw std::runtime_error("Capsule error");
+                    if (raw_array_pot) {
+                        flat_pot_func = from_python_capsule<FlatPotentialFunction>(capsule, func_name);
+                    } else {
+                        pot_func = from_python_capsule<PotentialFunction>(capsule, func_name);
                     }
-                }
-            } else {
-                if (raw_array_pot) {
-                    flat_pot_func = (FlatPotentialFunction) PyCapsule_GetPointer(capsule, func_name);
-                    if (flat_pot_func == NULL) {
-                        throw std::runtime_error("Capsule error");
-                    }
-                } else {
-                    pot_func = (PotentialFunction) PyCapsule_GetPointer(capsule, func_name);
-                    if (pot_func == NULL) {
-                        throw std::runtime_error("Capsule error");
-                    }
-                }
 
+                }
             }
 
-            PotentialApplier pot_fun(pot_func, flat_pot_func, vec_pot_func, vec_flat_pot_func);
+            PotentialApplier pot_fun(capsule, pot_func, flat_pot_func, vec_pot_func, vec_flat_pot_func, python_potential);
             return {pot_fun, mode};
 
         }
@@ -206,11 +154,11 @@ PyObject *PlzNumbers_callPot(PyObject* self, PyObject* args ) {
     double err_val;
     int raw_array_pot, vectorized_potential, debug_print;
     PyObject* manager;
-    int use_openMP, use_TBB, retries;
+    int use_openMP, use_TBB, retries, python_potential;
 
     if ( !PyArg_ParseTuple(
             args,
-            "OOOOOdppppOpp",
+            "OOOOOdppppOppp",
             &coords,
             &atoms,
             &pot_function,
@@ -223,7 +171,8 @@ PyObject *PlzNumbers_callPot(PyObject* self, PyObject* args ) {
             &retries,
             &manager,
             &use_openMP,
-            &use_TBB
+            &use_TBB,
+            &python_potential
     )
             ) return NULL;
 
@@ -245,7 +194,8 @@ PyObject *PlzNumbers_callPot(PyObject* self, PyObject* args ) {
                 raw_array_pot,
                 vectorized_potential,
                 use_openMP,
-                use_TBB
+                use_TBB,
+                python_potential
                 );
 
         rynlib::PlzNumbers::MPIManager mpi(manager);
@@ -274,3 +224,38 @@ PyObject *PlzNumbers_callPot(PyObject* self, PyObject* args ) {
     }
 
 }
+
+// PYTHON WRAPPER EXPORT
+
+static PyMethodDef PlzNumbersMethods[] = {
+        {"rynaLovesPoots", PlzNumbers_callPot, METH_VARARGS, "calls a potential on a single walker"},
+        {"rynaLovesPootsLots", PlzNumbers_callPotVec, METH_VARARGS, "calls a potential on a vector of walkers"},
+        {"rynaLovesPyPootsLots", PlzNumbers_callPyPotVec, METH_VARARGS, "calls a _python_ potential on a vector of walkers"},
+        {NULL, NULL, 0, NULL}
+};
+
+
+#if PY_MAJOR_VERSION > 2
+
+const char PlzNumbers_doc[] = "PlzNumbers manages the calling of a potential at the C++ level";
+static struct PyModuleDef PlzNumbersModule = {
+        PyModuleDef_HEAD_INIT,
+        "PlzNumbers",   /* name of module */
+        PlzNumbers_doc, /* module documentation, may be NULL */
+        -1,       /* size of per-interpreter state of the module,
+                 or -1 if the module keeps state in global variables. */
+        PlzNumbersMethods
+};
+
+PyMODINIT_FUNC PyInit_PlzNumbers(void)
+{
+    return PyModule_Create(&PlzNumbersModule);
+}
+#else
+
+PyMODINIT_FUNC initPlzNumbers(void)
+{
+    (void) Py_InitModule("PlzNumbers", PlzNumbersMethods);
+}
+
+#endif

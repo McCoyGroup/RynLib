@@ -9,6 +9,7 @@
 #include "RynTypes.hpp"
 #include "CoordsManager.hpp"
 #include "PotValsManager.hpp"
+#include <exception>
 
 
 namespace rynlib {
@@ -23,6 +24,7 @@ namespace rynlib {
             bool debug_print;
             int default_retries;
 
+            PyObject* extra_args;
             ExtraBools &extra_bools;
             ExtraInts &extra_ints;
             ExtraFloats &extra_floats;
@@ -32,42 +34,54 @@ namespace rynlib {
             OpenMP,
             TBB,
             SERIAL,
-            VECTORIZED
+            VECTORIZED,
+            PYTHON
         };
 
         class PotentialApplier {
+            PyObject* py_pot;
             PotentialFunction pot;
             FlatPotentialFunction flat_pot;
             VectorizedPotentialFunction v_pot;
             VectorizedFlatPotentialFunction v_flat_pot;
+            bool python_mode;
             bool flat_mode;
             bool vec_mode;
         public:
             PotentialApplier(
+                    PyObject* python_pot,
                     PotentialFunction pot_func,
                     FlatPotentialFunction flat_pot_func,
                     VectorizedPotentialFunction vec_pot_func,
                     VectorizedFlatPotentialFunction vec_flat_pot_func
             ) :
+                    py_pot(python_pot),
                     pot(pot_func),
                     flat_pot(flat_pot_func),
                     v_pot(vec_pot_func),
                     v_flat_pot(vec_flat_pot_func)
                      {
-                if (pot != NULL) { // from Python
-                    flat_mode = false;
-                    vec_mode = false;
-                } else if (flat_pot != NULL)  {
+                if (python_pot != NULL) {
+                    python_mode = true;
                     flat_mode = true;
                     vec_mode = false;
-                } else if (v_pot != NULL)  {
-                    flat_mode = false;
-                    vec_mode = true;
-                } else if (v_flat_pot != NULL)  {
-                    flat_mode = true;
-                    vec_mode = true;
                 } else {
-                    throw std::logic_error("wat...no potential????");
+                    python_mode = false;
+                    if (pot != NULL) { // from Python
+                        flat_mode = false;
+                        vec_mode = false;
+                    } else if (flat_pot != NULL) {
+                        flat_mode = true;
+                        vec_mode = false;
+                    } else if (v_pot != NULL) {
+                        flat_mode = false;
+                        vec_mode = true;
+                    } else if (v_flat_pot != NULL) {
+                        flat_mode = true;
+                        vec_mode = true;
+                    } else {
+                        throw std::runtime_error("wat...no potential????");
+                    }
                 }
 
             };
@@ -114,6 +128,12 @@ namespace rynlib {
             );
 
             void _call_vec(
+                    PotValsManager &pots,
+                    CoordsManager &coords,
+                    ExtraArgs &args
+            );
+
+            void _call_python(
                     PotValsManager &pots,
                     CoordsManager &coords,
                     ExtraArgs &args

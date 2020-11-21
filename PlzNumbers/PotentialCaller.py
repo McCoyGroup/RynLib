@@ -70,14 +70,18 @@ class PotentialCaller:
                          include_dirs=[
                              "/lib/x86_64-linux-gnu",
                              os.path.join(TBB_Ubutu, "include"),
-                             os.path.join(TBB_Ubutu, "lib", "intel64", "gcc4.8")
+                             os.path.join(TBB_Ubutu, "lib", "intel64", "gcc4.8"),
+                             np.get_include()
                          ],
                          runtime_dirs=[
                              "/lib/x86_64-linux-gnu",
                              os.path.join(TBB_Ubutu, "lib", "intel64", "gcc4.8")
                          ],
                          linked_libs=['tbb', 'tbbmalloc', 'tbbmalloc_proxy'],
-                         source_files=["PlzNumbers.cpp", "Potators.cpp", "PyAllUp.cpp"]
+                         source_files=["PlzNumbers.cpp", "Potators.cpp", "PyAllUp.cpp"],
+                         macros=[
+                             ("_TBB",)
+                        ]
                 )
         return loader.load()
 
