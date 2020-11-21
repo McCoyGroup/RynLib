@@ -15,12 +15,15 @@ typedef std::vector< Point > Coordinates;
 typedef Point FlatCoordinates;
 typedef Coordinates PotentialArray;
 typedef std::vector< Coordinates > Configurations;
+typedef RawPotentialBuffer FlatConfigurations;
 typedef std::string Name;
 typedef std::vector<std::string> Names;
 
 typedef std::vector<bool> ExtraBools;
 typedef std::vector<int> ExtraInts;
 typedef std::vector<Real_t> ExtraFloats;
+
+
 
 typedef Real_t (*PotentialFunction)(
         const Coordinates,
@@ -36,10 +39,20 @@ typedef Real_t (*FlatPotentialFunction)(
         const ExtraInts,
         const ExtraFloats
 );
-
-typedef int (*ScatterFunction)(PyObject*, RawWalkerBuffer, int, int, RawWalkerBuffer);
-typedef int (*GatherWalkerFunction)(PyObject*, RawWalkerBuffer, int, int, RawWalkerBuffer);
-typedef int (*GatherFunction)(PyObject*, RawPotentialBuffer, int, RawPotentialBuffer);
+typedef Real_t (*VectorizedPotentialFunction)(
+        const Configurations,
+        const Names,
+        const ExtraBools,
+        const ExtraInts,
+        const ExtraFloats
+);
+typedef Real_t (*VectorizedFlatPotentialFunction)(
+        const FlatConfigurations,
+        const Names,
+        const ExtraBools,
+        const ExtraInts,
+        const ExtraFloats
+);
 
 #define RYNLIB_RYNTYPES_HPP
 
