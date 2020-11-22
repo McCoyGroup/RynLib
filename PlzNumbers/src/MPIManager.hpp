@@ -44,6 +44,9 @@ namespace rynlib {
                 if (mpi_world_rank == -1) { init(); }
                 return mpi_world_rank;
             }
+            bool is_main() {
+                return world_rank() == 0;
+            }
         };
     }
 }

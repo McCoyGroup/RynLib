@@ -9,6 +9,28 @@ __all__ = [
     "PotentialCaller"
 ]
 
+
+
+
+class PotentialArguments:
+    """
+    Class that holds arguments to be fed through to potentials
+    """
+    def __init__(self,
+                 *extra_args,
+                 ):
+        # supported extra types
+        extra_bools = []
+        extra_ints = []
+        extra_floats = []
+        for a in extra_args:
+            if a is True or a is False:
+                extra_bools.append(a)
+            elif isinstance(a, int):
+                extra_ints.append(a)
+            elif isinstance(a, float):
+                extra_floats.append(a)
+
 class PotentialCaller:
     """
     Takes a pointer to a C++ potential calls this potential on a set of geometries / atoms / whatever
@@ -25,12 +47,13 @@ class PotentialCaller:
         "caller_retries"
     ]
     def __init__(self,
-                 potential, *ignore,
-                 bad_walker_file="bad_walkers.txt",
+                 potential,
+                 *ignore,
                  mpi_manager=None,
-                 raw_array_potential = None,
-                 vectorized_potential = False,
-                 error_value = 10.e9,
+                 bad_walker_file=None,
+                 raw_array_potential=None,
+                 vectorized_potential=False,
+                 error_value=1.0e9,
                  fortran_potential=False,
                  transpose_call=None,
                  debug_print=False,
@@ -40,21 +63,22 @@ class PotentialCaller:
         if len(ignore) > 0:
             raise ValueError("Only one positional argument (for the potential) accepted")
         self.potential = potential
-        self.bad_walkers_file = bad_walker_file
         self._mpi_manager = mpi_manager
-        self.vectorized_potential = vectorized_potential
-        self.raw_array_potential = fortran_potential if raw_array_potential is None else raw_array_potential
-        self.error_value = error_value
         self._lib = None
         self._py_pot = not repr(self.potential).startswith("<capsule object ")  # wow this is a hack...
         self._wrapped_pot = None
+
+        self.bad_walkers_file = bad_walker_file
+        self.vectorized_potential = vectorized_potential
+        self.raw_array_potential = fortran_potential if raw_array_potential is None else raw_array_potential
+        self.error_value = error_value
         self.fortran_potential = fortran_potential
         if transpose_call is None:
             transpose_call = fortran_potential
         self.transpose_call = transpose_call
         self.debug_print = debug_print
-        self.catch_abort=catch_abort
-        self.caller_retries=caller_retries
+        self.catch_abort = catch_abort
+        self.caller_retries = caller_retries
 
     cpp_std = '-std=c++17'
     @classmethod
@@ -78,7 +102,14 @@ class PotentialCaller:
                              os.path.join(TBB_Ubutu, "lib", "intel64", "gcc4.8")
                          ],
                          linked_libs=['tbb', 'tbbmalloc', 'tbbmalloc_proxy'],
-                         source_files=["PlzNumbers.cpp", "Potators.cpp", "PyAllUp.cpp"],
+                         source_files=[
+                             "PlzNumbers.cpp",
+                             "PotentialCaller.cpp",
+                             "MPIManager.cpp",
+                             "CoordsManager.cpp",
+                             "PotValsManager.cpp",
+                             "ThreadingHandler.cpp"
+                         ],
                          macros=[
                              ("_TBB",)
                         ]
@@ -103,7 +134,30 @@ class PotentialCaller:
             self._lib = self.load_lib()
         return self._lib
 
-    def call_single(self, walker, atoms, extra_bools=(), extra_ints=(), extra_floats=()):
+    @property
+    def mpi_manager(self):
+        return self._mpi_manager
+    @mpi_manager.setter
+    def mpi_manager(self, m):
+        self._mpi_manager = m
+
+    def clean_up(self):
+        if isinstance(self._wrapped_pot, self.PoolPotential):
+            self._wrapped_pot.terminate()
+            self._wrapped_pot = None
+
+    def _get_omp_threads(self):
+        from ..Interface import RynLib
+        return RynLib.flags['OpenMPThreads']
+
+    def _get_tbb_threads(self):
+        from ..Interface import RynLib
+        return RynLib.flags['TBBThreads']
+
+    def call_multiple(self, walker, atoms, *extra_args,
+                      omp_threads=None,
+                      tbb_threads=None
+                      ):
         """
 
         :param walker:
@@ -114,38 +168,96 @@ class PotentialCaller:
         :rtype:
         """
 
-        if self.catch_abort is not False or self.catch_abort is not None:
-            if self.catch_abort is True:
-                def handler(*args, **kwargs):
-                    raise RuntimeError("Abort occurred?")
-            elif isinstance(self.catch_abort, str) and self.catch_abort=="ignore":
-                def handler(*args, **kwargs):
-                    print("Abort occurred?")
-            else:
-                handler = self.catch_abort
-
-            signal.signal(signal.SIGABRT, handler)
-
-        if self._py_pot:
-            return self.potential(walker, atoms, (extra_bools, extra_ints, extra_floats))
+        smol_guy = walker.ndim == 2
+        if smol_guy:
+            walker = np.reshape(walker, (1, 1) + walker.shape[:1] + walker.shape[1:])
         else:
+            smol_guy = walker.ndim == 3
+            if smol_guy:
+                walker = np.reshape(walker, (1,) + walker.shape[:1] + walker.shape[1:])
+
+        if self._py_pot and self._wrapped_pot is None:
+            num_walkers = int(np.product(walker.shape[:-2]))
+            self._wrapped_pot = self._mp_wrap(self.potential, num_walkers, self.mpi_manager)
+
+        if self._py_pot and self.mpi_manager is None:
+            poots = self._wrapped_pot(walker, atoms, extra_args)
+        else:
+
+            # clumy way to determine the # of threads we need
+            omp = self._get_omp_threads() if omp_threads is None else omp_threads
+            if omp and (self.mpi_manager is not None):
+                omp = self.mpi_manager.hybrid_parallelization
+                tbb = False
+            else:
+                omp = False
+                tbb = self._get_tbb_threads() if tbb_threads is None else tbb_threads
+                if tbb and (self.mpi_manager is not None):
+                    tbb = self.mpi_manager.hybrid_parallelization
+
+            # for MPI efficiency, we reshape so we have # walkers, then # calls
+            # realistically this doesn't matter, but it's here for historical reasons...
+            walker = walker.transpose((1, 0, 2, 3))
             if self.transpose_call:
-                walker = walker.transpose()
+                walker = walker.transpose((0, 1, 3, 2))
             coords = np.ascontiguousarray(walker).astype(float)
-            # print(coords)
-            return self.lib.rynaLovesPoots(
+
+            # do the actual call into
+            poots = self.lib.rynaLovesPootsLots(
                 coords,
                 atoms,
                 self.potential,
-                self.bad_walkers_file,
-                float(self.error_value),
-                bool(self.raw_array_potential),
-                bool(self.debug_print),
-                int(self.caller_retries),
-                extra_bools,
-                extra_ints,
-                extra_floats
+                self.mpi_manager,
+                PotentialArguments(
+                    *extra_args,
+                    bad_walkers_file=self.bad_walkers_file,
+                    error_value=float(self.error_value),
+                    raw_array_potential=bool(self.raw_array_potential),
+                    vectorized_potential=bool(self.vectorized_potential),
+                    debug_print=bool(self.debug_print),
+                    caller_retries=int(self.caller_retries),
+                    use_openmp=bool(omp),
+                    use_tbb=bool(tbb)
+                )
             )
+            if poots is not None:
+                if self.mpi_manager is not None: # switch the shape back around
+                    poots = poots.transpose()
+                else:
+                    shp = poots.shape
+                    poots = poots.reshape(shp[1], shp[0]).transpose()
+
+        if poots is not None and self.mpi_manager is not None:
+            poots = poots.squeeze()[0] if smol_guy else poots
+        return poots
+
+    def __call__(self, walkers, atoms, *extra_args):
+        """
+
+        :param walker:
+        :type walker: np.ndarray
+        :param atoms:
+        :type atoms: List[str]
+        :return:
+        :rtype:
+        """
+
+        if not isinstance(walkers, np.ndarray):
+            walkers = np.array(walkers)
+
+        ndim = walkers.ndim
+
+        if 1 < ndim < 5:
+            poots = self.call_multiple(walkers, atoms, *extra_args)
+        else:
+            raise ValueError(
+                "{}: caller expects data of rank 2, 3, or 4. Got {}.".format(
+                    type(self).__name__,
+                    ndim
+                    )
+                )
+
+        return poots
 
     class PoolPotential:
         rooot_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
@@ -315,126 +427,3 @@ class PotentialCaller:
             potential = pot
 
         return potential
-
-    @property
-    def mpi_manager(self):
-        return self._mpi_manager
-    @mpi_manager.setter
-    def mpi_manager(self, m):
-        self._mpi_manager = m
-
-    def clean_up(self):
-        if isinstance(self._wrapped_pot, self.PoolPotential):
-            self._wrapped_pot.terminate()
-            self._wrapped_pot = None
-    def call_multiple(self, walker, atoms, extra_bools=(), extra_ints=(), extra_floats=()):
-        """
-
-        :param walker:
-        :type walker: np.ndarray
-        :param atoms:
-        :type atoms: List[str]
-        :return:
-        :rtype:
-        """
-
-        smol_guy = walker.ndim == 3
-        if smol_guy:
-            walker = np.reshape(walker, (1,) + walker.shape[:1] + walker.shape[1:])
-
-        if self._py_pot and self._wrapped_pot is None:
-            num_walkers = int(np.product(walker.shape[:-2]))
-            self._wrapped_pot = self._mp_wrap(self.potential, num_walkers, self.mpi_manager)
-        if self._py_pot and self.mpi_manager is None:
-            poots = self._wrapped_pot(walker, atoms, (extra_bools, extra_ints, extra_floats))
-        elif self._py_pot:
-            walker = walker.transpose((1, 0, 2, 3))
-            if self.transpose_call:
-                walker = walker.transpose((0, 1, 3, 2))
-            coords = np.ascontiguousarray(walker).astype(float)
-            poots = self.lib.rynaLovesPyPootsLots(
-                coords,
-                tuple(atoms),
-                self._wrapped_pot,
-                self.mpi_manager,
-                (extra_bools, extra_ints, extra_floats)
-            )
-            if poots is not None:
-                poots = poots.transpose()
-        else:
-            from ..Interface import RynLib
-            omp = RynLib.flags['OpenMPThreads']
-            tbb = RynLib.flags['TBBThreads']
-            if omp and (self.mpi_manager is not None):
-                omp = self.mpi_manager.hybrid_parallelization
-            if tbb and (self.mpi_manager is not None):
-                tbb = self.mpi_manager.hybrid_parallelization
-            walker = walker.transpose((1, 0, 2, 3))
-            if self.transpose_call:
-                walker = walker.transpose((0, 1, 3, 2))
-            coords = np.ascontiguousarray(walker).astype(float)
-            poots = self.lib.rynaLovesPootsLots(
-                coords,
-                list(atoms), # turns out I use `PyList_GetTuple` in the code -_-
-                self.potential,
-                (extra_bools, extra_ints, extra_floats),
-                self.bad_walkers_file,
-                float(self.error_value),
-                bool(self.raw_array_potential),
-                bool(self.vectorized_potential),
-                bool(self.debug_print),
-                int(self.caller_retries),
-                self.mpi_manager,
-                bool(omp),
-                bool(tbb)
-            )
-            if poots is not None:
-                if self.mpi_manager is not None:
-                    poots = poots.transpose()
-                else:
-                    shp = poots.shape
-                    poots = poots.reshape(shp[1], shp[0]).transpose()
-        if poots is not None and self.mpi_manager is not None:
-            poots = poots[0] if smol_guy else poots
-        return poots
-
-    def __call__(self, walkers, atoms, *extra_args):
-        """
-
-        :param walker:
-        :type walker: np.ndarray
-        :param atoms:
-        :type atoms: List[str]
-        :return:
-        :rtype:
-        """
-
-        extra_bools = []
-        extra_ints = []
-        extra_floats = []
-        for a in extra_args:
-            if a is True or a is False:
-                extra_bools.append(a)
-            elif isinstance(a, int):
-                extra_ints.append(a)
-            elif isinstance(a, float):
-                extra_floats.append(a)
-
-        if not isinstance(walkers, np.ndarray):
-            walkers = np.array(walkers)
-
-        ndim = walkers.ndim
-
-        if ndim == 2:
-            poots = self.call_single(walkers, atoms, extra_bools, extra_ints, extra_floats)
-        elif ndim == 3 or ndim == 4:
-            poots = self.call_multiple(walkers, atoms, extra_bools, extra_ints, extra_floats)
-        else:
-            raise ValueError(
-                "{}: caller expects data of rank 2, 3, or 4. Got {}.".format(
-                    type(self).__name__,
-                    ndim
-                    )
-                )
-
-        return poots

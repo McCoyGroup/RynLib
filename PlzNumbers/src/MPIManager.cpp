@@ -13,10 +13,10 @@ namespace rynlib {
                 mpi_world_rank = 0;
             } else {
                 PyObject *ws = PyObject_GetAttrString(mpi_manager, "world_size");
-                mpi_world_size = rynlib::python::_FromInt(ws);
+                mpi_world_size = rynlib::python::from_python<int>(ws);
                 Py_XDECREF(ws);
                 PyObject *wr = PyObject_GetAttrString(mpi_manager, "world_rank");
-                mpi_world_rank = rynlib::python::_FromInt(wr);
+                mpi_world_rank = rynlib::python::from_python<int>(wr);
                 Py_XDECREF(wr);
             }
 
@@ -37,8 +37,8 @@ namespace rynlib {
 
 
 
-            auto ncalls = coords.get_shape()[0];
-            auto num_walkers = coords.get_shape()[1];
+            auto ncalls = coords.num_calls();
+            auto num_walkers = coords.num_walkers();
 
             // we're gonna assume the former is divisible by the latter on world_rank == 0
             // and that it's just plain `num_walkers` on every other world_rank
@@ -71,11 +71,9 @@ namespace rynlib {
 
             // Now we build a new CoordsManager
 
-            return CoordsManager(
-                    walker_buf,
-                    coords.get_atoms(),
-                    {ncalls, num_walkers_per_core}
-                    );
+            auto atoms = coords.get_atoms();
+            auto shp = coords.get_shape();
+            return CoordsManager(walker_buf, atoms, shp);
         }
 
         PotValsManager MPIManager::gather_potentials(
@@ -85,8 +83,8 @@ namespace rynlib {
 
             if (no_mpi()) return pots;
 
-            auto ncalls = coords.get_shape()[0];
-            auto num_walkers = coords.get_shape()[1];
+            auto ncalls = coords.num_calls();
+            auto num_walkers = coords.num_walkers();
 
             // receive buffer -- needs to be the number of walkers total in the system,
             // so we take the number of walkers and multiply it into the number of calls we make

@@ -2,10 +2,10 @@
 // Manage coordinate defs
 //
 
-#include "CoordsManager.hpp"
+#include "ThreadedDataManager.hpp.hpp"
 #include "PyAllUp.hpp"
 
-namespace rynlib {
+namespace simpleffi {
     namespace PlzNumbers {
 
         // dumb little function to get indices
@@ -86,8 +86,7 @@ namespace rynlib {
         Coordinates CoordsManager::get_walker(std::vector<size_t> which) {
             Coordinates walker_coords;
             size_t num_crds = which.size();
-            auto ncalls = num_calls();
-            auto nwalks = num_walkers();
+            auto shape = get_shape();
             switch (num_crds) {
                 case 1:
                     walker_coords = _getWalkerCoords(
@@ -101,8 +100,8 @@ namespace rynlib {
                             walker_data,
                             which[0],
                             which[1],
-                            num_calls(),
-                            num_walkers(),
+                            shape[0],
+                            shape[1],
                             num_atoms()
                     );
                     break;
@@ -115,8 +114,7 @@ namespace rynlib {
         FlatCoordinates CoordsManager::get_flat_walker(std::vector<size_t> which) {
             FlatCoordinates walker_coords;
             size_t num_crds = which.size();
-            auto ncalls = num_calls();
-            auto nwalks = num_walkers();
+            auto shape = get_shape();
             switch (num_crds) {
                 case 1:
                     walker_coords = _getWalkerFlatCoords(
@@ -130,8 +128,8 @@ namespace rynlib {
                             walker_data,
                             which[0],
                             which[1],
-                            ncalls,
-                            nwalks,
+                            shape[0],
+                            shape[1],
                             num_atoms()
                     );
                     break;
@@ -145,16 +143,14 @@ namespace rynlib {
             // construct array and fill...not great but not a total disaster
             // probably could be done more elegantly with some direct initialization or
             // something but I'm dumb and don't know C++ that well...
-            Configurations walkers(num_geoms(),
+            Configurations walkers(num_walkers(),
                                    Coordinates(num_atoms(), Point(3, 0.))
             );
-            auto ncalls = num_calls();
-            auto nwalks = num_walkers();
-            for (auto n = 0; n < ncalls; n++) {
-                for (auto i = 0; i < nwalks; i++) {
+            for (auto n = 0; n < shape[0]; n++) {
+                for (auto i = 0; i < shape[0]; i++) {
                     _fillWalkerCoords2(
                             walker_data, n, i,
-                            ncalls, nwalks, num_atoms(),
+                            shape[0], shape[1], num_atoms(),
                             walkers[n]
                     );
                 }

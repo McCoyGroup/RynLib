@@ -12,79 +12,14 @@ namespace rynlib {
     using namespace python;
     namespace PlzNumbers {
 
-        ExtraArgs load_args(
-                PyObject *extra_args,
-                PyObject *walkers_file, Real_t err_val, int retries,
-                bool debug_print
-        ) {
-
-            PyObject* ext_bool = PyTuple_GetItem(extra_args, 0);
-            PyObject* ext_int = PyTuple_GetItem(extra_args, 1);
-            PyObject* ext_float = PyTuple_GetItem(extra_args, 2);
-
-            auto extra_bools = from_python_iterable<bool>(ext_bool);
-            auto extra_ints = from_python_iterable<int>(ext_int);
-            auto extra_floats = from_python_iterable<double>(ext_float);
-            auto bad_walkers_file = from_python<std::string>(walkers_file);
-
-            ExtraArgs args{
-                    bad_walkers_file,
-                    err_val,
-                    debug_print,
-                    retries,
-
-                    extra_args,
-                    extra_bools,
-                    extra_ints,
-                    extra_floats
-            };
-
-            return args;
-
-        }
 
         ThreadingHandler load_caller(
                 PyObject *capsule,
-                bool raw_array_pot,
-                bool vectorized_potential,
-                bool use_openMP,
-                bool use_TBB,
-                bool python_potential
+                CallerParameters parameters
         ) {
-            ThreadingMode mode = ThreadingMode::SERIAL;
-            if (vectorized_potential) {
-                mode = ThreadingMode::VECTORIZED;
-            } else if (use_openMP) {
-                mode = ThreadingMode::OpenMP;
-            } else if (use_TBB) {
-                mode = ThreadingMode::TBB;
-            }
-
-            PotentialFunction pot_func = NULL;
-            FlatPotentialFunction flat_pot_func = NULL;
-            VectorizedPotentialFunction vec_pot_func = NULL;
-            VectorizedFlatPotentialFunction vec_flat_pot_func = NULL;
-            if (!python_potential) {
-                const char *func_name = "_potential";
-                if (vectorized_potential) {
-                    if (raw_array_pot) {
-                        vec_flat_pot_func = from_python_capsule<VectorizedFlatPotentialFunction>(capsule, func_name);
-                    } else {
-                        vec_pot_func = from_python_capsule<VectorizedPotentialFunction>(capsule, func_name);
-                    }
-                } else {
-                    if (raw_array_pot) {
-                        flat_pot_func = from_python_capsule<FlatPotentialFunction>(capsule, func_name);
-                    } else {
-                        pot_func = from_python_capsule<PotentialFunction>(capsule, func_name);
-                    }
-
-                }
-            }
-
-            PotentialApplier pot_fun(capsule, pot_func, flat_pot_func, vec_pot_func, vec_flat_pot_func, python_potential);
+            ThreadingMode mode = parameters.threading_mode();
+            PotentialApplier pot_fun(capsule, parameters);
             return {pot_fun, mode};
-
         }
 
         CoordsManager load_coords(
@@ -92,87 +27,29 @@ namespace rynlib {
                 PyObject *atoms
         ) {
 
-            // Assumes we get n atom type names
-            Py_ssize_t num_atoms = PyObject_Length(atoms);
-            Names mattsAtoms = _getAtomTypes(atoms, num_atoms);
+            auto mattsAtoms = from_python_iterable<std::string>(atoms);
+            std::vector<size_t> shape = numpy_shape<size_t>(coords);
+            auto raw_data = get_numpy_data<Real_t >(coords);
 
-            // Assumes number of walkers X number of atoms X 3
-            double* raw_data = _GetDoubleDataArray(coords);
-            if (raw_data == NULL) {
-                throw std::runtime_error("NumPy issues");
-            }
-
-            // we'll assume we have number of walkers X ncalls X number of atoms X 3
-            PyObject *shape = PyObject_GetAttrString(coords, "shape");
-            if (shape == NULL) {
-                throw std::runtime_error("NumPy issues");
-            }
-            PyObject *ncalls_obj = PyTuple_GetItem(shape, 1);
-            if (ncalls_obj == NULL) {
-                throw std::runtime_error("NumPy issues");
-            }
-            Py_ssize_t ncalls = _FromInt(ncalls_obj);
-            if (PyErr_Occurred()) {
-                throw std::runtime_error("NumPy issues");
-            }
-            PyObject *num_walkers_obj = PyTuple_GetItem(shape, 0);
-            if (num_walkers_obj == NULL) {
-                throw std::runtime_error("NumPy issues");
-            }
-            Py_ssize_t num_walkers = _FromInt(num_walkers_obj);
-            if (PyErr_Occurred()) {
-                throw std::runtime_error("NumPy issues");
-            }
-
-            return {
-                raw_data,
-                mattsAtoms,
-                {static_cast<size_t >(ncalls), num_walkers} // CLion said I had to...
-            };
+            return {raw_data, mattsAtoms, shape};
 
         }
 
-        PyObject* recompose_NumPy_array(
-                CoordsManager coords,
-                PotValsManager pot_vals
-                ) {
-
-            return _fillNumPyArray(
-                    pot_vals.data(),
-                    coords.get_shape()[0],
-                    coords.get_shape()[1]
-                    );
-
-        }
     }
 }
 
+PyObject *PlzNumbers_callPotVec(PyObject* self, PyObject* args ) {
 
-PyObject *PlzNumbers_callPot(PyObject* self, PyObject* args ) {
-
-    PyObject* coords, *atoms, *pot_function, *extra_args, *bad_walkers_file;
-    double err_val;
-    int raw_array_pot, vectorized_potential, debug_print;
-    PyObject* manager;
-    int use_openMP, use_TBB, retries, python_potential;
+    PyObject* coords, *atoms, *pot_function, *parameters, *manager;
 
     if ( !PyArg_ParseTuple(
             args,
-            "OOOOOdppppOppp",
+            "OOOOO",
             &coords,
             &atoms,
             &pot_function,
-            &extra_args,
-            &bad_walkers_file,
-            &err_val,
-            &raw_array_pot,
-            &vectorized_potential,
-            &debug_print,
-            &retries,
-            &manager,
-            &use_openMP,
-            &use_TBB,
-            &python_potential
+            &parameters,
+            &manager
     )
             ) return NULL;
 
@@ -183,59 +60,41 @@ PyObject *PlzNumbers_callPot(PyObject* self, PyObject* args ) {
                 atoms
         );
 
-        auto arg_list = rynlib::PlzNumbers::load_args(
-                extra_args,
-                bad_walkers_file, err_val, retries,
-                debug_print
-        );
+        rynlib::PlzNumbers::CallerParameters params(atoms, parameters);
 
-        auto caller = rynlib::PlzNumbers::load_caller(
-                pot_function,
-                raw_array_pot,
-                vectorized_potential,
-                use_openMP,
-                use_TBB,
-                python_potential
-                );
+        auto caller = rynlib::PlzNumbers::load_caller(pot_function, params);
 
         rynlib::PlzNumbers::MPIManager mpi(manager);
 
         rynlib::PlzNumbers::PotentialCaller evaluator(
                 coord_data,
                 mpi,
-                caller,
-                arg_list
+                caller
         );
 
         auto pot_vals = evaluator.get_pot();
 
-        PyObject* pot_obj = rynlib::PlzNumbers::recompose_NumPy_array(
-                coord_data,
-                pot_vals
-        );
+        if (mpi.is_main()) {
+            PyObject *pot_obj = rynlib::python::numpy_from_data<Real_t>(pot_vals.data(), coord_data.get_shape());
+            return pot_obj;
+        } else {
+            Py_RETURN_NONE;
+        }
 
-
-        return pot_obj;
 
     } catch (std::exception &e) {
         // maybe I want to set a message -> just here to protect us against segfaults and shit...
         return NULL;
-
     }
 
 }
 
-// PYTHON WRAPPER EXPORT
+// PYTHON WRAPPER EXPORT (Python 3 only)
 
 static PyMethodDef PlzNumbersMethods[] = {
-        {"rynaLovesPoots", PlzNumbers_callPot, METH_VARARGS, "calls a potential on a single walker"},
         {"rynaLovesPootsLots", PlzNumbers_callPotVec, METH_VARARGS, "calls a potential on a vector of walkers"},
-        {"rynaLovesPyPootsLots", PlzNumbers_callPyPotVec, METH_VARARGS, "calls a _python_ potential on a vector of walkers"},
         {NULL, NULL, 0, NULL}
 };
-
-
-#if PY_MAJOR_VERSION > 2
 
 const char PlzNumbers_doc[] = "PlzNumbers manages the calling of a potential at the C++ level";
 static struct PyModuleDef PlzNumbersModule = {
@@ -251,11 +110,3 @@ PyMODINIT_FUNC PyInit_PlzNumbers(void)
 {
     return PyModule_Create(&PlzNumbersModule);
 }
-#else
-
-PyMODINIT_FUNC initPlzNumbers(void)
-{
-    (void) Py_InitModule("PlzNumbers", PlzNumbersMethods);
-}
-
-#endif

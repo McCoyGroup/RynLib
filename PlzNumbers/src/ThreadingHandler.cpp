@@ -102,286 +102,178 @@ namespace rynlib {
 
         }
 
-        void _sigillHandler(int signum) {
-            printf("Illegal instruction signal (%d) received.\n", signum);
-            abort();
-//    exit(signum);
-        }
-
-        void _sigsevHandler(int signum) {
-            printf("Segfault signal (%d) received.\n", signum);
-            abort();
-        }
-
-        double _doopAPot(
-                Coordinates &walker_coords,
-                Names &atoms,
-                PotentialFunction pot_func,
-                ExtraArgs &args,
+        Real_t PotentialApplier::call(
+                CoordsManager &coords,
+                std::vector<size_t>& which,
                 int retries
         ) {
-            double pot;
+            Real_t pot_val;
 
-            std::string bad_walkers_file = args.bad_walkers_file;
-            double err_val = args.err_val;
-            bool debug_print = args.debug_print;
-            ExtraBools &extra_bools = args.extra_bools;
-            ExtraInts &extra_ints = args.extra_ints;
-            ExtraFloats &extra_floats = args.extra_floats;
+            auto atoms = coords.get_atoms();
+            auto bad_walkers_file = params.bad_walkers_dump();
+            auto err_val = params.error_val();
+            bool debug_print = params.debug();
+            auto extra_bools = params.extra_bools();
+            auto extra_ints = params.extra_ints();
+            auto extra_floats = params.extra_floats();
 
             try {
                 if (debug_print) {
-                    std::string walker_string = _appendWalkerStr("Walker before call: ", "", walker_coords);
+                    std::string walker_string;
+                    if (params.flat_mode()) {
+                        auto walker = coords.get_flat_walker(which);
+                        walker_string = _appendWalkerStr("Walker before call: ", "", walker);
+                    } else {
+                        auto walker = coords.get_walker(which);
+                        walker_string = _appendWalkerStr("Walker before call: ", "", walker);
+                    }
                     printf("%s\n", walker_string.c_str());
                 }
-                pot = pot_func(walker_coords, atoms, extra_bools, extra_ints, extra_floats);
+
+                if (params.flat_mode()) {
+                    auto walker = coords.get_flat_walker(which);
+                    pot_val = flat_pot(walker, atoms, extra_bools, extra_ints, extra_floats);
+                } else {
+                    auto walker = coords.get_walker(which);
+                    pot_val = pot(walker, atoms, extra_bools, extra_ints, extra_floats);
+                }
+//                pot = pot_func(walker_coords, atoms, extra_bools, extra_ints, extra_floats);
                 if (debug_print) {
-                    printf("  got back energy: %f\n", pot);
+                    printf("  got back energy: %f\n", pot_val);
                 }
 
             } catch (std::exception &e) {
                 if (retries > 0) {
-                    return _doopAPot(walker_coords, atoms, pot_func, args, retries - 1);
+                    return call(coords, which, retries - 1);
                 } else {
                     // pushed error reporting into bad_walkers_file
                     // should probably revise yet again to print all of this stuff to python's stderr...
                     if (debug_print) {
-                        std::string no_str = "";
-                        _printOutWalkerStuff(
-                                walker_coords,
-                                no_str,
-                                e.what()
-                        );
-                    } else {
-                        _printOutWalkerStuff(
-                                walker_coords,
-                                bad_walkers_file,
-                                e.what()
-                        );
+                        bad_walkers_file = "";
                     }
-                    pot = err_val;
-                }
-            }
-
-            return pot;
-        };
-
-        double _doopAPot(
-                FlatCoordinates &walker_coords,
-                Names &atoms,
-                FlatPotentialFunction pot_func,
-                ExtraArgs &args,
-                int retries
-        ) {
-            double pot;
-
-            std::string bad_walkers_file = args.bad_walkers_file;
-            double err_val = args.err_val;
-            bool debug_print = args.debug_print;
-            ExtraBools &extra_bools = args.extra_bools;
-            ExtraInts &extra_ints = args.extra_ints;
-            ExtraFloats &extra_floats = args.extra_floats;
-
-            try {
-                if (debug_print) {
-                    std::string walker_string = _appendWalkerStr("Walker before call: ", "", walker_coords);
-                    printf("%s\n", walker_string.c_str());
-                }
-                pot = pot_func(walker_coords, atoms, extra_bools, extra_ints, extra_floats);
-
-            } catch (std::exception &e) {
-                if (retries > 0) {
-                    return _doopAPot(walker_coords, atoms, pot_func, args, retries - 1);
-                } else {
-                    if (debug_print) {
-                        std::string no_str = "";
-                        _printOutWalkerStuff(
-                                walker_coords,
-                                no_str,
-                                e.what()
-                        );
+                    if (params.flat_mode()) {
+                        auto walker = coords.get_flat_walker(which);
+                        _printOutWalkerStuff(walker, bad_walkers_file, e.what());
                     } else {
-                        _printOutWalkerStuff(
-                                walker_coords,
-                                bad_walkers_file,
-                                e.what()
-                        );
+                        auto walker = coords.get_walker(which);
+                        _printOutWalkerStuff(walker, bad_walkers_file, e.what());
                     }
-                    pot = err_val;
+                    pot_val = err_val;
                 }
             }
 
-            return pot;
-        };
-
-
-        PotValsManager _vecPotCall(
-                Configurations coords,
-                Names atoms,
-                std::vector<size_t > shape,
-                VectorizedPotentialFunction pot_func,
-                ExtraArgs &args,
-                int retries = 3
-        ) {
-
-            auto debug_print = args.debug_print;
-
-            if (debug_print) {
-                printf("calling vectorized potential on %ld walkers", coords.size());
-            }
-
-            PotValsManager pots;
-            try {
-
-                PotentialVector pot_vec = pot_func(coords,
-                                atoms,
-                                args.extra_bools,
-                                args.extra_ints,
-                                args.extra_floats
-                );
-                pots = PotValsManager(pot_vec, shape[0]);
-
-            } catch (std::exception &e) {
-                if (retries > 0) {
-                    pots = _vecPotCall(coords, atoms, shape, pot_func, args, retries - 1);
-
-                } else {
-                    printf("Error in vectorized call %s\n", e.what());
-                    pots = PotValsManager(shape[0], shape[1], args.err_val);
-                }
-            }
-
-            return pots;
-
-        }
-
-        PotValsManager _vecPotCall(
-                FlatConfigurations coords,
-                Names atoms,
-                std::vector<size_t > shape,
-                VectorizedFlatPotentialFunction pot_func,
-                ExtraArgs &args,
-                int retries = 3
-        ) {
-
-            auto debug_print = args.debug_print;
-
-            if (debug_print) {
-                printf("calling vectorized potential on %ld walkers", shape[0] * shape[1]);
-            }
-
-            PotValsManager pots;
-            try {
-
-                RawPotentialBuffer pot_dat = pot_func(coords,
-                                atoms,
-                                args.extra_bools,
-                                args.extra_ints,
-                                args.extra_floats
-                );
-                PotentialVector pot_vec(pot_dat, pot_dat + shape[0] * shape[1]);
-                pots = PotValsManager(pot_vec, shape[0]);
-
-            } catch (std::exception &e) {
-                if (retries > 0) {
-                    pots = _vecPotCall(coords, atoms, shape, pot_func, args, retries - 1);
-
-                } else {
-                    printf("Error in vectorized call %s\n", e.what());
-                    pots = PotValsManager(shape[0], shape[1], args.err_val);
-                }
-            }
-
-            return pots;
-
-        }
-
-        Real_t PotentialApplier::call(
-                CoordsManager &coords,
-                ExtraArgs &args,
-                std::vector<size_t> which
-        ) {
-            Real_t pot_val;
-            if (flat_mode) {
-                auto walker = coords.get_flat_walker(which);
-                auto atoms = coords.get_atoms();
-                pot_val = _doopAPot(
-                        walker,
-                        atoms,
-                        flat_pot,
-                        args,
-                        args.default_retries
-                );
-            } else {
-                auto walker = coords.get_walker(which);
-                auto atoms = coords.get_atoms();
-                pot_val = _doopAPot(
-                        walker,
-                        atoms,
-                        pot,
-                        args,
-                        args.default_retries
-                );
-            }
             return pot_val;
         };
+        Real_t PotentialApplier::call(
+                CoordsManager &coords,
+                std::vector<size_t>& which
+        ) { return call(coords, which, params.retries()); }
 
         PotValsManager PotentialApplier::call_vectorized(
+                CoordsManager &coords
+        ) {
+            return call_vectorized(coords, params.retries());
+        }
+        PotValsManager PotentialApplier::call_vectorized(
                 CoordsManager &coords,
-                ExtraArgs &args
+                int retries
         ) {
             PotValsManager pot_vals;
-            if (flat_mode) {
-                auto walker = coords.get_flat_walkers();
-                auto atoms = coords.get_atoms();
-                pot_vals = _vecPotCall(
-                        walker,
-                        atoms,
-                        coords.get_shape(),
-                        v_flat_pot,
-                        args,
-                        args.default_retries
-                );
-            } else {
-                auto walker = coords.get_walkers();
-                auto atoms = coords.get_atoms();
-                pot_vals = _vecPotCall(
-                        walker,
-                        atoms,
-                        coords.get_shape(),
-                        v_pot,
-                        args,
-                        args.default_retries
-                );
+
+            auto debug_print = params.debug();
+            auto shape = coords.get_shape();
+
+            if (debug_print) {
+                printf("calling vectorized potential on %ld walkers", coords.num_geoms());
             }
-            return pot_vals;
+
+            PotValsManager pots;
+            try {
+
+                PotentialVector pot_vec;
+                if (params.flat_mode()) {
+                    RawPotentialBuffer pot_dat = vec_flat_pot(
+                            coords.get_flat_walkers(),
+                            coords.get_atoms(),
+                            params.extra_bools(),
+                            params.extra_ints(),
+                            params.extra_floats()
+                    );
+                    pot_vec.assign(
+                            pot_dat,
+                            pot_dat + coords.num_geoms()
+                            );
+
+                } else {
+                    pot_vec = vec_pot(
+                            coords.get_walkers(),
+                            coords.get_atoms(),
+                            params.extra_bools(),
+                            params.extra_ints(),
+                            params.extra_floats()
+                    );
+                }
+                pots = PotValsManager(pot_vec, coords.num_calls());
+
+            } catch (std::exception &e) {
+                if (retries > 0) {
+                    pots = call_vectorized(coords, retries - 1);
+                } else {
+                    printf("Error in vectorized call %s\n", e.what());
+                    pots = PotValsManager(coords.num_calls(), coords.num_walkers(), params.error_val());
+                }
+            }
+
+            return pots;
+        }
+
+        PotValsManager PotentialApplier::call_python(
+                CoordsManager &coords
+        ) {
+
+            PyObject* coord_obj = coords.as_numpy_array();
+            PyObject* py_args = PyTuple_Pack(3, coord_obj, params.python_atoms(), params.python_args());
+
+            PyObject* pot_vals = PyObject_CallObject(py_pot, py_args);
+            if (pot_vals == NULL) {
+                Py_XDECREF(py_args);
+                Py_XDECREF(coord_obj);
+                throw std::runtime_error("python issues...");
+            }
+
+            auto ncalls = coords.num_calls();
+            auto num_walkers = coords.num_geoms();
+            auto data = get_numpy_data<Real_t >(pot_vals);
+
+            PotentialVector pot_vec(data, data+num_walkers);
+
+            return PotValsManager(pot_vec, ncalls);
+
         }
 
         PotValsManager ThreadingHandler::call_potential(
-                CoordsManager &coords,
-                ExtraArgs &args
+                CoordsManager &coords
         ) {
-            auto shp = coords.get_shape();
             auto atoms = coords.get_atoms();
-            auto ncalls = shp[0];
-            auto nwalkers = shp[1];
+            auto ncalls = coords.num_calls();
+            auto nwalkers = coords.num_walkers();
             PotValsManager pots(ncalls, nwalkers);
 
             switch (mode) {
                 case (ThreadingMode::OpenMP) :
-                    ThreadingHandler::_call_omp(pots, coords, args);
+                    ThreadingHandler::_call_omp(pots, coords);
                     break;
                 case (ThreadingMode::TBB) :
-                    ThreadingHandler::_call_tbb(pots, coords, args);
+                    ThreadingHandler::_call_tbb(pots, coords);
                     break;
                 case (ThreadingMode::VECTORIZED) :
-                    ThreadingHandler::_call_vec(pots, coords, args);
+                    ThreadingHandler::_call_vec(pots, coords);
                     break;
                 case (ThreadingMode::PYTHON) :
-                    ThreadingHandler::_call_python(pots, coords, args);
+                    ThreadingHandler::_call_python(pots, coords);
                     break;
                 case (ThreadingMode::SERIAL) :
-                    ThreadingHandler::_call_serial(pots, coords, args);
+                    ThreadingHandler::_call_serial(pots, coords);
                 default:
                     throw std::runtime_error("Bad threading mode?");
             }
@@ -393,7 +285,6 @@ namespace rynlib {
                 PotValsManager &pots,
                 CoordsManager &coords,
                 PotentialApplier &pot_caller,
-                ExtraArgs &args,
                 size_t nwalkers,
                 size_t w
         ) {
@@ -405,7 +296,6 @@ namespace rynlib {
             std::vector<size_t> which{n, i};
             Real_t pot_val = pot_caller.call(
                     coords,
-                    args,
                     which
             );
 
@@ -414,33 +304,37 @@ namespace rynlib {
 
         void ThreadingHandler::_call_vec(
                 PotValsManager &pots,
-                CoordsManager &coords,
-                ExtraArgs &args
+                CoordsManager &coords
         ) {
-            PotValsManager new_pots = pot.call_vectorized(coords, args);
+            PotValsManager new_pots = pot.call_vectorized(coords);
+            pots.assign(new_pots);
+        }
+
+        void ThreadingHandler::_call_python(
+                PotValsManager &pots,
+                CoordsManager &coords
+        ) {
+            PotValsManager new_pots = pot.call_python(coords);
             pots.assign(new_pots);
         }
 
         void ThreadingHandler::_call_serial(
                 PotValsManager &pots,
-                CoordsManager &coords,
-                ExtraArgs &args
+                CoordsManager &coords
         ) {
 
-            auto shp = coords.get_shape();
             auto atoms = coords.get_atoms();
-            auto ncalls = shp[0];
-            auto nwalkers = shp[1];
+            auto ncalls = coords.num_calls();
+            auto nwalkers = coords.num_walkers();
 
             auto total_walkers = ncalls * nwalkers;
-            auto debug_print = args.debug_print;
+//            auto debug_print = args.debug_print;
 
             for (auto w = 0; w < total_walkers; w++) {
                 _loop_inner(
                         pots,
                         coords,
                         pot,
-                        args,
                         nwalkers,
                         w
                 );
@@ -449,17 +343,15 @@ namespace rynlib {
 
         void ThreadingHandler::_call_omp(
                 PotValsManager &pots,
-                CoordsManager &coords,
-                ExtraArgs &args
+                CoordsManager &coords
         ) {
 #ifdef _OPENMP
-            auto shp = coords.get_shape();
             auto atoms = coords.get_atoms();
-            auto ncalls = shp[0];
-            auto nwalkers = shp[1];
+            auto ncalls = coords.num_calls();
+            auto nwalkers = coords.num_walkers();
 
             auto total_walkers = ncalls * nwalkers;
-            auto debug_print = args.debug_print;
+//            auto debug_print = args.debug_print;
 
 #pragma omp parallel for
             for (auto w = 0; w < total_walkers; w++) {
@@ -467,7 +359,6 @@ namespace rynlib {
                         pots,
                         coords,
                         pot,
-                        args,
                         nwalkers,
                         w
                 );
@@ -480,17 +371,15 @@ namespace rynlib {
 
         void ThreadingHandler::_call_tbb(
                 PotValsManager &pots,
-                CoordsManager &coords,
-                ExtraArgs &args
+                CoordsManager &coords
         ) {
 #ifdef _TBB
-            auto shp = coords.get_shape();
             auto atoms = coords.get_atoms();
-            auto ncalls = shp[0];
-            auto nwalkers = shp[1];
+            auto ncalls = coords.num_calls();
+            auto nwalkers = coords.num_walkers();
 
             auto total_walkers = ncalls * nwalkers;
-            auto debug_print = args.debug_print;
+//            auto debug_print = args.debug_print;
 
             tbb::parallel_for(
                     tbb::blocked_range<size_t>(0, total_walkers),
@@ -500,7 +389,6 @@ namespace rynlib {
                                     pots,
                                     coords,
                                     pot,
-                                    args,
                                     nwalkers,
                                     w
                             );

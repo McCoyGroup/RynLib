@@ -2,8 +2,8 @@
 // Light-weight manager for walker configurations
 //
 
-#ifndef RYNLIB_CONFIGURATIONMANAGER_HPP
-#define RYNLIB_CONFIGURATIONMANAGER_HPP
+#ifndef RYNLIB_COORDSMANAGER_HPP
+#define RYNLIB_COORDSMANAGER_HPP
 
 #include "RynTypes.hpp"
 
@@ -20,8 +20,8 @@ namespace rynlib {
 
             CoordsManager(
                     RawWalkerBuffer walkers,
-                    Names atom_names,
-                    std::vector<size_t> shape_vector
+                    Names& atom_names,
+                    std::vector<size_t>& shape_vector
                     ) :
                     walker_data(walkers),
                     atoms(atom_names),
@@ -37,10 +37,14 @@ namespace rynlib {
             std::vector<size_t> get_shape() { return shape; }
             Names get_atoms() { return atoms; }
             size_t num_atoms() { return atoms.size(); }
-            size_t num_walkers() { return shape[0] * shape[1]; }
+            size_t num_calls() { return shape[1];}
+            size_t num_walkers() { return shape[0];}
+            size_t num_geoms() { return shape[0] * shape[1]; }
+
+            PyObject* as_numpy_array();
         };
     }
 }
 
 
-#endif //RYNLIB_CONFIGURATIONMANAGER_HPP
+#endif //RYNLIB_COORDSMANAGER_HPP

@@ -1,6 +1,6 @@
 
-#ifndef RYNLIB_PYTHONLAYER_HPP
-#define RYNLIB_PYTHONLAYER_HPP
+#ifndef PLZNUMBERS_PYTHONLAYER_HPP
+#define PLZNUMBERS_PYTHONLAYER_HPP
 
 #include "Python.h"
 
@@ -16,13 +16,7 @@
  * nothing else will be visible directly, so we need to make sure that this set is sufficient for out purposes
  *
  */
-static PyObject *PlzNumbers_callPot
-        ( PyObject *, PyObject * );
-
 static PyObject *PlzNumbers_callPotVec
         ( PyObject *, PyObject * );
 
-static PyObject *PlzNumbers_callPyPotVec
-        ( PyObject *, PyObject * );
-
-#endif //RYNLIB_PYTHONLAYER_HPP
+#endif //PLZNUMBERS_PYTHONLAYER_HPP

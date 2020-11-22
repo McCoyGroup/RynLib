@@ -18,20 +18,17 @@ namespace rynlib {
             CoordsManager &walker_data;
             MPIManager &mpi_manager;
             ThreadingHandler &caller;
-            ExtraArgs &extra_args;
 
         public:
 
             PotentialCaller(
                     CoordsManager& walkers,
                     MPIManager& mpi,
-                    ThreadingHandler& threader,
-                    ExtraArgs& args
+                    ThreadingHandler& threader
                     ) :
                     walker_data(walkers),
                     mpi_manager(mpi),
-                    caller(threader),
-                    extra_args(args)
+                    caller(threader)
                     {};
 
             PotValsManager get_pot();
