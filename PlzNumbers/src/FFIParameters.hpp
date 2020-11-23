@@ -9,8 +9,8 @@
 namespace rynlib {
     namespace PlzNumbers {
 
-// Set up enum for type mapping
-// Must be synchronized with the types on the python side
+        // Set up enum for type mapping
+        // Must be synchronized with the types on the python side
         enum class FFIType {
             PY_TYPES = 1000,
             UnsignedChar = PY_TYPES + 10,
@@ -50,7 +50,21 @@ namespace rynlib {
             NUMPY_Bool = NUMPY_TYPES + 30
         };
 
-
+        //
+        template <typename T>
+        class FFITypeHandler {
+            // class that helps us maintain a map between type codes & proper types
+        public:
+            void validate(FFIType type_code);
+            T cast(FFIType type_code, void* data);
+        };
+        template <typename T>
+        class FFITypeHandler<T*> {
+            // specialization to handle pointer types
+        public:
+            void validate(FFIType type_code);
+            T* cast(FFIType type_code, void* data);
+        };
 
         class FFIParameter {
             // object that maps onto the python FFI stuff...
@@ -67,25 +81,33 @@ namespace rynlib {
                     std::vector <size_t>& shape
                     ) : py_obj(obj), param_key(name), param_data(), type_char(type), shape_vec(shape) {};
 
-            FFIParameter(PyObject *obj) : py_obj(obj) { init(); }
+            explicit FFIParameter(PyObject *obj) : py_obj(obj) { init(); }
 
             void init();
 
+            std::string name() { return param_key; }
+
             template <typename T>
-            T get_data();
+            T value();
+
+            void* _raw_ptr() { return param_data; } // I put this out there so people smarter than I can use it
 
         };
-
-//        python::from_python<FFIParams>;
 
         class FFIParameters {
             // object that maps onto the python FFI stuff...
             PyObject *py_obj;
             std::vector<FFIParameter> params;
         public:
-            FFIParameters(PyObject* param_obj) : py_obj(param_obj) {init();}
+            FFIParameters() : py_obj(), params() {};
+            explicit FFIParameters(PyObject* param_obj) : py_obj(param_obj) {
+                params = {};
+                init();
+            }
             void init();
-            FFIParameter get_param(std::string key);
+            int param_index(std::string& key);
+            FFIParameter get_parameter(std::string& key);
+            FFIParameter set_parameter(std::string& key, FFIParameter& param);
 
         };
 

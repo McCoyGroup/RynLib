@@ -8,6 +8,215 @@ namespace rynlib {
     using namespace python;
     namespace PlzNumbers {
 
+        // defines a compiler map between FFIType and proper types
+        template <typename T>
+        FFIType infer_FFIType() {
+            throw std::runtime_error("unhandled type specifier");
+        }
+
+        template <typename T>
+        void FFITypeHandler<T>::validate(FFIType type_code) {
+            throw std::runtime_error("unhandled type specifier");
+        };
+        // we do the numpy types preferentially because they are most likely to cover the dtype sizes we need
+        template <>
+        void  FFITypeHandler<npy_bool>::validate(FFIType type_code) {
+//            if (type_code != FFIType::UnsignedChar) {
+//                throw std::runtime_error("type 'unsigned char'/'npy_bool' misaligned with type code; expected 'UnsignedChar'/'NUMPY_Bool'");
+//            };
+            if (
+                    type_code != FFIType::NUMPY_Bool
+                    && type_code != FFIType::NUMPY_UnsignedInt8
+                    && type_code != FFIType::UnsignedChar) {
+                throw std::runtime_error("type 'unsigned char'/'npy_bool'/'npy_uint8' misaligned with type code; expected 'UnsignedChar'/'NUMPY_Bool'/'NUMPY_UnsignedInt8'");
+            };
+        }
+        template <>
+        void  FFITypeHandler<npy_int8>::validate(FFIType type_code) {
+            if (type_code != FFIType::NUMPY_Int8) {
+                throw std::runtime_error("type 'npy_int8' misaligned with type code; expected 'NUMPY_Int8'");
+            };
+        }
+        template <>
+        void  FFITypeHandler<npy_int16>::validate(FFIType type_code) {
+            if (type_code != FFIType::Short && type_code != FFIType::NUMPY_Int16) {
+                throw std::runtime_error("type 'short'/'npy_int16' misaligned with type code; expected 'Short'/'NUMPY_Int16'");
+            };
+//            if (type_code != FFIType::NUMPY_Int16) {
+//                throw std::runtime_error("type 'npy_int16' misaligned with type code; expected 'NUMPY_Int16'");
+//            };
+        }
+        template <>
+        void  FFITypeHandler<npy_int32>::validate(FFIType type_code) {
+            if (type_code != FFIType::NUMPY_Int32 && type_code != FFIType::Int) {
+                throw std::runtime_error("type 'int'/'npy_int32' misaligned with type code; expected 'Int'/'NUMPY_Int32'");
+            };
+        }
+        template <>
+        void  FFITypeHandler<npy_int64>::validate(FFIType type_code) {
+            if (type_code != FFIType::NUMPY_Int64 && type_code != FFIType::Long && type_code != FFIType::PySizeT) {
+                throw std::runtime_error("type 'long'/'Py_Ssize_t'/'npy_int64' misaligned with type code; expected 'Long'/'PySizeT'/'NUMPY_Int64'");
+            };
+        }
+//        template <>
+//        void  FFITypeHandler<npy_uint8>::validate(FFIType type_code) {
+//            if (type_code != FFIType::NUMPY_UnsignedInt8) {
+//                throw std::runtime_error("type 'npy_uint8' misaligned with type code; expected 'NUMPY_UnsignedInt8'");
+//            };
+//        }
+        template <>
+        void  FFITypeHandler<npy_uint16>::validate(FFIType type_code) {
+//            if (type_code != FFIType::NUMPY_Float16) {
+//                throw std::runtime_error("type 'npy_float16' misaligned with type code; expected 'NUMPY_Float16'");
+//            };
+            if (
+                    type_code != FFIType::NUMPY_UnsignedInt16
+                    && type_code != FFIType::NUMPY_Float16
+                    && type_code != FFIType::UnsignedShort
+                    ) {
+                throw std::runtime_error(
+                        "type 'npy_uint16'/'npy_float16'/'unsigned short' misaligned with type code; expected 'NUMPY_UnsignedInt16'/'NUMPY_Float16'/'UnsignedShort'"
+                        );
+            };
+            if (type_code != FFIType::UnsignedShort) {
+                throw std::runtime_error("type 'unsigned short ' misaligned with type code; expected 'UnsignedShort'");
+            };
+        }
+        template <>
+        void  FFITypeHandler<npy_uint32>::validate(FFIType type_code) {
+            if (type_code != FFIType::NUMPY_UnsignedInt32 && type_code != FFIType::UnsignedInt) {
+                throw std::runtime_error(
+                        "type 'unsigned int'/'npy_uint32' misaligned with type code; expected 'UnsignedInt'/'NUMPY_UnsignedInt32'"
+                        );
+            };
+        }
+        template <>
+        void  FFITypeHandler<npy_uint64>::validate(FFIType type_code) {
+            if (type_code != FFIType::NUMPY_UnsignedInt64 && type_code != FFIType::UnsignedLong) {
+                throw std::runtime_error("type 'unsigned long'/'npy_uint64' misaligned with type code; expected 'UnsignedLong'/'NUMPY_UnsignedInt64'");
+            };
+        }
+//        template <>
+//        void  FFITypeHandler<npy_float16>::validate(FFIType type_code) {
+//            if (type_code != FFIType::NUMPY_Float16) {
+//                throw std::runtime_error("type 'npy_float16' misaligned with type code; expected 'NUMPY_Float16'");
+//            };
+//        }
+        template <>
+        void  FFITypeHandler<npy_float32>::validate(FFIType type_code) {
+            if (type_code != FFIType::NUMPY_Float32 && type_code != FFIType::Float) {
+                throw std::runtime_error("type 'float'/'npy_float32' misaligned with type code; expected 'Float'/'NUMPY_Float32'");
+            };
+        }
+        template <>
+        void  FFITypeHandler<npy_float64>::validate(FFIType type_code) {
+            if (type_code != FFIType::NUMPY_Float64 && type_code != FFIType::Double) {
+                throw std::runtime_error("type 'double'/'npy_float64' misaligned with type code; expected 'NUMPY_Float64'");
+            };
+        }
+        template <>
+        void  FFITypeHandler<npy_float128>::validate(FFIType type_code) {
+            if (type_code != FFIType::NUMPY_Float128) {
+                throw std::runtime_error("type 'npy_float128' misaligned with type code; expected 'NUMPY_Float128'");
+            };
+        }
+
+//        template <>
+//        void  FFITypeHandler<unsigned char>::validate(FFIType type_code) {
+//            if (type_code != FFIType::UnsignedChar) {
+//                throw std::runtime_error("type 'unsigned char'/'npy_bool' misaligned with type code; expected 'UnsignedChar'/'NUMPY_Bool'");
+//            };
+//        }
+//        template <>
+//        void  FFITypeHandler<short>::validate(FFIType type_code) {
+//            if (type_code != FFIType::Short && type_code != FFIType::NUMPY_Int16) {
+//                throw std::runtime_error("type 'short'/'npy_int16' misaligned with type code; expected 'Short'/'NUMPY_Int16'");
+//            };
+//        }
+//        template <>
+//        void  FFITypeHandler<unsigned short >::validate(FFIType type_code) {
+//            if (type_code != FFIType::UnsignedShort) {
+//                throw std::runtime_error("type 'unsigned short ' misaligned with type code; expected 'UnsignedShort'");
+//            };
+//        }
+//        template <>
+//        void  FFITypeHandler<int >::validate(FFIType type_code) {
+//            if (type_code != FFIType::Int) {
+//                throw std::runtime_error("type 'int ' misaligned with type code; expected 'Int'");
+//            };
+//        }
+//        template <>
+//        void  FFITypeHandler<unsigned int >::validate(FFIType type_code) {
+//            if (type_code != FFIType::UnsignedInt) {
+//                throw std::runtime_error("type 'unsigned int ' misaligned with type code; expected 'UnsignedInt'");
+//            };
+//        }
+//        template <>
+//        void  FFITypeHandler<long >::validate(FFIType type_code) {
+//            if (type_code != FFIType::Long && type_code != FFIType::PySizeT) {
+//                throw std::runtime_error("type 'long' a.k.a `Py_Ssize_t` misaligned with type code; expected 'Long'/'PySizeT'");
+//            };
+//        }
+//        template <>
+//        void  FFITypeHandler<unsigned long >::validate(FFIType type_code) {
+//            if (type_code != FFIType::UnsignedLong) {
+//                throw std::runtime_error("type 'unsigned long ' misaligned with type code; expected 'UnsignedLong'");
+//            };
+//        }
+        template <>
+        void  FFITypeHandler<long long >::validate(FFIType type_code) {
+            if (type_code != FFIType::LongLong) {
+                throw std::runtime_error("type 'long long ' misaligned with type code; expected 'LongLong'");
+            };
+        }
+        template <>
+        void  FFITypeHandler<unsigned long long >::validate(FFIType type_code) {
+            if (type_code != FFIType::UnsignedLongLong) {
+                throw std::runtime_error("type 'unsigned long long ' misaligned with type code; expected 'UnsignedLongLong'");
+            };
+        }
+//        template <>
+//        void  FFITypeHandler<Py_ssize_t >::validate(FFIType type_code) {
+//            if (type_code != FFIType::PySizeT) {
+//                throw std::runtime_error("type 'Py_ssize_t ' misaligned with type code; expected 'PySizeT'");
+//            };
+//        }
+//        template <>
+//        void  FFITypeHandler<float >::validate(FFIType type_code) {
+//            if (type_code != FFIType::Float) {
+//                throw std::runtime_error("type 'float' misaligned with type code; expected 'Float'");
+//            };
+//        }
+//        template <>
+//        void  FFITypeHandler<double >::validate(FFIType type_code) {
+//            if (type_code != FFIType::Double) {
+//                throw std::runtime_error("type 'double ' misaligned with type code; expected 'Double'");
+//            };
+//        }
+        template <>
+        void  FFITypeHandler<bool >::validate(FFIType type_code) {
+            if (type_code != FFIType::Bool) {
+                throw std::runtime_error("type 'bool ' misaligned with type code; expected 'Bool'");
+            };
+        }
+        template <>
+        void  FFITypeHandler<std::string>::validate(FFIType type_code) {
+            if (type_code != FFIType::String) {
+                throw std::runtime_error("type 'std::string ' misaligned with type code; expected 'String'");
+            };
+        }
+
+        template <typename T>
+        T FFITypeHandler<T>::cast(FFIType type_code, void *data) {
+            validate(type_code);
+            return *(T*)data;
+        }
+        template <typename T>
+        T* FFITypeHandler<T*>::cast(FFIType type_code, void *data) {
+            validate(type_code);
+            return (T*)data;
+        }
+
         void FFIParameter::init() {
             type_char = get_python_attr<FFIType>(py_obj, "arg_type");
             param_key = get_python_attr<std::string>(py_obj, "arg_name");
@@ -162,197 +371,31 @@ namespace rynlib {
         }
 
         template <typename T>
-        T FFIParameter::get_data() {
-            throw std::runtime_error("unhandled type specifier");
+        T FFIParameter::value() {
+            FFITypeHandler<T> handler;
+            return handler.cast(param_data);
         }
-        template <>
-        unsigned char FFIParameter::get_data<unsigned char>() {
-            if (type_char != FFIType::UnsignedChar) {
-                throw std::runtime_error("requested parameter data type doesn't match held data");
-            }
-            return *(unsigned char*)param_data; // cast to pointer then dereference
+
+        void FFIParameters::init() {
+            params = from_python_iterable<FFIParameter>(py_obj);
         }
-        template <>
-        short FFIParameter::get_data<short>() {
-            if (type_char != FFIType::Short) {
-                throw std::runtime_error("requested parameter data type doesn't match held data");
-            }
-            return *(short*)param_data; // cast to pointer then dereference
+
+        int FFIParameters::param_index(std::string& param_name) {
+            int i;
+            for ( i=0; i < params.size(); i++) {
+                auto p = params[i];
+                if (p.name() == param_name) break;
+            };
+            if ( i > params.size()) throw std::runtime_error("parameter " + param_name + " not found");
+            return i;
         }
-        template <>
-        unsigned short  FFIParameter::get_data<unsigned short >() {
-            if (type_char != FFIType::UnsignedShort) {
-                throw std::runtime_error("requested parameter data type doesn't match held data");
-            }
-            return *(unsigned short *)param_data; // cast to pointer then dereference
+        FFIParameter FFIParameters::get_parameter(std::string& param_name) {
+            auto i = param_index(param_name);
+            return params[i];
         }
-        template <>
-        int  FFIParameter::get_data<int >() {
-            if (type_char != FFIType::Int) {
-                throw std::runtime_error("requested parameter data type doesn't match held data");
-            }
-            return *(int *)param_data; // cast to pointer then dereference
-        }
-        template <>
-        unsigned int  FFIParameter::get_data<unsigned int >() {
-            if (type_char != FFIType::UnsignedInt) {
-                throw std::runtime_error("requested parameter data type doesn't match held data");
-            }
-            return *(unsigned int *)param_data; // cast to pointer then dereference
-        }
-        template <>
-        long  FFIParameter::get_data<long >() {
-            if (type_char != FFIType::Long && type_char != FFIType::PySizeT) {
-                throw std::runtime_error("requested parameter data type doesn't match held data");
-            }
-            return *(long *)param_data; // cast to pointer then dereference
-        }
-        template <>
-        unsigned long  FFIParameter::get_data<unsigned long >() {
-            if (type_char != FFIType::UnsignedLong) {
-                throw std::runtime_error("requested parameter data type doesn't match held data");
-            }
-            return *(unsigned long *)param_data; // cast to pointer then dereference
-        }
-        template <>
-        long long  FFIParameter::get_data<long long >() {
-            if (type_char != FFIType::LongLong) {
-                throw std::runtime_error("requested parameter data type doesn't match held data");
-            }
-            return *(long long *)param_data; // cast to pointer then dereference
-        }
-        template <>
-        unsigned long long  FFIParameter::get_data<unsigned long long >() {
-            if (type_char != FFIType::UnsignedLongLong) {
-                throw std::runtime_error("requested parameter data type doesn't match held data");
-            }
-            return *(unsigned long long *)param_data; // cast to pointer then dereference
-        }
-//        template <>
-//        Py_ssize_t  FFIParameter::get_data<Py_ssize_t >() {
-//            if (type_char != FFIType::PySizeT) {
-//                throw std::runtime_error("requested parameter data type doesn't match held data");
-//            }
-//            return *(Py_ssize_t *)param_data; // cast to pointer then dereference
-//        }
-        template <>
-        float  FFIParameter::get_data<float >() {
-            if (type_char != FFIType::Float) {
-                throw std::runtime_error("requested parameter data type doesn't match held data");
-            }
-            return *(float *)param_data; // cast to pointer then dereference
-        }
-        template <>
-        double  FFIParameter::get_data<double >() {
-            if (type_char != FFIType::Double) {
-                throw std::runtime_error("requested parameter data type doesn't match held data");
-            }
-            return *(double *)param_data; // cast to pointer then dereference
-        }
-        template <>
-        bool  FFIParameter::get_data<bool >() {
-            if (type_char != FFIType::Bool) {
-                throw std::runtime_error("requested parameter data type doesn't match held data");
-            }
-            return *(bool *)param_data; // cast to pointer then dereference
-        }
-        template <>
-        std::string  FFIParameter::get_data<std::string >() {
-            if (type_char != FFIType::String) {
-                throw std::runtime_error("requested parameter data type doesn't match held data");
-            }
-            return *(std::string *)param_data; // cast to pointer then dereference
-        }
-        template <>
-        npy_bool* FFIParameter::get_data<npy_bool*>() {
-            if (type_char != FFIType::NUMPY_Bool && type_char != FFIType::NUMPY_UnsignedInt8) {
-                throw std::runtime_error("requested parameter data type doesn't match held data");
-            }
-            return (npy_bool*)param_data; // cast to pointer
-        }
-        template <>
-        npy_int8* FFIParameter::get_data<npy_int8*>() {
-            if (type_char != FFIType::NUMPY_Int8) {
-                throw std::runtime_error("requested parameter data type doesn't match held data");
-            }
-            return (npy_int8*)param_data; // cast to pointer
-        }
-        template <>
-        npy_int16* FFIParameter::get_data<npy_int16*>() {
-            if (type_char != FFIType::NUMPY_Int16) {
-                throw std::runtime_error("requested parameter data type doesn't match held data");
-            }
-            return (npy_int16*)param_data; // cast to pointer
-        }
-        template <>
-        npy_int32* FFIParameter::get_data<npy_int32*>() {
-            if (type_char != FFIType::NUMPY_Int32) {
-                throw std::runtime_error("requested parameter data type doesn't match held data");
-            }
-            return (npy_int32*)param_data; // cast to pointer
-        }
-        template <>
-        npy_int64* FFIParameter::get_data<npy_int64*>() {
-            if (type_char != FFIType::NUMPY_Int64) {
-                throw std::runtime_error("requested parameter data type doesn't match held data");
-            }
-            return (npy_int64*)param_data; // cast to pointer
-        }
-//        template <>
-//        npy_uint8* FFIParameter::get_data<npy_uint8*>() {
-//            if (type_char != FFIType::NUMPY_UnsignedInt8) {
-//                throw std::runtime_error("requested parameter data type doesn't match held data");
-//            }
-//            return (npy_uint8*)param_data; // cast to pointer
-//        }
-        template <>
-        npy_uint16* FFIParameter::get_data<npy_uint16*>() {
-            if (type_char != FFIType::NUMPY_UnsignedInt16 && type_char != FFIType::NUMPY_Float16) {
-                throw std::runtime_error("requested parameter data type doesn't match held data");
-            }
-            return (npy_uint16*)param_data; // cast to pointer
-        }
-        template <>
-        npy_uint32* FFIParameter::get_data<npy_uint32*>() {
-            if (type_char != FFIType::NUMPY_UnsignedInt32) {
-                throw std::runtime_error("requested parameter data type doesn't match held data");
-            }
-            return (npy_uint32*)param_data; // cast to pointer
-        }
-        template <>
-        npy_uint64* FFIParameter::get_data<npy_uint64*>() {
-            if (type_char != FFIType::NUMPY_UnsignedInt64) {
-                throw std::runtime_error("requested parameter data type doesn't match held data");
-            }
-            return (npy_uint64*)param_data; // cast to pointer
-        }
-//        template <>
-//        npy_float16* FFIParameter::get_data<npy_float16*>() {
-//            if (type_char != FFIType::NUMPY_Float16) {
-//                throw std::runtime_error("requested parameter data type doesn't match held data");
-//            }
-//            return (npy_float16*)param_data; // cast to pointer
-//        }
-        template <>
-        npy_float32* FFIParameter::get_data<npy_float32*>() {
-            if (type_char != FFIType::NUMPY_Float32) {
-                throw std::runtime_error("requested parameter data type doesn't match held data");
-            }
-            return (npy_float32*)param_data; // cast to pointer
-        }
-        template <>
-        npy_float64* FFIParameter::get_data<npy_float64*>() {
-            if (type_char != FFIType::NUMPY_Float64) {
-                throw std::runtime_error("requested parameter data type doesn't match held data");
-            }
-            return (npy_float64*)param_data; // cast to pointer
-        }
-        template <>
-        npy_float128* FFIParameter::get_data<npy_float128*>() {
-            if (type_char != FFIType::NUMPY_Float128) {
-                throw std::runtime_error("requested parameter data type doesn't match held data");
-            }
-            return (npy_float128*)param_data; // cast to pointer
+        FFIParameter FFIParameters::set_parameter(std::string& param_name, FFIParameter& param) {
+            auto i = param_index(param_name);
+            params[i] = param;
         }
 
     }

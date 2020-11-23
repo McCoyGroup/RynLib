@@ -11,8 +11,8 @@
 #include "PotValsManager.hpp"
 #include "PyAllUp.hpp"
 #include "FFIParameters.hpp"
+#include "FFIModule.hpp"
 #include <stdexcept>
-
 
 namespace rynlib {
 
@@ -31,74 +31,50 @@ namespace rynlib {
         class CallerParameters { // The goal is for this to basically directly parallel the python-side "extra args"
 
             // flags to be fed to the code
-            std::string arg_sig = "OOdppppppp";
+            std::string arg_sig = "iOOOdppppppp";
 
+            int caller_api = 0;
+            // To support both old style and new style potential calls by
+            // inferring from the name of the module parameters
+            std::string function_name; // = "_potential";
+            // To be able to recieve a function name from the python side
+
+            PyObject* extra_args = NULL;
             std::string bad_walkers_file;
-            double err_val;
-            bool debug_print;
-            int default_retries;
+            double err_val = 1.0e9;
+            bool debug_print = false;
+            int default_retries = 1;
 
-            bool raw_array_pot;
-            bool vectorized_potential;
-            bool use_openMP;
-            bool use_TBB;
-            bool python_potential;
+            bool raw_array_pot = false;
+            bool vectorized_potential = false;
+            bool use_openMP = true;
+            bool use_TBB = false;
+            bool python_potential = false;
+
+            // used for the old-style caller
+            ExtraBools ext_bools = {};
+            ExtraInts ext_ints = {};
+            ExtraFloats ext_floats = {};
+
+            // used for the new-style caller
+            FFIModule module;
 
             // storage for extra args we might want to pass to functions
-            FFIParameters params;
+            FFIParameters parameters;
 
             // python objects to propagate through
             // should never be modified in a multithreaded environment
             // but can safely be messed with in a non-threaded one
             PyObject* py_atoms;
             PyObject* py_params;
-            PyObject* extra_args;
-
-            // Pointer to function in capsule
-            // will get a real name some day, but today is not that day
-            std::string func_ptr_name = "_potential";
 
         public:
 
-            CallerParameters(PyObject* atoms, PyObject* params) : py_atoms(atoms), py_params(params) {
+            CallerParameters(PyObject* atoms, PyObject* pars) : py_atoms(atoms), py_params(pars) {
                 init();
             }
 
-            void init() {
-                PyObject* bad_walkers_str;
-                int passed = PyArg_ParseTuple(
-                        py_params,
-                        arg_sig.c_str(),
-                        extra_args,
-                        &bad_walkers_str,
-                        &err_val,
-                        &debug_print,
-                        &default_retries,
-                        &raw_array_pot,
-                        &vectorized_potential,
-                        &use_openMP,
-                        &use_TBB,
-                        &python_potential
-                        );
-                if (!passed) {
-                    Py_XDECREF(bad_walkers_str);
-                    throw std::runtime_error("python args issue?");
-                }
-
-                bad_walkers_file = from_python<std::string>(bad_walkers_str);
-
-                Py_XDECREF(bad_walkers_str);
-
-//                PyObject* ext_bool = PyTuple_GetItem(extra_args, 0);
-//                PyObject* ext_int = PyTuple_GetItem(extra_args, 1);
-//                PyObject* ext_float = PyTuple_GetItem(extra_args, 2);
-
-                params = FFIParameters(extra_args);
-
-//                arg_bools = from_python_iterable<bool>(ext_bool);
-//                arg_ints = from_python_iterable<int>(ext_int);
-//                arg_floats = from_python_iterable<double>(ext_float);
-            };
+            void init();
 
             std::string bad_walkers_dump() { return bad_walkers_file; }
             bool debug() { return debug_print; }
@@ -108,9 +84,7 @@ namespace rynlib {
                 return (python_potential || raw_array_pot);
             }
 
-            std::string func_name() {
-                return func_ptr_name;
-            }
+            std::string func_name() { return function_name; }
 
             ThreadingMode threading_mode() {
                 if (python_potential) {
@@ -128,8 +102,14 @@ namespace rynlib {
 
             int retries() { return default_retries; }
 
-            PyObject* python_atoms() { return py_atoms; };
-            PyObject* python_args() { return py_params; };
+            PyObject* python_atoms() { return py_atoms; }
+            PyObject* python_args() { return py_params; }
+
+            ExtraBools extra_bools() { return ext_bools; }
+            ExtraInts extra_ints() { return ext_ints; }
+            ExtraFloats extra_floats() { return ext_floats; }
+
+            int api_version() { return caller_api; }
 
         };
 
@@ -154,7 +134,12 @@ namespace rynlib {
                     CoordsManager& coords,
                     std::vector<size_t >& which
                     );
-            Real_t call(
+            Real_t call_1(
+                    CoordsManager& coords,
+                    std::vector<size_t >& which,
+                    int retries
+            );
+            Real_t call_2(
                     CoordsManager& coords,
                     std::vector<size_t >& which,
                     int retries
@@ -163,7 +148,11 @@ namespace rynlib {
             PotValsManager call_vectorized(
                     CoordsManager& coords
             );
-            PotValsManager call_vectorized(
+            PotValsManager call_vectorized_1(
+                    CoordsManager& coords,
+                    int retries
+            );
+            PotValsManager call_vectorized_2(
                     CoordsManager& coords,
                     int retries
             );

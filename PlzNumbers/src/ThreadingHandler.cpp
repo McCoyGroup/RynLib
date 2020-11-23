@@ -102,7 +102,51 @@ namespace rynlib {
 
         }
 
-        Real_t PotentialApplier::call(
+        void CallerParameters::init() {
+            PyObject *bad_walkers_str, *fun_name_str;
+            int passed = PyArg_ParseTuple(
+                    py_params,
+                    arg_sig.c_str(),
+                    &caller_api,
+                    &fun_name_str,
+                    extra_args,
+                    &bad_walkers_str,
+                    &err_val,
+                    &debug_print,
+                    &default_retries,
+                    &raw_array_pot,
+                    &vectorized_potential,
+                    &use_openMP,
+                    &use_TBB,
+                    &python_potential
+            );
+            if (!passed) {
+                Py_XDECREF(bad_walkers_str);
+                throw std::runtime_error("python args issue?");
+            }
+
+            function_name = from_python<std::string>(fun_name_str);
+            Py_XDECREF(fun_name_str);
+
+            bad_walkers_file = from_python<std::string>(bad_walkers_str);
+            Py_XDECREF(bad_walkers_str);
+
+            parameters = FFIParameters(extra_args);
+
+            if (caller_api == 1) {
+                PyObject* extra_bools = PyTuple_GetItem(extra_args, 0);
+                ext_bools = from_python_iterable<bool>(extra_bools);
+                PyObject* extra_ints = PyTuple_GetItem(extra_args, 1);
+                ext_ints = from_python_iterable<int>(extra_ints);
+                PyObject* extra_floats = PyTuple_GetItem(extra_args, 2);
+                ext_floats = from_python_iterable<double>(extra_floats);
+            }
+
+        };
+
+
+        // Old API
+        Real_t PotentialApplier::call_1(
                 CoordsManager &coords,
                 std::vector<size_t>& which,
                 int retries
@@ -144,7 +188,7 @@ namespace rynlib {
 
             } catch (std::exception &e) {
                 if (retries > 0) {
-                    return call(coords, which, retries - 1);
+                    return call_1(coords, which, retries - 1);
                 } else {
                     // pushed error reporting into bad_walkers_file
                     // should probably revise yet again to print all of this stuff to python's stderr...
@@ -163,18 +207,104 @@ namespace rynlib {
             }
 
             return pot_val;
+
         };
+
+        // New API
+        Real_t PotentialApplier::call_2(
+                CoordsManager &coords,
+                std::vector<size_t>& which,
+                int retries
+        ) {
+            Real_t pot_val;
+
+            auto atoms = coords.get_atoms();
+            auto bad_walkers_file = params.bad_walkers_dump();
+            auto err_val = params.error_val();
+            bool debug_print = params.debug();
+
+            auto method = params.get_method();
+
+            try {
+                if (debug_print) {
+                    std::string walker_string;
+                    if (params.flat_mode()) {
+                        auto walker = coords.get_flat_walker(which);
+                        walker_string = _appendWalkerStr("Walker before call: ", "", walker);
+                    } else {
+                        auto walker = coords.get_walker(which);
+                        walker_string = _appendWalkerStr("Walker before call: ", "", walker);
+                    }
+                    printf("%s\n", walker_string.c_str());
+                }
+
+                auto call_params = params.ffi_params.copy();
+                call_params.update_key("coords", coords);
+                pot_val = method.call(call_params);
+//                pot = pot_func(walker_coords, atoms, extra_bools, extra_ints, extra_floats);
+                if (debug_print) {
+                    printf("  got back energy: %f\n", pot_val);
+                }
+
+            } catch (std::exception &e) {
+                if (retries > 0) {
+                    return call_2(coords, which, retries - 1);
+                } else {
+                    // pushed error reporting into bad_walkers_file
+                    // should probably revise yet again to print all of this stuff to python's stderr...
+                    if (debug_print) {
+                        bad_walkers_file = "";
+                    }
+                    if (params.flat_mode()) {
+                        auto walker = coords.get_flat_walker(which);
+                        _printOutWalkerStuff(walker, bad_walkers_file, e.what());
+                    } else {
+                        auto walker = coords.get_walker(which);
+                        _printOutWalkerStuff(walker, bad_walkers_file, e.what());
+                    }
+                    pot_val = err_val;
+                }
+            }
+
+            return pot_val;
+
+        };
+
         Real_t PotentialApplier::call(
                 CoordsManager &coords,
                 std::vector<size_t>& which
-        ) { return call(coords, which, params.retries()); }
+        ) {
+            switch (params.api_version()) {
+                case (1):
+                    return call_1(coords, which, params.retries());
+                    break;
+                case (2):
+                    return call_2(coords, which, params.retries());
+                    break;
+                default:
+                    throw std::runtime_error("unkown caller API version");
+            }
+        }
+
 
         PotValsManager PotentialApplier::call_vectorized(
                 CoordsManager &coords
         ) {
-            return call_vectorized(coords, params.retries());
+            {
+                switch (params.api_version()) {
+                    case (1):
+                        return call_vectorized_1(coords, params.retries());
+                        break;
+                    case (2):
+                        return call_vectorized_2(coords, params.retries());
+                        break;
+                    default:
+                        throw std::runtime_error("unkown caller API version");
+                }
+            }
         }
-        PotValsManager PotentialApplier::call_vectorized(
+
+        PotValsManager PotentialApplier::call_vectorized_1(
                 CoordsManager &coords,
                 int retries
         ) {

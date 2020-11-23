@@ -1,5 +1,6 @@
 #include "MPIManager.hpp"
 #include "PyAllUp.hpp"
+#include <stdexcept>
 
 namespace rynlib {
 
@@ -47,7 +48,7 @@ namespace rynlib {
                 // means we're only feeding in num_walkers because we're not on world_rank == 0
                 num_walkers_per_core = num_walkers;
             } else if (num_walkers % world_size()) {
-                throw std::logic_error("Number of walkers not divisible by number of MPI processes");
+                throw std::runtime_error("Number of walkers not divisible by number of MPI processes");
             }
 
             // create a buffer for the walkers to be fed into MPI

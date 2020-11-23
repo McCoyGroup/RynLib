@@ -32,19 +32,19 @@ namespace rynlib {
             // possibly memory leaky, but barely so & thus we won't worry too much until we _know_ it's an issue
             std::string name;
             std::string docstring;
-            int size;
-            std::string attr;
+            int size = -1; // size of module per interpreter...for future use
+            std::string attr = "_FFIModule"; // attribute use when attaching to Python module
             std::vector<std::string> method_names;
             std::vector<FFIType> return_types;
             std::vector<void *> method_pointers; // pointers to FFI methods, but return types are ambiguous
         public:
-            FFIModule(std::string& module_name, std::string& module_doc) : name(module_name), docstring(module_doc) {
-                size = -1; // size of module per interpreter...for future use
-                attr = "_FFIModule"; // attribute use when attaching to Python module
-                return_types = {};
-                method_names = {};
-                method_pointers = {};
-            }
+            FFIModule() = default;
+            FFIModule(std::string &module_name, std::string &module_doc) :
+                    name(module_name),
+                    docstring(module_doc),
+                    return_types({}),
+                    method_names({}),
+                    method_pointers({}) {}
 
             template <typename T>
             void add_method(FFIMethod<T> method);
