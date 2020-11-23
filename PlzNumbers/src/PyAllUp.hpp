@@ -2,6 +2,8 @@
 #ifndef RYNLIB_PYALLUP_HPP
 #define RYNLIB_PYALLUP_HPP
 
+// specify which version of the API we're on
+#define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
 #include "numpy/arrayobject.h"
 #include <stdexcept>
 
@@ -13,6 +15,12 @@ namespace rynlib {
             if(PyArray_API == NULL)
             {
                 import_array();
+            }
+        }
+        inline void _check_py_arr(PyObject* array) {
+            if (!PyArray_Check(array)) {
+                PyErr_SetString(PyExc_TypeError, "expected numpy array");
+                throw std::runtime_error("requires NumPy array");
             }
         }
 
@@ -92,11 +100,9 @@ namespace rynlib {
         template<typename T>
         inline T* get_numpy_data(PyObject *array) {
             _np_init();
-            if (!PyArray_Check(array)) {
-                PyErr_SetString(PyExc_TypeError, "expected numpy array");
-                throw std::runtime_error("requires NumPy array");
-            }
-            return (T*) PyArray_DATA(array);
+            _check_py_arr(array);
+            auto py_arr = (PyArrayObject*) array;
+            return (T*) PyArray_DATA(py_arr);
         }
         template<typename T>
         inline T* from_python_buffer(PyObject* data) { // Pointer types _only_ allowed for NumPy arrays

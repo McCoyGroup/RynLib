@@ -1,7 +1,7 @@
 #ifndef RYNLIB_`LIBNAME`_POT_HPP
 
 #include "Python.h"
-#include "RynTypes.hpp"
+#include "FFIParameters.hpp"
 
 `MethodDeclarations`
 
