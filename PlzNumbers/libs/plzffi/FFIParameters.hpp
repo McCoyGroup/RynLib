@@ -59,6 +59,22 @@ namespace plzffi {
 
         NUMPY_Bool = NUMPY_TYPES + 30
     };
+}
+// register a conversion for FFIType
+namespace rynlib {
+    namespace python {
+        template<>
+        inline PyObject* as_python<plzffi::FFIType>(plzffi::FFIType data) {
+            return as_python<int>(static_cast<int>(data));
+        }
+        template<>
+        inline plzffi::FFIType from_python<plzffi::FFIType>(PyObject* data) {
+            return static_cast<plzffi::FFIType>(from_python<int>(data));
+        }
+    }
+}
+
+namespace plzffi {
 
     //
     template <typename T>
@@ -156,40 +172,69 @@ namespace plzffi {
         return (T*)data;
     }
 
+    class FFIArgument {
+        std::string param_key;
+        std::vector<size_t> shape_vec; // for holding NumPy data
+        FFIType type_char;
+    public:
+        FFIArgument(
+                std::string &name,
+                FFIType type,
+                std::vector<size_t> &shape
+        ) : param_key(name), type_char(type), shape_vec(shape) {}
+        FFIArgument(
+                const char* name,
+                FFIType type,
+                std::vector<int> shape
+        ) : param_key(name), type_char(type) {
+//            for (auto s : shape) { shape_vec}
+            shape_vec = std::vector<size_t>(shape.begin(), shape.end());
+        }
+        FFIArgument() = default;
+
+        std::string name() {return param_key;}
+        std::vector<size_t> shape() {return shape_vec;}
+        FFIType type() {return type_char;}
+
+        PyObject * as_tuple() {
+            return Py_BuildValue("(NNN)",
+                                 rynlib::python::as_python<std::string>(param_key),
+                                 rynlib::python::as_python<FFIType>(type_char),
+                                 rynlib::python::as_python_tuple<size_t>(shape_vec)
+                                 );
+        }
+    };
+
     class FFIParameter {
         // object that maps onto the python FFI stuff...
         PyObject *py_obj;
-        std::string param_key;
+        FFIArgument arg_spec;
         void *param_data; // we void pointer this to make it easier to handle
-        FFIType type_char;
-        std::vector <size_t> shape_vec; // for holding NumPy data
     public:
         FFIParameter(
                 PyObject *obj,
-                std::string& name,
-                FFIType type,
-                std::vector <size_t>& shape
-                ) : py_obj(obj), param_key(name), param_data(), type_char(type), shape_vec(shape) {};
+                FFIArgument& arg
+                ) : py_obj(obj), arg_spec(arg), param_data() {};
 
         FFIParameter(
                 void *data,
-                std::string& name,
-                FFIType type,
-                std::vector <size_t>& shape
-        ) : py_obj(NULL), param_key(name), param_data(data), type_char(type), shape_vec(shape) {};
+                FFIArgument& arg
+        ) : py_obj(NULL), param_data(data), arg_spec(arg) {};
 
-        FFIParameter(PyObject *obj) : py_obj(obj) { init(); }
+        explicit FFIParameter(PyObject *obj) : py_obj(obj), arg_spec() { init(); }
 
         FFIParameter() = default;
 
         void init();
 
-        std::string name() { return param_key; }
+        std::string name() { return arg_spec.name(); }
+        std::vector<size_t> shape() { return arg_spec.shape(); }
+        FFIType type() { return arg_spec.type(); }
 
         template <typename T>
         T value() {
             FFITypeHandler<T> handler;
-            return handler.cast(type_char, param_data);
+            return handler.cast(type(), param_data);
         }
 
         void* _raw_ptr() { return param_data; } // I put this out there so people smarter than I can use it

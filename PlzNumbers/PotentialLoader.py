@@ -4,6 +4,7 @@ Provides a Loader object to load a potential from a C++ extension
 
 import os, numpy as np
 from ..RynUtils import CLoader, ModuleLoader
+from .FFI import FFIModule
 
 __all__ = [
     "PotentialLoader"
@@ -28,6 +29,7 @@ class PotentialLoader:
         'build_kwargs'
     ]
 
+    src_folder = os.path.join(os.path.dirname(__file__), "src")
     libs_folder = os.path.join(os.path.dirname(__file__), "libs")
     def __init__(self,
                  name,
@@ -53,7 +55,7 @@ class PotentialLoader:
 
         if include_dirs is None:
             include_dirs = []
-        include_dirs = tuple(include_dirs) + (self.libs_folder, np.get_include())
+        include_dirs = tuple(include_dirs) + (self.src_folder, self.libs_folder, np.get_include())
         if linked_libs is None:
             linked_libs = []
         linked_libs = tuple(linked_libs) + ("plzffi",)
@@ -78,9 +80,9 @@ class PotentialLoader:
 
         # Need to insert code here to allow for new caller API to work
         self._lib = None
-        if pointer_name is None:
-            pointer_name = "_potential"
-        self.function_name = pointer_name
+
+        self._attr = pointer_name
+        # self.function_name = pointer_name
 
     @property
     def lib(self):
@@ -102,8 +104,18 @@ class PotentialLoader:
                 self._lib = self.c_loader.load()
         return self._lib
     @property
+    def caller_api_version(self):
+        if hasattr(self.lib, "_FFIModule"): # currently how we're dispatching
+            return 2
+        else:
+            return 1
+    @property
     def pointer(self):
         if self.python_potential is not False and self.python_potential is not True:
             return self.python_potential
         else:
-            return getattr(self.lib, self.function_name)
+            if hasattr(self.lib, "_FFIModule"):
+                return FFIModule(self._lib)
+            else:
+                return self._lib._potential
+            # return getattr(self.lib, self._attr)

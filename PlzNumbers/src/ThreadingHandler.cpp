@@ -340,7 +340,8 @@ namespace rynlib {
                 std::string key = "coords";
                 auto data_ptr = (void*)coords.data();
                 auto shp = coords.get_shape();
-                FFIParameter coords_param(data_ptr, key, FFIType::Double, shp);
+                FFIArgument arg (key, FFIType::Double, shp);
+                FFIParameter coords_param(data_ptr, arg);
                 call_params.set_parameter(key, coords_param);
                 pot_val = method.call(call_params);
 //                pot = pot_func(walker_coords, atoms, extra_bools, extra_ints, extra_floats);
@@ -486,7 +487,8 @@ namespace rynlib {
                 std::string key = "coords";
                 auto data_ptr = (void*)coords.data();
                 auto shp = coords.get_shape();
-                FFIParameter coords_param(data_ptr, key, FFIType::Double, shp);
+                FFIArgument arg (key, FFIType::Double, shp);
+                FFIParameter coords_param(data_ptr, arg);
                 call_params.set_parameter(key, coords_param);
                 auto pot_buf = method.call(call_params);
                 std::vector<double> pot_vec(pot_buf, pot_buf+coords.num_calls());

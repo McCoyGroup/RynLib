@@ -37,7 +37,10 @@ namespace rynlib {
         inline T from_python(PyObject* data) {
 //            auto obj = new T {data}; // memory risky...
 //            return obj; // assume we have a constructor that can ingest the python type
-            throw std::runtime_error("Can only handle simple python types. Define your own constructor if you need it;");
+            std::string tname = typeid(T).name();
+            std::string bad_type = "For type " + tname;
+            bad_type += ": can only convert python data to simple types. Define your own converter if you need it";
+            throw std::runtime_error(bad_type);
         }
         template <>
         inline PyObject * from_python<PyObject *>(PyObject *data) {
@@ -87,6 +90,53 @@ namespace rynlib {
             return str;
         }
 
+        template<typename T>
+        inline PyObject* as_python(T data) {
+            std::string tname = typeid(T).name(); // often garbage, but we use this just for debug purposes
+            std::string bad_type = "For type " + tname;
+            bad_type += ": can only convert simple types to python data. Define your own converter if you need it";
+            throw std::runtime_error(bad_type);
+        }
+        template <>
+        inline PyObject * as_python<PyObject *>(PyObject *data) {
+            return data;
+        }
+        template <>
+        inline PyObject *as_python<char>(char data) { return Py_BuildValue("b", data); }
+        template <>
+        inline PyObject *as_python<unsigned char>(unsigned char data) { return Py_BuildValue("B", data); }
+        template <>
+        inline PyObject *as_python<short>(short data) { return Py_BuildValue("h", data); }
+        template <>
+        inline PyObject *as_python<unsigned short>(unsigned short data) { return Py_BuildValue("H", data); }
+        template <>
+        inline PyObject *as_python<int>(int data) { return Py_BuildValue("i", data); }
+        template <>
+        inline PyObject *as_python<unsigned int>(unsigned int data) { return Py_BuildValue("I", data); }
+        template <>
+        inline PyObject *as_python<long>(long data) { return Py_BuildValue("l", data); }
+        template <>
+        inline PyObject *as_python<unsigned long>(unsigned long data) { return Py_BuildValue("k", data); }
+        template <>
+        inline PyObject *as_python<long long>(long long data) { return Py_BuildValue("L", data); }
+        template <>
+        inline PyObject *as_python<unsigned long long>(unsigned long long data) { return Py_BuildValue("K", data); }
+//        template <>
+//        inline Py_ssize_t from_python<Py_ssize_t>(PyObject *data) { return PyLong_AsSsize_t(data);  }
+//        template <>
+//        inline size_t from_python<size_t>(PyObject *data) { return PyLong_AsSize_t(data); }
+        template <>
+        inline PyObject *as_python<float>(float data) { return Py_BuildValue("f", data); }
+        template <>
+        inline PyObject *as_python<double>(double data) { return Py_BuildValue("d", data); }
+        template <>
+        inline PyObject * as_python<std::string>(std::string data) {
+            return Py_BuildValue("s", data.c_str());
+        }
+        template <>
+        inline PyObject * as_python<const char*>(const char* data) {
+            return Py_BuildValue("s", data);
+        }
 
         template<typename T>
         inline std::vector<T> from_python_iterable(PyObject* data, Py_ssize_t num_els) {
@@ -112,6 +162,19 @@ namespace rynlib {
         template<typename T>
         inline std::vector<T> from_python_iterable(PyObject* data) {
             return from_python_iterable<T>(data, PyObject_Length(data));
+        }
+
+        template<typename T>
+        inline PyObject *as_python_tuple(std::vector<T> data, Py_ssize_t num_els) {
+            auto tup = PyTuple_New(num_els);
+            for (size_t i = 0; i < data.size(); i++) {
+                PyTuple_SET_ITEM(tup, i, as_python<T>(data[i]));
+            }
+            return tup;
+        }
+        template<typename T>
+        inline PyObject *as_python_tuple(std::vector<T> data) {
+            return as_python_tuple<T>(data, data.size());
         }
 
         inline std::string get_python_repr(PyObject* obj) {

@@ -215,9 +215,11 @@ namespace plzffi {
 //        }
 
     void FFIParameter::init() {
-        type_char = get_python_attr<FFIType>(py_obj, "arg_type");
-        param_key = get_python_attr<std::string>(py_obj, "arg_name");
-        shape_vec = get_python_attr_iterable<size_t>(py_obj, "arg_shape");
+        auto type_char = get_python_attr<FFIType>(py_obj, "arg_type");
+        auto name = get_python_attr<std::string>(py_obj, "arg_name");
+        auto shape = get_python_attr_iterable<size_t>(py_obj, "arg_shape");
+
+        arg_spec = FFIArgument(name, type_char, shape);
 
         switch(type_char) {
             case (FFIType::PyObject): {
