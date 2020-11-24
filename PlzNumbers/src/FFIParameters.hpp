@@ -7,11 +7,22 @@
 #include <vector>
 
 namespace rynlib {
+
+//    namespace PlzNumbers { class FFIParameter {
+//        public: FFIParameter(PyObject*)
+//    }; } //predeclare
+//    template <>
+//    inline PlzNumbers::FFIParameter python::from_python<PlzNumbers::FFIParameter>(PyObject *data) {
+//        return PlzNumbers::FFIParameter(data);
+//    }
     namespace PlzNumbers {
 
         // Set up enum for type mapping
         // Must be synchronized with the types on the python side
         enum class FFIType {
+
+            GENERIC = -1, // fallback for when things aren't really expected to have a type...
+
             PY_TYPES = 1000,
             UnsignedChar = PY_TYPES + 10,
             Short = PY_TYPES + 20,
@@ -66,6 +77,86 @@ namespace rynlib {
             T* cast(FFIType type_code, void* data);
         };
 
+        //region Template Garbage
+        // template shit has to be in the headers -_-
+        template <typename T>
+        inline void FFITypeHandler<T>::validate(FFIType type_code) {
+            if (type_code != FFIType::GENERIC) {
+                throw std::runtime_error("unhandled type specifier");
+            }
+        };
+        template <typename T>
+        inline void FFITypeHandler<T*>::validate(FFIType type_code) {
+            FFITypeHandler<T> handler;
+            handler.validate(type_code);
+        }
+        template <>
+        void  FFITypeHandler<npy_bool>::validate(FFIType type_code);
+        template <>
+        void  FFITypeHandler<npy_int8>::validate(FFIType type_code);
+        template <>
+        void  FFITypeHandler<npy_int16>::validate(FFIType type_code);
+        template <>
+        void  FFITypeHandler<npy_int32>::validate(FFIType type_code);
+        template <>
+        void  FFITypeHandler<npy_int64>::validate(FFIType type_code);
+        template <>
+        void  FFITypeHandler<npy_uint8>::validate(FFIType type_code);
+        template <>
+        void  FFITypeHandler<npy_uint16>::validate(FFIType type_code);
+        template <>
+        void  FFITypeHandler<npy_uint32>::validate(FFIType type_code);
+        template <>
+        void  FFITypeHandler<npy_uint64>::validate(FFIType type_code);
+        template <>
+        void  FFITypeHandler<npy_float16>::validate(FFIType type_code);
+        template <>
+        void  FFITypeHandler<npy_float32>::validate(FFIType type_code);
+        template <>
+        void  FFITypeHandler<npy_float64>::validate(FFIType type_code);
+        template <>
+        void  FFITypeHandler<npy_float128>::validate(FFIType type_code);
+        template <>
+        void  FFITypeHandler<unsigned char>::validate(FFIType type_code);
+        template <>
+        void  FFITypeHandler<short>::validate(FFIType type_code);
+        template <>
+        void  FFITypeHandler<unsigned short >::validate(FFIType type_code);
+        template <>
+        void  FFITypeHandler<int >::validate(FFIType type_code);
+        template <>
+        void  FFITypeHandler<unsigned int >::validate(FFIType type_code);
+        template <>
+        void  FFITypeHandler<long >::validate(FFIType type_code);
+        template <>
+        void  FFITypeHandler<unsigned long >::validate(FFIType type_code);
+        template <>
+        void  FFITypeHandler<long long >::validate(FFIType type_code);
+        template <>
+        void  FFITypeHandler<unsigned long long >::validate(FFIType type_code);
+        template <>
+        void  FFITypeHandler<Py_ssize_t >::validate(FFIType type_code);
+        template <>
+        void  FFITypeHandler<float >::validate(FFIType type_code);
+        template <>
+        void  FFITypeHandler<double >::validate(FFIType type_code);
+        template <>
+        void  FFITypeHandler<bool >::validate(FFIType type_code);
+        template <>
+        void  FFITypeHandler<std::string >::validate(FFIType type_code);
+        //endregion
+
+        template <typename T>
+        inline T FFITypeHandler<T>::cast(FFIType type_code, void *data) {
+            validate(type_code);
+            return *(T*)data;
+        }
+        template <typename T>
+        inline T* FFITypeHandler<T*>::cast(FFIType type_code, void *data) {
+            validate(type_code);
+            return (T*)data;
+        }
+
         class FFIParameter {
             // object that maps onto the python FFI stuff...
             PyObject *py_obj;
@@ -81,14 +172,26 @@ namespace rynlib {
                     std::vector <size_t>& shape
                     ) : py_obj(obj), param_key(name), param_data(), type_char(type), shape_vec(shape) {};
 
-            explicit FFIParameter(PyObject *obj) : py_obj(obj) { init(); }
+            FFIParameter(
+                    void *data,
+                    std::string& name,
+                    FFIType type,
+                    std::vector <size_t>& shape
+            ) : py_obj(NULL), param_key(name), param_data(data), type_char(type), shape_vec(shape) {};
+
+            FFIParameter(PyObject *obj) : py_obj(obj) { init(); }
+
+            FFIParameter() = default;
 
             void init();
 
             std::string name() { return param_key; }
 
             template <typename T>
-            T value();
+            T value() {
+                FFITypeHandler<T> handler;
+                return handler.cast(param_data);
+            }
 
             void* _raw_ptr() { return param_data; } // I put this out there so people smarter than I can use it
 
@@ -105,9 +208,9 @@ namespace rynlib {
                 init();
             }
             void init();
-            int param_index(std::string& key);
+            size_t param_index(std::string& key);
             FFIParameter get_parameter(std::string& key);
-            FFIParameter set_parameter(std::string& key, FFIParameter& param);
+            void set_parameter(std::string& key, FFIParameter& param);
 
         };
 

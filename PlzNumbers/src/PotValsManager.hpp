@@ -28,9 +28,13 @@ namespace rynlib {
             size_t num_calls() {
                 return ncalls;
             }
-
             size_t num_walkers() {
                 return pot_vals.size() / ncalls;
+            }
+            std::vector<size_t> get_shape() {
+                size_t buf[2] = {num_calls(), num_walkers()};
+                std::vector<size_t> vec(buf, buf+2);
+                return vec;
             }
 
             void assign(size_t n, size_t i, Real_t val);

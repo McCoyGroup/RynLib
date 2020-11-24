@@ -31,7 +31,7 @@ namespace rynlib {
         class CallerParameters { // The goal is for this to basically directly parallel the python-side "extra args"
 
             // flags to be fed to the code
-            std::string arg_sig = "iOOOdppppppp";
+            std::string arg_sig = "iOOOdpippppp";
 
             int caller_api = 0;
             // To support both old style and new style potential calls by
@@ -111,13 +111,18 @@ namespace rynlib {
 
             int api_version() { return caller_api; }
 
+            FFIParameters ffi_params() { return parameters; }
+
+            template<typename T>
+            FFIMethod<T> get_method();
+
         };
 
         class PotentialApplier {
             PyObject* py_pot;
-            CallerParameters& params;
-            // we need to load the appropriate one these _before_ we start
-            // calling from our threads
+            CallerParameters params;
+            // we need to load the appropriate one of
+            // these _before_ we start calling from our threads
             PotentialFunction pot;
             FlatPotentialFunction flat_pot;
             VectorizedPotentialFunction vec_pot;
@@ -128,7 +133,18 @@ namespace rynlib {
                     CallerParameters& parameters
             ) :
                     py_pot(python_pot),
-                    params(parameters) {}
+                    params(parameters) {
+                init();
+            }
+
+            void init();
+
+            CallerParameters call_parameters() {
+
+//                printf("....????? %d %s\n", params.api_version(), "bloop");//get_python_repr(params.python_args()).c_str() );
+//                printf("   ????? wtf?\n" );
+                return params;
+            }
 
             Real_t call(
                     CoordsManager& coords,
@@ -164,7 +180,7 @@ namespace rynlib {
         };
 
         class ThreadingHandler {
-            PotentialApplier& pot;
+            PotentialApplier pot;
             ThreadingMode mode;
         public:
             ThreadingHandler(
@@ -175,6 +191,11 @@ namespace rynlib {
             PotValsManager call_potential(
                     CoordsManager& coords
                     );
+
+            CallerParameters call_parameters() {
+                auto wat = pot.call_parameters();
+                return wat;
+            }
 
             void _call_omp(
                     PotValsManager &pots,

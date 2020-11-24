@@ -33,6 +33,10 @@ namespace rynlib {
 
             PotValsManager get_pot();
 
+            ThreadingHandler threaded_caller() { return caller; }
+            MPIManager mpi() { return mpi_manager; }
+            CoordsManager coords() { return walker_data; }
+
         };
 
     }

@@ -65,6 +65,8 @@ class PotentialLoader:
                               )
         # else:
         #     self.c_loader = None
+
+        # Need to insert code here to allow for new caller API to work
         self._lib = None
         if pointer_name is None:
             pointer_name = "_potential"

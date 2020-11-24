@@ -4,6 +4,7 @@
 
 #include "CoordsManager.hpp"
 #include "PyAllUp.hpp"
+#include <stdexcept>
 
 namespace rynlib {
     namespace PlzNumbers {
@@ -86,8 +87,8 @@ namespace rynlib {
         Coordinates CoordsManager::get_walker(std::vector<size_t> which) {
             Coordinates walker_coords;
             size_t num_crds = which.size();
-            auto ncalls = num_calls();
-            auto nwalks = num_walkers();
+//            auto ncalls = num_calls();
+//            auto nwalks = num_walkers();
             switch (num_crds) {
                 case 1:
                     walker_coords = _getWalkerCoords(
@@ -136,7 +137,7 @@ namespace rynlib {
                     );
                     break;
                 default:
-                    throw std::logic_error("bad number of indices to CoordsManager::get_flat_walker");
+                    throw std::runtime_error("bad number of indices to CoordsManager::get_flat_walker");
             }
             return walker_coords;
         }
@@ -150,8 +151,8 @@ namespace rynlib {
             );
             auto ncalls = num_calls();
             auto nwalks = num_walkers();
-            for (auto n = 0; n < ncalls; n++) {
-                for (auto i = 0; i < nwalks; i++) {
+            for (size_t n = 0; n < ncalls; n++) {
+                for (size_t i = 0; i < nwalks; i++) {
                     _fillWalkerCoords2(
                             walker_data, n, i,
                             ncalls, nwalks, num_atoms(),
@@ -168,8 +169,11 @@ namespace rynlib {
 
         PyObject* CoordsManager::as_numpy_array() {
             // ncalls and nconfigs get transposed when going back to NumPy; doesn't really matter in general
+
             size_t wat_shape[4] {shape[1], shape[0], num_atoms(), 3}; // C++ didn't like my vector initializer ?
+//            printf("...? 222\n");
             std::vector<size_t > np_shape(wat_shape, wat_shape+4);
+//            printf("...? 333\n");
             return python::numpy_from_data<Real_t >(
                     walker_data,
                     np_shape

@@ -1,5 +1,6 @@
 
 #include "FFIParameters.hpp"
+#include "PyAllUp.hpp"
 #include <stdexcept>
 #include <string>
 
@@ -9,15 +10,12 @@ namespace rynlib {
     namespace PlzNumbers {
 
         // defines a compiler map between FFIType and proper types
-        template <typename T>
-        FFIType infer_FFIType() {
-            throw std::runtime_error("unhandled type specifier");
-        }
-
-        template <typename T>
-        void FFITypeHandler<T>::validate(FFIType type_code) {
-            throw std::runtime_error("unhandled type specifier");
-        };
+//        template <typename T>
+//        void FFITypeHandler<T>::validate(FFIType type_code) {
+//            if (type_code != FFIType::GENERIC) {
+//                throw std::runtime_error("unhandled type specifier");
+//            }
+//        };
         // we do the numpy types preferentially because they are most likely to cover the dtype sizes we need
         template <>
         void  FFITypeHandler<npy_bool>::validate(FFIType type_code) {
@@ -206,16 +204,16 @@ namespace rynlib {
             };
         }
 
-        template <typename T>
-        T FFITypeHandler<T>::cast(FFIType type_code, void *data) {
-            validate(type_code);
-            return *(T*)data;
-        }
-        template <typename T>
-        T* FFITypeHandler<T*>::cast(FFIType type_code, void *data) {
-            validate(type_code);
-            return (T*)data;
-        }
+//        template <typename T>
+//        T FFITypeHandler<T>::cast(FFIType type_code, void *data) {
+//            validate(type_code);
+//            return *(T*)data;
+//        }
+//        template <typename T>
+//        T* FFITypeHandler<T*>::cast(FFIType type_code, void *data) {
+//            validate(type_code);
+//            return (T*)data;
+//        }
 
         void FFIParameter::init() {
             type_char = get_python_attr<FFIType>(py_obj, "arg_type");
@@ -370,18 +368,18 @@ namespace rynlib {
             }
         }
 
-        template <typename T>
-        T FFIParameter::value() {
-            FFITypeHandler<T> handler;
-            return handler.cast(param_data);
-        }
+//        template <typename T>
+//        T FFIParameter::value() {
+//            FFITypeHandler<T> handler;
+//            return handler.cast(param_data);
+//        }
 
         void FFIParameters::init() {
-            params = from_python_iterable<FFIParameter>(py_obj);
+            params = get_python_attr_iterable<FFIParameter>(py_obj, "ffi_parameters");
         }
 
-        int FFIParameters::param_index(std::string& param_name) {
-            int i;
+        size_t FFIParameters::param_index(std::string& param_name) {
+            size_t i;
             for ( i=0; i < params.size(); i++) {
                 auto p = params[i];
                 if (p.name() == param_name) break;
@@ -393,7 +391,7 @@ namespace rynlib {
             auto i = param_index(param_name);
             return params[i];
         }
-        FFIParameter FFIParameters::set_parameter(std::string& param_name, FFIParameter& param) {
+        void FFIParameters::set_parameter(std::string& param_name, FFIParameter& param) {
             auto i = param_index(param_name);
             params[i] = param;
         }

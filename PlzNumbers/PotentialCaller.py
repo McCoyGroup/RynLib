@@ -4,32 +4,11 @@ Provides a Caller that Potential uses to actually evaluate the potential
 
 import numpy as np, os, multiprocessing as mp, sys, signal
 from ..RynUtils import CLoader
+from .PotentialArguments import PotentialArguments
 
 __all__ = [
     "PotentialCaller"
 ]
-
-
-
-
-class PotentialArguments:
-    """
-    Class that holds arguments to be fed through to potentials
-    """
-    def __init__(self,
-                 *extra_args,
-                 ):
-        # supported extra types
-        extra_bools = []
-        extra_ints = []
-        extra_floats = []
-        for a in extra_args:
-            if a is True or a is False:
-                extra_bools.append(a)
-            elif isinstance(a, int):
-                extra_ints.append(a)
-            elif isinstance(a, float):
-                extra_floats.append(a)
 
 class PotentialCaller:
     """
@@ -48,6 +27,7 @@ class PotentialCaller:
     ]
     def __init__(self,
                  potential,
+                 function_name,
                  *ignore,
                  mpi_manager=None,
                  bad_walker_file=None,
@@ -63,6 +43,7 @@ class PotentialCaller:
         if len(ignore) > 0:
             raise ValueError("Only one positional argument (for the potential) accepted")
         self.potential = potential
+        self.function_name = function_name
         self._mpi_manager = mpi_manager
         self._lib = None
         self._py_pot = not repr(self.potential).startswith("<capsule object ")  # wow this is a hack...
@@ -103,12 +84,15 @@ class PotentialCaller:
                          ],
                          linked_libs=['tbb', 'tbbmalloc', 'tbbmalloc_proxy'],
                          source_files=[
+                             # "PyAllUp.cpp",
                              "PlzNumbers.cpp",
                              "PotentialCaller.cpp",
                              "MPIManager.cpp",
                              "CoordsManager.cpp",
                              "PotValsManager.cpp",
-                             "ThreadingHandler.cpp"
+                             "ThreadingHandler.cpp",
+                             "FFIParameters.cpp",
+                             "FFIModule.cpp"
                          ],
                          macros=[
                              ("_TBB",)
@@ -154,9 +138,85 @@ class PotentialCaller:
         from ..Interface import RynLib
         return RynLib.flags['TBBThreads']
 
-    def call_multiple(self, walker, atoms, *extra_args,
+    @property
+    def caller_api_version(self):
+        if self.function_name == "_potential":
+            return 1
+        else:
+            return 2
+    class CallerParameters:
+        arg_sig = "iOOOdpippppp"
+        def __init__(self,
+                     *args,
+                     _function_name=None,
+                     _caller_api=0,
+                     _bad_walkers_file=None,
+                     _error_value=None,
+                     _raw_array_potential=None,
+                     _vectorized_potential=None,
+                     _debug_print=None,
+                     _caller_retries=None,
+                     _use_openmp=None,
+                     _use_tbb=None,
+                     _python_potential=None,
+                     **kwargs
+                     ):
+            self.args=PotentialArguments(args, **kwargs)
+            self.caller_api=_caller_api
+            self.function_name=_function_name
+            self.bad_walkers_file=_bad_walkers_file
+            self.error_value=_error_value
+            self.raw_array_potential=_raw_array_potential
+            self.vectorized_potential=_vectorized_potential
+            self.debug_print=_debug_print
+            self.caller_retries=_caller_retries
+            self.use_openmp=_use_openmp
+            self.use_tbb=_use_tbb
+            self.python_potential=_python_potential
+
+        @property
+        def argvec(self):
+            args = (
+                self.caller_api,
+                self.function_name,
+                self.args,
+                self.bad_walkers_file,
+                self.error_value,
+                True,
+                # self.debug_print,
+                self.caller_retries,
+                self.raw_array_potential,
+                self.vectorized_potential,
+                self.use_openmp,
+                self.use_tbb,
+                self.python_potential
+            )
+            if None in args:
+                raise ValueError("CallerParameters doesn't have a required value")
+            return args
+
+        def __repr__(self):
+            return "{}{}".format("CallerParameters",
+                                 str((
+                                     self.caller_api,
+                                     self.function_name,
+                                     self.args,
+                                     self.bad_walkers_file,
+                                     self.error_value,
+                                     self.debug_print,
+                                     self.caller_retries,
+                                     self.raw_array_potential,
+                                     self.vectorized_potential,
+                                     self.use_openmp,
+                                     self.use_tbb,
+                                     self.python_potential
+                                 )))
+
+    def call_multiple(self, walker, atoms,
+                      *extra_args,
                       omp_threads=None,
-                      tbb_threads=None
+                      tbb_threads=None,
+                      **extra_kwargs
                       ):
         """
 
@@ -176,14 +236,13 @@ class PotentialCaller:
             if smol_guy:
                 walker = np.reshape(walker, (1,) + walker.shape[:1] + walker.shape[1:])
 
-        if self._py_pot and self._wrapped_pot is None:
-            num_walkers = int(np.product(walker.shape[:-2]))
-            self._wrapped_pot = self._mp_wrap(self.potential, num_walkers, self.mpi_manager)
+        # if self._py_pot and self._wrapped_pot is None:
+        #     num_walkers = int(np.product(walker.shape[:-2]))
+        #     self._wrapped_pot = self._mp_wrap(self.potential, num_walkers, self.mpi_manager)
 
         if self._py_pot and self.mpi_manager is None:
-            poots = self._wrapped_pot(walker, atoms, extra_args)
+            poots = self.potential(walker, atoms, extra_args)
         else:
-
             # clumy way to determine the # of threads we need
             omp = self._get_omp_threads() if omp_threads is None else omp_threads
             if omp and (self.mpi_manager is not None):
@@ -207,18 +266,22 @@ class PotentialCaller:
                 coords,
                 atoms,
                 self.potential,
-                self.mpi_manager,
-                PotentialArguments(
+                self.CallerParameters(
                     *extra_args,
-                    bad_walkers_file=self.bad_walkers_file,
-                    error_value=float(self.error_value),
-                    raw_array_potential=bool(self.raw_array_potential),
-                    vectorized_potential=bool(self.vectorized_potential),
-                    debug_print=bool(self.debug_print),
-                    caller_retries=int(self.caller_retries),
-                    use_openmp=bool(omp),
-                    use_tbb=bool(tbb)
-                )
+                    _function_name=self.function_name,
+                    _caller_api=self.caller_api_version,
+                    _bad_walkers_file=self.bad_walkers_file,
+                    _error_value=float(self.error_value),
+                    _raw_array_potential=bool(self.raw_array_potential),
+                    _vectorized_potential=bool(self.vectorized_potential),
+                    _debug_print=bool(self.debug_print),
+                    _caller_retries=int(self.caller_retries),
+                    _use_openmp=bool(omp),
+                    _use_tbb=bool(tbb),
+                    _python_potential=self._py_pot,
+                    **extra_kwargs
+                ),
+                self.mpi_manager
             )
             if poots is not None:
                 if self.mpi_manager is not None: # switch the shape back around
@@ -227,8 +290,8 @@ class PotentialCaller:
                     shp = poots.shape
                     poots = poots.reshape(shp[1], shp[0]).transpose()
 
-        if poots is not None and self.mpi_manager is not None:
-            poots = poots.squeeze()[0] if smol_guy else poots
+        if poots is not None and smol_guy:# and self.mpi_manager is not None:
+            poots = poots.squeeze()
         return poots
 
     def __call__(self, walkers, atoms, *extra_args):
@@ -263,6 +326,7 @@ class PotentialCaller:
         rooot_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 
         def __init__(self, potential, nprocs):
+            raise DeprecationWarning("this was a failed experiment")
             self.nprocs = nprocs
             self.pot = potential
             try:
@@ -404,7 +468,7 @@ class PotentialCaller:
         # We'll provide a wrapper that we can use with our functions to add parallelization
         # based on Pool.map
         # The wrapper will first check to make sure that we _are_ using a hybrid parallelization model
-
+        raise DeprecationWarning("failed experiment")
         from ..Interface import RynLib
         hybrid_p = RynLib.flags['multiprocessing']
 

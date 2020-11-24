@@ -34,7 +34,7 @@ namespace rynlib {
 
             void init();
             bool no_mpi() {
-                return (mpi_manager == NULL);
+                return (mpi_manager == Py_None);
             }
             int world_size() {
                 if (mpi_world_size == -1) { init(); }

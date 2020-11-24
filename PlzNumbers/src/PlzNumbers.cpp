@@ -6,16 +6,16 @@
 #include "PlzNumbers.hpp"
 #include "PyAllUp.hpp"
 #include <stdexcept>
+//#include <memory>
 
 namespace rynlib {
     using namespace common;
     using namespace python;
     namespace PlzNumbers {
 
-
         ThreadingHandler load_caller(
                 PyObject *capsule,
-                CallerParameters parameters
+                CallerParameters& parameters
         ) {
             ThreadingMode mode = parameters.threading_mode();
             PotentialApplier pot_fun(capsule, parameters);
@@ -42,7 +42,10 @@ PyObject *PlzNumbers_callPotVec(PyObject* self, PyObject* args ) {
 
     PyObject* coords, *atoms, *pot_function, *parameters, *manager;
 
-    if ( !PyArg_ParseTuple(
+//    auto garb = rynlib::python::get_python_repr(args);
+//    printf("  >>> 2.1 waaat %s\n", garb.c_str());
+
+    int passed = PyArg_ParseTuple(
             args,
             "OOOOO",
             &coords,
@@ -50,8 +53,8 @@ PyObject *PlzNumbers_callPotVec(PyObject* self, PyObject* args ) {
             &pot_function,
             &parameters,
             &manager
-    )
-            ) return NULL;
+    );
+    if ( !passed ) return NULL;
 
     try {
 
@@ -59,31 +62,38 @@ PyObject *PlzNumbers_callPotVec(PyObject* self, PyObject* args ) {
                 coords,
                 atoms
         );
-
         rynlib::PlzNumbers::CallerParameters params(atoms, parameters);
-
         auto caller = rynlib::PlzNumbers::load_caller(pot_function, params);
-
         rynlib::PlzNumbers::MPIManager mpi(manager);
-
         rynlib::PlzNumbers::PotentialCaller evaluator(
                 coord_data,
                 mpi,
                 caller
         );
 
+        auto wat = caller.call_parameters();
+
         auto pot_vals = evaluator.get_pot();
 
         if (mpi.is_main()) {
-            PyObject *pot_obj = rynlib::python::numpy_from_data<Real_t>(pot_vals.data(), coord_data.get_shape());
+            auto pot_obj = rynlib::python::numpy_from_data<Real_t>(pot_vals.data(), pot_vals.get_shape());
+            // I think I don't need to incref this, but we may need to revisit that thought
             return pot_obj;
         } else {
             Py_RETURN_NONE;
         }
 
-
     } catch (std::exception &e) {
         // maybe I want to set a message -> just here to protect us against segfaults and shit...
+        if (!PyErr_Occurred()) {
+            std::string msg = "in C++ caller: ";
+            msg += e.what();
+//            printf("%s", msg.c_str());
+            PyErr_SetString(
+                    PyExc_SystemError,
+                    msg.c_str()
+                    );
+        }
         return NULL;
     }
 

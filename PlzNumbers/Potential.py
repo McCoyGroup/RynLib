@@ -207,6 +207,7 @@ class Potential:
         if self._caller is None:
             self._caller = PotentialCaller(
                 self.loader.pointer,
+                self.loader.function_name,
                 **self._caller_opts
             )
         return self._caller

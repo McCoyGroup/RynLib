@@ -26,7 +26,7 @@ namespace rynlib {
             walks += "(";
             for (size_t i = 0; i < walker_coords.size(); i++) {
                 walks += "(";
-                for (int j = 0; j < 3; j++) {
+                for (size_t j = 0; j < 3; j++) {
                     walks += std::to_string(walker_coords[i][j]);
                     if (j < 2) {
                         walks += ", ";
@@ -49,7 +49,7 @@ namespace rynlib {
             err_msg += "(";
             for (size_t i = 0; i < walker_coords.size() / 3; i++) {
                 err_msg += "(";
-                for (int j = 0; j < 3; j++) {
+                for (size_t j = 0; j < 3; j++) {
                     err_msg += std::to_string(walker_coords[i * 3 + j]);
                     if (j < 2) {
                         err_msg += ", ";
@@ -103,47 +103,144 @@ namespace rynlib {
         }
 
         void CallerParameters::init() {
+
+//            printf("  > . > . > 1\n");
+
+            std::string true_arg_sig = get_python_attr<std::string>(py_params, "arg_sig");
+            if (true_arg_sig != arg_sig) {
+                std::string err = "CallerParameters: argument signature '"
+                                  + true_arg_sig
+                                  + "' doesn't match expected signature " + arg_sig;
+                PyErr_SetString(
+                        PyExc_ValueError,
+                        err.c_str()
+                        );
+                throw std::runtime_error("bad python shit");
+            }
+            auto argvec = get_python_attr<PyObject *>(py_params, "argvec");
+
+//            printf("  >>> 2 waaat %s\n", arg_sig.c_str());
+            auto garb = get_python_repr(argvec);
+//            printf("  >>> 2.1 %s\n", garb.c_str());
+
+//            int caller_ap;
+            int dbprint, retries, raw_pot, vecced, useOMP, useTBB, pyPot;
+//            double ev;
+
             PyObject *bad_walkers_str, *fun_name_str;
             int passed = PyArg_ParseTuple(
-                    py_params,
+                    argvec,
                     arg_sig.c_str(),
                     &caller_api,
                     &fun_name_str,
-                    extra_args,
+                    &extra_args,
                     &bad_walkers_str,
                     &err_val,
-                    &debug_print,
-                    &default_retries,
-                    &raw_array_pot,
-                    &vectorized_potential,
-                    &use_openMP,
-                    &use_TBB,
-                    &python_potential
+                    &dbprint,
+                    &retries,
+                    &raw_pot,
+                    &vecced,
+                    &useOMP,
+                    &useTBB,
+                    &pyPot
             );
+
+
+//            printf("  >>> 2.2 %f\n", err_val);
+
             if (!passed) {
                 Py_XDECREF(bad_walkers_str);
+                Py_XDECREF(fun_name_str);
                 throw std::runtime_error("python args issue?");
             }
+
+//            printf("  >>> 3\n");
+
+            debug_print = dbprint;
+            default_retries = retries;
+            raw_array_pot = raw_pot;
+            vectorized_potential = vecced;
+            use_openMP = useOMP;
+            use_TBB = useTBB;
+            python_potential = pyPot;
 
             function_name = from_python<std::string>(fun_name_str);
             Py_XDECREF(fun_name_str);
 
+//            printf("  >>> 4 %s\n", function_name.c_str());
+
             bad_walkers_file = from_python<std::string>(bad_walkers_str);
             Py_XDECREF(bad_walkers_str);
 
-            parameters = FFIParameters(extra_args);
-
-            if (caller_api == 1) {
-                PyObject* extra_bools = PyTuple_GetItem(extra_args, 0);
-                ext_bools = from_python_iterable<bool>(extra_bools);
-                PyObject* extra_ints = PyTuple_GetItem(extra_args, 1);
-                ext_ints = from_python_iterable<int>(extra_ints);
-                PyObject* extra_floats = PyTuple_GetItem(extra_args, 2);
-                ext_floats = from_python_iterable<double>(extra_floats);
+            if (caller_api < 1 || caller_api > 2) {
+                Py_XDECREF(bad_walkers_str);
+                Py_XDECREF(fun_name_str);
+//                printf("  >>> 4 %d\n", caller_api);
+                throw std::runtime_error("Bad API version");
             }
+//            printf("  >>> 5\n");
 
+            switch (caller_api) {
+                case 1: {
+                    ext_bools = get_python_attr_iterable<bool>(extra_args, "extra_bools");
+                    ext_ints = get_python_attr_iterable<int>(extra_args, "extra_floats");
+                    ext_floats = get_python_attr_iterable<double>(extra_args, "extra_floats");
+                    break;
+                }
+                case 2: {
+                    parameters = FFIParameters(extra_args);
+                    module = ffi_from_capsule(extra_args);
+                    break;
+                }
+                default:
+                    throw std::runtime_error("unkown caller api version");
+            }
         };
 
+        template<typename T>
+        FFIMethod<T> CallerParameters::get_method() {
+            return module.get_method<T>(function_name);
+        }
+
+        void PotentialApplier::init() {
+            switch(params.api_version()) {
+                case (1): {
+                    switch (params.threading_mode()) {
+                        case ThreadingMode::PYTHON:
+                            break;
+                        case ThreadingMode::VECTORIZED: {
+                            if (params.flat_mode()) {
+                                vec_flat_pot = get_pycapsule_ptr<VectorizedFlatPotentialFunction>(py_pot,
+                                                                                                  params.func_name());
+                            } else {
+                                vec_pot = get_pycapsule_ptr<VectorizedPotentialFunction>(py_pot, params.func_name());
+                            }
+                            break;
+                        }
+                        case ThreadingMode::OpenMP:
+                        case ThreadingMode::TBB:
+                        case ThreadingMode::SERIAL: {
+                            if (params.flat_mode()) {
+                                flat_pot = get_pycapsule_ptr<FlatPotentialFunction>(py_pot,params.func_name());
+                            } else {
+                                pot = get_pycapsule_ptr<PotentialFunction>(py_pot, params.func_name());
+                            }
+                            break;
+                        }
+                        default:
+                            throw std::runtime_error("unknown threading mode");
+
+
+                    }
+                    break;
+                }
+                case (2) :
+                    break;
+                default:
+                    throw std::runtime_error("unknown caller API version");
+            }
+
+        }
 
         // Old API
         Real_t PotentialApplier::call_1(
@@ -223,7 +320,7 @@ namespace rynlib {
             auto err_val = params.error_val();
             bool debug_print = params.debug();
 
-            auto method = params.get_method();
+            auto method = params.get_method<Real_t>();
 
             try {
                 if (debug_print) {
@@ -238,8 +335,13 @@ namespace rynlib {
                     printf("%s\n", walker_string.c_str());
                 }
 
-                auto call_params = params.ffi_params.copy();
-                call_params.update_key("coords", coords);
+                // might need a proper copy?
+                auto call_params = params.ffi_params();
+                std::string key = "coords";
+                auto data_ptr = (void*)coords.data();
+                auto shp = coords.get_shape();
+                FFIParameter coords_param(data_ptr, key, FFIType::Double, shp);
+                call_params.set_parameter(key, coords_param);
                 pot_val = method.call(call_params);
 //                pot = pot_func(walker_coords, atoms, extra_bools, extra_ints, extra_floats);
                 if (debug_print) {
@@ -275,14 +377,17 @@ namespace rynlib {
                 std::vector<size_t>& which
         ) {
             switch (params.api_version()) {
-                case (1):
+                case (1): {
                     return call_1(coords, which, params.retries());
                     break;
-                case (2):
+                }
+                case (2): {
                     return call_2(coords, which, params.retries());
                     break;
+                }
                 default:
-                    throw std::runtime_error("unkown caller API version");
+//                    printf("> ? > ? %d\n", params.api_version());
+                    throw std::runtime_error("unknown caller API version");
             }
         }
 
@@ -298,8 +403,10 @@ namespace rynlib {
                     case (2):
                         return call_vectorized_2(coords, params.retries());
                         break;
-                    default:
-                        throw std::runtime_error("unkown caller API version");
+                    default: {
+//                        printf("> ... > ... %d\n", params.api_version());
+                        throw std::runtime_error("unknown caller API version");
+                    }
                 }
             }
         }
@@ -347,7 +454,7 @@ namespace rynlib {
 
             } catch (std::exception &e) {
                 if (retries > 0) {
-                    pots = call_vectorized(coords, retries - 1);
+                    pots = call_vectorized_1(coords, retries - 1);
                 } else {
                     printf("Error in vectorized call %s\n", e.what());
                     pots = PotValsManager(coords.num_calls(), coords.num_walkers(), params.error_val());
@@ -356,6 +463,47 @@ namespace rynlib {
 
             return pots;
         }
+
+        // New API
+        PotValsManager PotentialApplier::call_vectorized_2(
+                CoordsManager &coords,
+                int retries
+        ) {
+            PotValsManager pot_vals;
+
+            auto debug_print = params.debug();
+            auto shape = coords.get_shape();
+
+            if (debug_print) {
+                printf("calling vectorized potential on %ld walkers", coords.num_geoms());
+            }
+
+            auto method = params.get_method<double *>();
+            try {
+
+                // might need a proper copy?
+                auto call_params = params.ffi_params();
+                std::string key = "coords";
+                auto data_ptr = (void*)coords.data();
+                auto shp = coords.get_shape();
+                FFIParameter coords_param(data_ptr, key, FFIType::Double, shp);
+                call_params.set_parameter(key, coords_param);
+                auto pot_buf = method.call(call_params);
+                std::vector<double> pot_vec(pot_buf, pot_buf+coords.num_calls());
+                pot_vals = PotValsManager(pot_vec, coords.num_calls());
+
+            } catch (std::exception &e) {
+                if (retries > 0) {
+                    pot_vals = call_vectorized_2(coords, retries - 1);
+                } else {
+                    printf("Error in vectorized call %s\n", e.what());
+                    pot_vals = PotValsManager(coords.num_calls(), coords.num_walkers(), params.error_val());
+                }
+            }
+
+            return pot_vals;
+
+        };
 
         PotValsManager PotentialApplier::call_python(
                 CoordsManager &coords
@@ -387,23 +535,51 @@ namespace rynlib {
             auto atoms = coords.get_atoms();
             auto ncalls = coords.num_calls();
             auto nwalkers = coords.num_walkers();
+
+            printf("Calling into potential '%s' for %lu steps with %lu walkers\n",
+                   call_parameters().func_name().c_str(),
+                   ncalls,
+                   nwalkers
+                   );
             PotValsManager pots(ncalls, nwalkers);
 
             switch (mode) {
-                case (ThreadingMode::OpenMP) :
+                case (ThreadingMode::OpenMP) : {
+                    if (call_parameters().debug()) {
+                        printf(" > caller threading using %s\n", "OpenMP");
+                    }
                     ThreadingHandler::_call_omp(pots, coords);
                     break;
-                case (ThreadingMode::TBB) :
+                }
+                case (ThreadingMode::TBB) : {
+                    if (call_parameters().debug()) {
+                        printf(" > caller threading using %s\n", "TBB");
+                    }
                     ThreadingHandler::_call_tbb(pots, coords);
                     break;
-                case (ThreadingMode::VECTORIZED) :
+                }
+                case (ThreadingMode::VECTORIZED) : {
+                    if (call_parameters().debug()) {
+                        printf(" > caller threading using %s\n", "internal vectorization ");
+                    }
                     ThreadingHandler::_call_vec(pots, coords);
                     break;
-                case (ThreadingMode::PYTHON) :
+                }
+                case (ThreadingMode::PYTHON) : {
+                    if (call_parameters().debug()) {
+                        printf(" > caller threading using %s\n", "python-side vectorization ");
+                    }
                     ThreadingHandler::_call_python(pots, coords);
                     break;
-                case (ThreadingMode::SERIAL) :
+
+                }
+                case (ThreadingMode::SERIAL) : {
+                    if (call_parameters().debug()) {
+                        printf(" > caller unthreaded\n");
+                    }
                     ThreadingHandler::_call_serial(pots, coords);
+                    break;
+                }
                 default:
                     throw std::runtime_error("Bad threading mode?");
             }
@@ -423,11 +599,9 @@ namespace rynlib {
 
 //            RawPotentialBuffer current_data = pots[n].data();
 
-            std::vector<size_t> which{n, i};
-            Real_t pot_val = pot_caller.call(
-                    coords,
-                    which
-            );
+            size_t which_dat[2] = {n, i};
+            std::vector<size_t> which(which_dat, which_dat+2);
+            Real_t pot_val = pot_caller.call(coords, which);
 
             pots.assign(n, i, pot_val);
         }
@@ -460,7 +634,7 @@ namespace rynlib {
             auto total_walkers = ncalls * nwalkers;
 //            auto debug_print = args.debug_print;
 
-            for (auto w = 0; w < total_walkers; w++) {
+            for (size_t w = 0; w < total_walkers; w++) {
                 _loop_inner(
                         pots,
                         coords,
@@ -484,7 +658,7 @@ namespace rynlib {
 //            auto debug_print = args.debug_print;
 
 #pragma omp parallel for
-            for (auto w = 0; w < total_walkers; w++) {
+            for (size_t w = 0; w < total_walkers; w++) {
                 _loop_inner(
                         pots,
                         coords,
