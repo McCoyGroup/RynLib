@@ -1,8 +1,7 @@
 
 #include "FFIModule.hpp"
 
-namespace rynlib {
-    namespace PlzNumbers {
+namespace plzffi {
 
 //        template <typename T>
 //        T FFIMethod<T>::call(FFIParameters& params) {
@@ -77,10 +76,7 @@ namespace rynlib {
 
         FFIModule ffi_from_capsule(PyObject *capsule) {
             FFIModule mod; // empty module
-            return python::from_python_capsule<FFIModule>(capsule, mod.ffi_module_attr().c_str());
+            return rynlib::python::from_python_capsule<FFIModule>(capsule, mod.ffi_module_attr().c_str());
         }
 
-
-
-    }
 }

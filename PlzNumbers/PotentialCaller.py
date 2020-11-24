@@ -61,6 +61,8 @@ class PotentialCaller:
         self.catch_abort = catch_abort
         self.caller_retries = caller_retries
 
+
+    libs_folder = os.path.join(os.path.dirname(__file__), "libs")
     cpp_std = '-std=c++17'
     @classmethod
     def load_lib(cls):
@@ -68,6 +70,7 @@ class PotentialCaller:
         TBB_Ubutu='/opt/intel/compilers_and_libraries_{IRS}/linux/tbb/'.format(IRS=IRS_Ubuntu)
         IRS_CentOS = '2020.0.88'  # needs to be synced with Dockerfile
         TBB_CentOS='/opt/intel/compilers_and_libraries_{IRS}/linux/tbb/'.format(IRS=IRS_CentOS)
+
         loader = CLoader("PlzNumbers",
                          os.path.dirname(os.path.abspath(__file__)),
                          extra_compile_args=["-fopenmp", cls.cpp_std],
@@ -76,13 +79,14 @@ class PotentialCaller:
                              "/lib/x86_64-linux-gnu",
                              os.path.join(TBB_Ubutu, "include"),
                              os.path.join(TBB_Ubutu, "lib", "intel64", "gcc4.8"),
+                             os.path.join(cls.libs_folder),
                              np.get_include()
                          ],
                          runtime_dirs=[
                              "/lib/x86_64-linux-gnu",
                              os.path.join(TBB_Ubutu, "lib", "intel64", "gcc4.8")
                          ],
-                         linked_libs=['tbb', 'tbbmalloc', 'tbbmalloc_proxy'],
+                         linked_libs=["plzffi", 'tbb', 'tbbmalloc', 'tbbmalloc_proxy'],
                          source_files=[
                              # "PyAllUp.cpp",
                              "PlzNumbers.cpp",
@@ -90,14 +94,13 @@ class PotentialCaller:
                              "MPIManager.cpp",
                              "CoordsManager.cpp",
                              "PotValsManager.cpp",
-                             "ThreadingHandler.cpp",
-                             "FFIParameters.cpp",
-                             "FFIModule.cpp"
+                             "ThreadingHandler.cpp"
                          ],
                          macros=[
                              ("_TBB",)
-                        ]
-                )
+                         ],
+                         requires_make=True
+                         )
         return loader.load()
 
     @classmethod

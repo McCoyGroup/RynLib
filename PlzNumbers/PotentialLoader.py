@@ -2,6 +2,7 @@
 Provides a Loader object to load a potential from a C++ extension
 """
 
+import os, numpy as np
 from ..RynUtils import CLoader, ModuleLoader
 
 __all__ = [
@@ -26,6 +27,8 @@ class PotentialLoader:
         "cleanup_build",
         'build_kwargs'
     ]
+
+    libs_folder = os.path.join(os.path.dirname(__file__), "libs")
     def __init__(self,
                  name,
                  src,
@@ -47,6 +50,13 @@ class PotentialLoader:
                  ):
         self.python_potential = python_potential
         # if python_potential is False:
+
+        if include_dirs is None:
+            include_dirs = []
+        include_dirs = tuple(include_dirs) + (self.libs_folder, np.get_include())
+        if linked_libs is None:
+            linked_libs = []
+        linked_libs = tuple(linked_libs) + ("plzffi",)
 
         self.c_loader = CLoader(name, src,
                               load_path=load_path,

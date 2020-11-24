@@ -8,8 +8,7 @@
 #include <vector>
 #include <stdexcept>
 
-namespace rynlib {
-    namespace PlzNumbers {
+namespace plzffi {
 
 //        template <typename >
 //        typedef T (*Func)(const FFIParameters&);
@@ -25,8 +24,17 @@ namespace rynlib {
                     FFIType return_type,
                     T (*function)(FFIParameters&)
                     ) : name(method_name), ret_type(return_type), function_pointer(function) { type_check(); };
+            FFIMethod(
+                    const char* method_name,
+                    FFIType return_type,
+                    T (*function)(FFIParameters&)
+            ) : name(method_name), ret_type(return_type), function_pointer(function) { type_check(); };
             void type_check();
             T call(FFIParameters& params);
+
+            std::string method_name() {return name;}
+            FFIType return_type() {return ret_type;}
+
         };
 
         class FFIModule {
@@ -78,9 +86,9 @@ namespace rynlib {
 
         template <typename T>
         void FFIModule::add_method(FFIMethod<T> method) {
-            method_names.push_back(method.name());
-            return_types.push_back(method.type());
-            method_pointers.push_back((void *)method);
+            method_names.push_back(method.method_name());
+            return_types.push_back(method.return_type());
+            method_pointers.push_back((void *) &method);
         }
         template <typename T>
         FFIMethod<T> FFIModule::get_method(std::string& method_name) {
@@ -100,7 +108,6 @@ namespace rynlib {
         }
         //endregion
 
-    }
 }
 
 #endif //RYNLIB_FFIMODULE_HPP

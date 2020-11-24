@@ -75,6 +75,19 @@ class PotentialManager:
         self.check_potential(name)
         return self.manager.load_config(name)
 
+    def potential_module_file(self, name):
+        import glob
+
+        self.check_potential(name)
+        pot_dir = self.manager.config_loc(name)
+        glob = glob.glob(os.path.join(pot_dir, "*.so")) # Unix only, but also in a container so...meh
+        mod_file=None
+        for f in glob:
+            if name+"." in f:
+                mod_file=f
+                break
+        return mod_file
+
     def load_potential(self, name):
         if name == "entos" and "entos" not in self.list_potentials():
             from ..Interface import PotentialInterface
@@ -86,7 +99,11 @@ class PotentialManager:
         params['out_dir'] = out_dir
         return Potential(**params)
 
-    def compile_potential(self, name):
+    def compile_potential(self, name, recompile=False):
+        if recompile:
+            mod_file = self.potential_module_file(name)
+            if mod_file is not None:
+                os.remove(mod_file)
         pot = self.load_potential(name)
         pot.caller # causes the potential to compile what needs to be compiled
 

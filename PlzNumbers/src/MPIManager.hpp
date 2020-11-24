@@ -9,7 +9,6 @@
 #include "CoordsManager.hpp"
 #include "PotValsManager.hpp"
 
-
 using namespace rynlib::common;
 
 // these names should be rescoped probably...

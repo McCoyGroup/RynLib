@@ -1,4 +1,4 @@
-import shutil, os, sys, subprocess, importlib, platform
+import shutil, os, sys, subprocess, importlib, platform, numpy as np, sysconfig
 from distutils.core import setup, Extension
 
 __all__ = [
@@ -122,8 +122,8 @@ class CLoader:
 
         extra_link_args = list(self.extra_link_args)
         extra_compile_args = list(self.extra_compile_args)
-        if platform.system() == 'Darwin':
-            extra_link_args.append('-Wl,-rpath,' + ":".join(lib_dirs))
+        # if platform.system() == 'Darwin':
+        extra_link_args.append('-Wl,-rpath,' + ":".join(lib_dirs))
 
         module = Extension(
             self.lib_name,
@@ -204,7 +204,7 @@ class CLoader:
                 runtime_dirs = []
             linked_libs = ["-l"+l for l in linked_libs]
             link_dirs = ["-L"+i for i in include_dirs]
-            "$link_flags $ryn_lib_src/build/RynLib.o $link_libs -o $ryn_lib_src/RynLib.so"
+            # "$link_flags $ryn_lib_src/build/RynLib.o $link_libs -o $ryn_lib_src/RynLib.so"
 
             shared_lib = shared_lib + (".pydll" if sys.platform() == "win32" else ".so")
 
@@ -215,9 +215,9 @@ class CLoader:
             ]
 
         else:
-
+            paths = sysconfig.get_paths()
             if os.path.exists(os.path.join(make_dir, "Makefile")):
-                make_cmd = ["make"]
+                make_cmd = ["make", "PYTHON_INCLUDES="+paths["include"], "NUMPY_INCLUDES="+np.get_include()]
             elif os.path.exists(os.path.join(make_dir, "build.sh")):
                 make_cmd = ["bash", "build.sh"]
             else:

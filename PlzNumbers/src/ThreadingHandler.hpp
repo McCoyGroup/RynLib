@@ -10,14 +10,16 @@
 #include "CoordsManager.hpp"
 #include "PotValsManager.hpp"
 #include "PyAllUp.hpp"
-#include "FFIParameters.hpp"
-#include "FFIModule.hpp"
+#include "plzffi/FFIParameters.hpp"
+#include "plzffi/FFIModule.hpp"
 #include <stdexcept>
 
 namespace rynlib {
 
     using namespace common;
     using namespace python;
+    using namespace plzffi;
+
     namespace PlzNumbers {
 
         enum class ThreadingMode {

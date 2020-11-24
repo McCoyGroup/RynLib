@@ -347,10 +347,9 @@ class CLI:
     def cli_method_pot_compile(self):
         """Ensures that a potential has been compiled. Args: NAME"""
         get_bool = lambda s: False if s == 'False' else bool(s)
-        RynLib.build_libs(**parse_dict)
         parse_dict = self.get_parse_dict(
             ("name",),
-            ("--recompile", dict(default=False, type=get_bool, dest='rebuild'))
+            ("--recompile", dict(default=False, type=get_bool, dest='recompile'))
         )
         PotentialInterface.compile_potential(**parse_dict)
 
