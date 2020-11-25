@@ -5,6 +5,9 @@ Defines a general potential class that makes use of the PotentialCaller and Pote
 from .PotentialLoader import PotentialLoader
 from .PotentialCaller import PotentialCaller
 from .PotentialTemplator import PotentialTemplate
+from .PotentialArguments import PotentialArguments
+from .PotentialSpec import *
+
 import os
 
 __all__ = [
@@ -18,7 +21,67 @@ class Potential:
         Can take a potential source and write the necessary template code around that for use
     Provides a hook into PotentialCaller once the data has been loaded to directly call the potential like a function
     """
-    def __init__(self,
+
+    def __init__(self, spec, loader):
+        """
+        :param spec:
+        :type spec: PotentialFunctionSpec
+        :param loader:
+        :type loader: PotentialLoader
+        """
+        self._spec = spec
+        self._loader = loader
+
+        self._atoms = None # defines a held list of atoms
+        self._args = None
+        self._args_validated = False
+
+    def __call__(self, coordinates, *extra_args, **extra_kwargs):
+        """
+        Provides a caller into the potential
+
+        :param coordinates:
+        :type coordinates:
+        :param extra_args:
+        :type extra_args:
+        :param extra_kwargs:
+        :type extra_kwargs:
+        :return:
+        :rtype:
+        """
+
+        if self._atoms is not None:
+            atoms = self._atoms
+        elif len(extra_args) > 0:
+            atoms = extra_args[0]
+            extra_args = extra_args[1:]
+        else:
+            atoms = []
+
+        if atoms is not self._atoms:
+            self._validate_atoms(atoms)
+
+        if len(extra_args) == 0 and len(extra_kwargs) == 0:
+            extra_args = self.args
+        elif len(extra_args) > 0:
+            self._validate_args(extra_args)
+        elif len(extra_kwargs) > 0:
+            extra_args = self._validate_args(extra_kwargs)
+
+        if self.working_directory is not None:
+            curdir = os.getcwd()
+            try:
+                os.chdir(self.working_directory)
+                pot = self.caller(coordinates, atoms, extra_args)
+            finally:
+                os.chdir(curdir)
+        else:
+            pot = self.caller(coordinates, atoms, extra_args)
+        return pot
+
+
+
+    def _from_options(self,
                  name = None,
                  potential_source = None,
 
@@ -61,68 +124,13 @@ class Potential:
                  error_value=10.e9,
                  transpose_call=None,
                  debug_print=False,
-                 catch_abort=False,
+                 # catch_abort=False,
                  caller_retries=1
                  ):
-        """
-        :param name:
-        :type name:
-        :param potential_source:
-        :type potential_source:
-        :param wrap_potential:
-        :type wrap_potential:
-        :param function_name:
-        :type function_name:
-        :param raw_array_potential:
-        :type raw_array_potential:
-        :param arguments:
-        :type arguments:
-        :param potential_directory:
-        :type potential_directory:
-        :param static_source:
-        :type static_source:
-        :param extra_functions:
-        :type extra_functions:
-        :param src_ext:
-        :type src_ext:
-        :param description:
-        :type description:
-        :param verion:
-        :type verion:
-        :param include_dirs:
-        :type include_dirs:
-        :param linked_libs:
-        :type linked_libs:
-        :param macros:
-        :type macros:
-        :param source_files:
-        :type source_files:
-        :param build_script:
-        :type build_script:
-        :param requires_make:
-        :type requires_make:
-        :param out_dir:
-        :type out_dir:
-        :param cleanup_build:
-        :type cleanup_build:
-        :param python_potential:
-        :type python_potential:
-        :param bad_walker_file:
-        :type bad_walker_file:
-        :param mpi_manager:
-        :type mpi_manager:
-        :param vectorized_potential:
-        :type vectorized_potential:
-        :param error_value:
-        :type error_value:
-        """
+
         src = potential_source
         self.name = name
         self.function_name = function_name
-
-        self._atoms = None
-        self._args = ()
-        self._args_validated = False
 
         if wrap_potential:
             if potential_directory is None:
@@ -289,39 +297,50 @@ class Potential:
                             dtype = None
                     self._real_args.append([name, dtype])
     def _validate_args(self, argtuple):
-        # first we find the args we actually need...
-        if self._args_pat is not None:
-            if self._real_args is None:
-                self._prep_real_args()
-            if isinstance(argtuple, dict):
-                args = []
-                for k in self._real_args:
-                    n = k[0]
-                    if n not in argtuple:
-                        raise ValueError("Argument mismatch: argument {} missing".format(
-                            n
-                        ))
-                    args.append(argtuple[n])
-                argtuple = args
-            if len(self._real_args) < len(argtuple):
-                raise ValueError("Argument mismatch: too many parameters passed, expected {} but got {}".format(
-                    len(self._real_args),
-                    len(argtuple)
-                ))
-            elif len(self._real_args) > len(argtuple):
-                raise ValueError("Argument mismatch: too few parameters passed, expected {} but got {}".format(
-                    len(self._real_args),
-                    len(argtuple)
-                ))
-            else:
-                for i,t in enumerate(zip(self._real_args, argtuple)):
-                    t1, obj = t
-                    if t1 is not None and not isinstance(obj, t1[1]):
-                        raise ValueError("Argument mismatch: argument at {} is expected to be of type {} (got {})".format(
-                            i,
-                            t1[1].__name__,
-                            type(obj).__name__
-                        ))
+        if self.caller.caller_api_version == 1:
+            # old-style potential argument management
+            if self._args_pat is not None:
+                if self._real_args is None:
+                    self._prep_real_args()
+                if isinstance(argtuple, dict):
+                    args = []
+                    for k in self._real_args:
+                        n = k[0]
+                        if n not in argtuple:
+                            raise ValueError("Argument mismatch: argument {} missing".format(
+                                n
+                            ))
+                        args.append(argtuple[n])
+                    argtuple = args
+                if len(self._real_args) < len(argtuple):
+                    raise ValueError("Argument mismatch: too many parameters passed, expected {} but got {}".format(
+                        len(self._real_args),
+                        len(argtuple)
+                    ))
+                elif len(self._real_args) > len(argtuple):
+                    raise ValueError("Argument mismatch: too few parameters passed, expected {} but got {}".format(
+                        len(self._real_args),
+                        len(argtuple)
+                    ))
+                else:
+                    for i,t in enumerate(zip(self._real_args, argtuple)):
+                        t1, obj = t
+                        if t1 is not None and not isinstance(obj, t1[1]):
+                            raise ValueError("Argument mismatch: argument at {} is expected to be of type {} (got {})".format(
+                                i,
+                                t1[1].__name__,
+                                type(obj).__name__
+                            ))
+            if not isinstance(argtuple, PotentialArguments):
+                argtuple = PotentialArguments(self.caller.potential, *argtuple)
+        else:
+            # new style
+            if not isinstance(argtuple, PotentialArguments):
+                argtuple = (
+                    PotentialArguments(self.caller.potential, **argtuple)
+                        if isinstance(argtuple, dict) else
+                    PotentialArguments(self.caller.potential, *argtuple)
+                )
         return argtuple
     def bind_arguments(self, args):
         args = self._validate_args(args)
@@ -332,31 +351,3 @@ class Potential:
             self._args = self._validate_args(self._args)
             self._args_validated = True
         return self._args
-    def __call__(self, coordinates, *extra_args, **extra_kwargs):
-        if self._atoms is not None:
-            atoms = self._atoms
-        elif len(extra_args) > 0:
-            atoms = extra_args[0]
-            extra_args = extra_args[1:]
-        else:
-            atoms = []
-
-        if atoms is not self._atoms:
-            self._validate_atoms(atoms)
-        if len(extra_args) == 0 and len(extra_kwargs) == 0:
-            extra_args = self.args
-        elif len(extra_args) > 0:
-            self._validate_args(extra_args)
-        elif len(extra_kwargs) > 0:
-            extra_args = self._validate_args(extra_kwargs)
-
-        if self.working_directory is not None:
-            curdir = os.getcwd()
-            try:
-                os.chdir(self.working_directory)
-                pot = self.caller(coordinates, atoms, *extra_args)
-            finally:
-                os.chdir(curdir)
-        else:
-            pot = self.caller(coordinates, atoms, *extra_args)
-        return pot

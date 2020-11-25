@@ -1,56 +1,44 @@
-"""
-Supports the type mapping info necessary to support the kind of FFI stuff we want to do
-"""
 
-from .FFI import FFIArgument
+from .FFI import FFIMethod
 
 __all__ = [
     "PotentialArguments"
 ]
 
 class PotentialArguments:
+    """
+    Simple wrapper to support both old- and new-style calling semantics
+    """
 
-    def __init__(self, *args, **kwargs):
-        if len(kwargs) == 0:
+    def __init__(self, potential_function, *args, **kwargs):
+        self.pot_func = potential_function
+        if isinstance(potential_function, FFIMethod):
+            self.arg_vec = FFIMethod.collect_args(*args, **kwargs)
+        else: # to support old-style potentials
             self.arg_vec = None
-        else:
-            self.arg_vec = [self.format_argument(name, a) for name, a in kwargs.items()] # to support old-style potentials
-        # supported extra types
-        extra_bools = []
-        extra_ints = []
-        extra_floats = []
-        for a in args:
-            if a is True or a is False:
-                extra_bools.append(a)
-            elif isinstance(a, int):
-                extra_ints.append(a)
-            elif isinstance(a, float):
-                extra_floats.append(a)
+            # supported extra types
+            extra_bools = []
+            extra_ints = []
+            extra_floats = []
+            for a in args:
+                if a is True or a is False:
+                    extra_bools.append(a)
+                elif isinstance(a, int):
+                    extra_ints.append(a)
+                elif isinstance(a, float):
+                    extra_floats.append(a)
 
-        self.extra_bools=extra_bools
-        self.extra_ints=extra_ints
-        self.extra_floats=extra_floats
-
-    @classmethod
-    def format_argument(cls, name, val):
-        return FFIArgument(
-            arg_name=name,
-            arg_type=cls.infer_type_code(val),
-            arg_shape=cls.get_arg_shape(val)
-        )
-    @classmethod
-    def infer_type_code(cls, val):
-        raise NotImplementedError("haven't needed this yet...")
-    @classmethod
-    def get_arg_shape(cls, val):
-        raise NotImplementedError("haven't needed this yet...")
+            self.extra_bools = extra_bools
+            self.extra_ints = extra_ints
+            self.extra_floats = extra_floats
 
     @property
     def ffi_parameters(self):
         if self.arg_vec is None:
-            raise ValueError("potential requires name mapping")
+
+            raise ValueError("potential requires parameters as a dictionary")
         else:
-            return self.arg_vec
+            return self.arg_vec.values()
 
 
 

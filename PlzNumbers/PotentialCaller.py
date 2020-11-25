@@ -2,9 +2,10 @@
 Provides a Caller that Potential uses to actually evaluate the potential
 """
 
-import numpy as np, os, multiprocessing as mp, sys, signal
+import numpy as np, os, multiprocessing as mp, sys
 from ..RynUtils import CLoader
 from .PotentialArguments import PotentialArguments
+from .FFI import FFIModule
 
 __all__ = [
     "PotentialCaller"
@@ -38,17 +39,33 @@ class PotentialCaller:
                  transpose_call=None,
                  debug_print=False,
                  catch_abort=False,
-                 caller_retries=1
+                 caller_retries=0
                  ):
         if len(ignore) > 0:
-            raise ValueError("Only one positional argument (for the potential) accepted")
-        self.potential = potential
+            raise ValueError("Only two positional arguments accepted (module and method name)")
+        if isinstance(potential, FFIModule):
+            self.module = potential
+            self.potential = potential.get_method(function_name)
+            self._py_pot = False
+            self._caller_api = 2
+        elif repr(potential).startswith("<capsule object "):
+            self.module = None
+            self.potential = potential
+            self._py_pot = False
+            self._caller_api = 1
+        else:
+            self.module = None
+            self.potential = potential
+            self._py_pot = True
+            self._caller_api = 1
         self.function_name = function_name
+
         self._mpi_manager = mpi_manager
         self._lib = None
-        self._py_pot = not repr(self.potential).startswith("<capsule object ")  # wow this is a hack...
+
         self._wrapped_pot = None
 
+        # flags that we use
         self.bad_walkers_file = bad_walker_file
         self.vectorized_potential = vectorized_potential
         self.raw_array_potential = fortran_potential if raw_array_potential is None else raw_array_potential
@@ -143,14 +160,13 @@ class PotentialCaller:
 
     @property
     def caller_api_version(self):
-        if self.function_name == "_potential":
-            return 1
-        else:
-            return 2
+        return self._caller_api
+
     class CallerParameters:
         arg_sig = "iOOOdpippppp"
         def __init__(self,
-                     *args,
+                     potential,
+                     args,
                      _function_name=None,
                      _caller_api=0,
                      _bad_walkers_file=None,
@@ -161,10 +177,14 @@ class PotentialCaller:
                      _caller_retries=None,
                      _use_openmp=None,
                      _use_tbb=None,
-                     _python_potential=None,
-                     **kwargs
+                     _python_potential=None
                      ):
-            self.args=PotentialArguments(args, **kwargs)
+            if not isinstance(args, PotentialArguments):
+                raise TypeError("{} expects args to be of type {}".format(
+                    type(self).__name__,
+                    PotentialArguments.__name__
+                ))
+            self.args=args
             self.caller_api=_caller_api
             self.function_name=_function_name
             self.bad_walkers_file=_bad_walkers_file
@@ -215,11 +235,9 @@ class PotentialCaller:
                                      self.python_potential
                                  )))
 
-    def call_multiple(self, walker, atoms,
-                      *extra_args,
+    def call_multiple(self, walker, atoms, extra_args,
                       omp_threads=None,
-                      tbb_threads=None,
-                      **extra_kwargs
+                      tbb_threads=None
                       ):
         """
 
@@ -227,6 +245,8 @@ class PotentialCaller:
         :type walker: np.ndarray
         :param atoms:
         :type atoms: List[str]
+        :param extra_args:
+        :type extra_args: PotentialArguments
         :return:
         :rtype:
         """
@@ -238,10 +258,6 @@ class PotentialCaller:
             smol_guy = walker.ndim == 3
             if smol_guy:
                 walker = np.reshape(walker, (1,) + walker.shape[:1] + walker.shape[1:])
-
-        # if self._py_pot and self._wrapped_pot is None:
-        #     num_walkers = int(np.product(walker.shape[:-2]))
-        #     self._wrapped_pot = self._mp_wrap(self.potential, num_walkers, self.mpi_manager)
 
         if self._py_pot and self.mpi_manager is None:
             poots = self.potential(walker, atoms, extra_args)
@@ -270,7 +286,8 @@ class PotentialCaller:
                 atoms,
                 self.potential,
                 self.CallerParameters(
-                    *extra_args,
+                    self.potential,
+                    extra_args,
                     _function_name=self.function_name,
                     _caller_api=self.caller_api_version,
                     _bad_walkers_file=self.bad_walkers_file,
@@ -281,8 +298,7 @@ class PotentialCaller:
                     _caller_retries=int(self.caller_retries),
                     _use_openmp=bool(omp),
                     _use_tbb=bool(tbb),
-                    _python_potential=self._py_pot,
-                    **extra_kwargs
+                    _python_potential=self._py_pot
                 ),
                 self.mpi_manager
             )
@@ -297,13 +313,15 @@ class PotentialCaller:
             poots = poots.squeeze()
         return poots
 
-    def __call__(self, walkers, atoms, *extra_args):
+    def __call__(self, walkers, atoms, extra_args):
         """
 
         :param walker:
         :type walker: np.ndarray
         :param atoms:
         :type atoms: List[str]
+        :param extra_args:
+        :type extra_args: PotentialArguments
         :return:
         :rtype:
         """
@@ -314,7 +332,7 @@ class PotentialCaller:
         ndim = walkers.ndim
 
         if 1 < ndim < 5:
-            poots = self.call_multiple(walkers, atoms, *extra_args)
+            poots = self.call_multiple(walkers, atoms, extra_args)
         else:
             raise ValueError(
                 "{}: caller expects data of rank 2, 3, or 4. Got {}.".format(
