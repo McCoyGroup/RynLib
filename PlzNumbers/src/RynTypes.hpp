@@ -8,6 +8,10 @@
 namespace rynlib {
     namespace common {
 
+        // annoying
+        bool debug_print();
+        void set_debug_print(bool db);
+
         typedef double Real_t; // easy hook in case we wanted to use a different precision object or something in the future
         typedef Real_t *RawWalkerBuffer;
         typedef Real_t *RawPotentialBuffer;

@@ -8,7 +8,18 @@
 #include <stdexcept>
 //#include <memory>
 
+
 namespace rynlib {
+
+    namespace common {
+        bool DEBUG_PRINT=false;
+        bool debug_print() {
+            return DEBUG_PRINT;
+        }
+        void set_debug_print(bool db) {
+            DEBUG_PRINT = db;
+        }
+    }
     using namespace common;
     using namespace python;
     namespace PlzNumbers {
@@ -22,20 +33,80 @@ namespace rynlib {
             return {pot_fun, mode};
         }
 
-        CoordsManager load_coords(
-                PyObject *coords,
-                PyObject *atoms
-        ) {
+        CoordsManager load_coords(PyObject *coords, PyObject *atoms) {
+            try {
+                if ( debug_print() ) {
+                    printf("  > loading atoms\n");
+                }
+                auto mattsAtoms = from_python_iterable<std::string>(atoms);
+                if ( rynlib::common::debug_print() ) {
+                    printf("  > loading shape\n");
+                }
+                std::vector<size_t> shape = numpy_shape<size_t>(coords);
+                if ( rynlib::common::debug_print() ) {
+                    printf("  > getting pointer to data\n");
+                }
+                auto raw_data = get_numpy_data<Real_t>(coords);
 
-            auto mattsAtoms = from_python_iterable<std::string>(atoms);
-            std::vector<size_t> shape = numpy_shape<size_t>(coords);
-            auto raw_data = get_numpy_data<Real_t >(coords);
-
-            return {raw_data, mattsAtoms, shape};
+                return {raw_data, mattsAtoms, shape};
+            } catch (std::exception& e) {
+                std::string err_msg = "Failed to load coordinates: ";
+                err_msg += e.what();
+                if ( rynlib::common::debug_print() ) {
+                    printf("  > ERROR: %s\n", err_msg.c_str());
+                }
+                throw std::runtime_error(err_msg);
+            }
 
         }
 
+        CallerParameters load_parameters(PyObject* atoms, PyObject* parameters) {
+            try {
+                return {atoms, parameters};
+            } catch (std::exception& e) {
+                std::string err_msg = "Failed to load parameters: ";
+                err_msg += e.what();
+                if ( rynlib::common::debug_print() ) {
+                    printf("  > ERROR: %s\n", err_msg.c_str());
+                }
+                throw std::runtime_error(err_msg);
+            }
+        }
+
+        MPIManager load_mpi(PyObject* mpi) {
+            try {
+                auto manager = MPIManager(mpi);
+                return manager;
+            } catch (std::exception& e) {
+                std::string err_msg = "Failed to load MPI: ";
+                err_msg += e.what();
+                if ( rynlib::common::debug_print() ) {
+                    printf("  > ERROR: %s\n", err_msg.c_str());
+                }
+                throw std::runtime_error(err_msg);
+            }
+        }
+
+        PotentialCaller load_evaluator(CoordsManager& coord_data, MPIManager& mpi, ThreadingHandler& caller) {
+            try {
+                return {coord_data, mpi, caller};
+            } catch (std::exception& e) {
+                std::string err_msg = "Failed to load evaluator: ";
+                err_msg += e.what();
+                if ( rynlib::common::debug_print() ) {
+                    printf("  > ERROR: %s\n", err_msg.c_str());
+                }
+                throw std::runtime_error(err_msg);
+            }
+//            rynlib::PlzNumbers::PotentialCaller evaluator(
+//                    coord_data,
+//                    mpi,
+//                    caller
+//            );
+        }
+
     }
+
 }
 
 PyObject *PlzNumbers_callPotVec(PyObject* self, PyObject* args ) {
@@ -58,41 +129,72 @@ PyObject *PlzNumbers_callPotVec(PyObject* self, PyObject* args ) {
 
     try {
 
+        set_debug_print(true);
+        plzffi::set_debug_print(true);
+        rynlib::python::pyadeeb.set_debug_print(true);
+
+        if ( rynlib::common::debug_print() ) {
+            printf("Loading coords/atom data from PyObjects...\n");
+        }
         auto coord_data = rynlib::PlzNumbers::load_coords(
                 coords,
                 atoms
         );
-        rynlib::PlzNumbers::CallerParameters params(atoms, parameters);
+        if (PyErr_Occurred()) { throw std::runtime_error("failed to load coords..."); }
+
+        if ( rynlib::common::debug_print() ) {
+            printf("Loading parameters from PyObjects...\n");
+        }
+        auto params = rynlib::PlzNumbers::load_parameters(coords, parameters);
+        if (PyErr_Occurred()) { throw std::runtime_error("failed to load parameters..."); }
+
+        if ( rynlib::common::debug_print() ) {
+            printf("Loading MPI...\n");
+        }
+        auto mpi = rynlib::PlzNumbers::load_mpi(manager);
+        if (PyErr_Occurred()) { throw std::runtime_error("failed to load MPI..."); }
+
+        if ( rynlib::common::debug_print() ) {
+            printf("Loading caller...\n");
+        }
         auto caller = rynlib::PlzNumbers::load_caller(pot_function, params);
-        rynlib::PlzNumbers::MPIManager mpi(manager);
-        rynlib::PlzNumbers::PotentialCaller evaluator(
-                coord_data,
-                mpi,
-                caller
-        );
+        auto evaluator = rynlib::PlzNumbers::load_evaluator(coord_data, mpi, caller);
+        if (PyErr_Occurred()) { throw std::runtime_error("failed to load caller..."); }
 
-        auto wat = caller.call_parameters();
-
+        // if ( mpi.is_main() && caller.call_parameters().debug()) {
+        if (rynlib::common::debug_print()) {
+            printf("Calling into evaluator...\n");
+        }
         auto pot_vals = evaluator.get_pot();
+        if (PyErr_Occurred()) { throw std::runtime_error("failure in evaluation..."); }
 
         if (mpi.is_main()) {
+
+//            if (mpi.is_main() && caller.call_parameters().debug()) {
+            if (rynlib::common::debug_print()) {
+                printf("  > constructing NumPy array...\n");
+            }
             auto pot_obj = rynlib::python::numpy_from_data<Real_t>(pot_vals.data(), pot_vals.get_shape());
+            if (PyErr_Occurred()) { throw std::runtime_error("failed to construct array..."); }
             // I think I don't need to incref this, but we may need to revisit that thought
+
+            if (rynlib::common::debug_print()) {
+                printf("Successy!\n");
+            }
+
             return pot_obj;
         } else {
+            if (rynlib::common::debug_print()) {
+                printf("     > done on subsidiary thread...\n");
+            }
             Py_RETURN_NONE;
         }
 
     } catch (std::exception &e) {
-        // maybe I want to set a message -> just here to protect us against segfaults and shit...
         if (!PyErr_Occurred()) {
-            std::string msg = "in C++ caller: ";
+            std::string msg = "In C++ caller: ";
             msg += e.what();
-//            printf("%s", msg.c_str());
-            PyErr_SetString(
-                    PyExc_SystemError,
-                    msg.c_str()
-                    );
+            PyErr_SetString(PyExc_SystemError, msg.c_str());
         }
         return NULL;
     }

@@ -5,9 +5,7 @@ __all__ = [
     "FFIModule",
     "FFIMethod",
     "FFIArgument",
-    "FFIType",
-    "FFIModuleSpec",
-    "FFIMethodSpec"
+    "FFIType"
 ]
 
 class FFIType(enum.Enum):
@@ -97,6 +95,13 @@ class FFIType(enum.Enum):
     NUMPY_Bool = NUMPY_TYPES + 30
     type_map[NUMPY_Bool] = ("np.bool", np.bool)
 
+    @classmethod
+    def type_data(cls, val):
+        mapp = cls.type_map.value
+        if isinstance(val, cls):
+            val = val.value
+        return mapp[val]
+
 
 class FFISpec:
     """
@@ -122,7 +127,7 @@ class FFIArgument(FFISpec):
     An argument spec for data to be passed to an FFIMethod
     """
     __fields__ = ["name", "dtype", "shape"]
-    def __init__(self, name=None, dtype=None, shape=None):
+    def __init__(self, name=None, dtype=None, shape=None, value=None):
         if shape is None:
             shape = ()
         super().__init__(name=name, dtype=dtype, shape=shape)
@@ -137,7 +142,14 @@ class FFIArgument(FFISpec):
             self.arg_shape
         )
     def cast(self, val):
-        type_str, dtype = FFIType.type_map[self.arg_type]
+        """
+
+        :param val:
+        :type val:
+        :return:
+        :rtype:
+        """
+        type_str, dtype = FFIType.type_data(self.arg_type)
         if isinstance(dtype, np.dtype): # have a numpy type
             dat = np.asarray(val, dtype=dtype)
         else:
@@ -146,7 +158,37 @@ class FFIArgument(FFISpec):
             else:
                 dat = val
         # do some shape checks...
-        return dat
+
+        return FFIParameter(self, dat)
+class FFIParameter:
+    """
+    Just an FFIArgument + associated value
+    """
+    def __init__(self, arg, val):
+        if not isinstance(arg, FFIArgument):
+            raise TypeError("{}: arg is expected to be an FFIArgument")
+        self.arg = arg
+        self.val = val
+    @property
+    def arg_name(self):
+        return self.arg.arg_name
+    @property
+    def arg_type(self):
+        return self.arg.arg_type
+    @property
+    def arg_shape(self):
+        return self.arg.arg_shape
+    @property
+    def arg_value(self):
+        return self.val
+    def __repr__(self):
+        return "{}({}, {}, {})->{}".format(
+            type(self).__name__,
+            self.arg_name,
+            self.arg_type,
+            self.arg_shape,
+            self.arg_value
+        )
 
 class FFIMethod(FFISpec):
     """
@@ -156,15 +198,24 @@ class FFIMethod(FFISpec):
     def __init__(self, name=None, arguments=None, rtype=None, module=None):
         super().__init__(name=name, arguments=arguments, rtype=rtype)
         self.name = name
-        self.args = [FFIArgument(**x) for x in arguments]
+        self.args = [FFIArgument(**x) if not isinstance(x, FFIArgument) else x for x in arguments]
         self.rtype = FFIType(rtype)
         self.mod = module
 
-    def collect_args(self, *args, **kwargs):
+    @property
+    def arg_names(self):
+        return tuple(x.arg_name for x in self.args)
+
+    def collect_args(self, *args, excluded_args=None, **kwargs):
         arg_dict = collections.OrderedDict()
+
         req_dict = collections.OrderedDict(
             (k.arg_name, k) for k in self.args
         )
+        if excluded_args is not None:
+            for k in excluded_args:
+                del req_dict[k]
+
         for k in kwargs:
             arg_dict[k] = req_dict[k].cast(kwargs[k])
             del req_dict[k]
@@ -206,7 +257,7 @@ class FFIModule(FFISpec):
     def __init__(self, name=None, methods=None, module=None):
         super().__init__(name=name, methods=methods)
         self.name = name
-        self.methods = [FFIMethod(**x) for x in methods]
+        self.methods = [FFIMethod(**x) if not isinstance(x, FFIMethod) else x for x in methods]
         self.mod = module
 
     @classmethod
@@ -214,13 +265,12 @@ class FFIModule(FFISpec):
         name, meths = sig
         return cls(
             name=name,
-            methods=[{k:v for k,v in zip(FFIMethod.__fields__, x)} for x in meths],
+            methods=[FFIMethod.from_signature(x, module=module) for x in meths],
             module=module
         )
 
     @classmethod
     def from_module(cls, module):
-        name, cap = module._FFIModule
         sig = module.get_signature(module._FFIModule)
         return cls.from_signature(sig, module=module)
 
@@ -234,7 +284,7 @@ class FFIModule(FFISpec):
         except (ValueError, IndexError):
             idx = None
         if idx is not None:
-            return FFIMethod.from_signature(self.signature[1][idx], module=self)
+            return self.methods[idx]
         else:
             raise AttributeError("FFIModule {} has no method {}".format(self.name, name))
     def __getattr__(self, item):

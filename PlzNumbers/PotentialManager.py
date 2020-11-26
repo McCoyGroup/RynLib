@@ -97,7 +97,7 @@ class PotentialManager:
         params = conf.opt_dict
         out_dir = self.manager.config_loc(name)
         params['out_dir'] = out_dir
-        return Potential(**params)
+        return Potential.from_options(**params)
 
     def compile_potential(self, name, recompile=False):
         if recompile:
@@ -122,6 +122,7 @@ class PotentialManager:
             if not os.path.exists(extract_dir):
                 raise IOError("Directory '{}' wasn't in '{}".format(name, src))
             os.rename(extract_dir, os.path.dirname(self.manager.config_loc(name)))
+
     def export_potential(self, name, dest, format='zip'):
         import tempfile as tf
 
@@ -179,21 +180,22 @@ class PotentialManager:
                 pot.clean_up()
             os.chdir(curdir)
 
-    def test_potential_serial(self, name,
-                           input_file=None,
-                           coordinates=None,
-                           parameters=None,
-                           atoms=None,
-                           walkers_per_core=8,
-                           time_step=1,
-                           # displacement_radius=.5,
-                           iterations=1,
-                           steps_per_call=5,
-                           print_walkers=False,
-                           random_seed=None,
-                           copy_geometry=False,
-                           **opts
-                           ):
+    def test_potential_serial(self,
+                              name,
+                               input_file=None,
+                               coordinates=None,
+                               parameters=None,
+                               atoms=None,
+                               walkers_per_core=8,
+                               time_step=1,
+                               # displacement_radius=.5,
+                               iterations=1,
+                               steps_per_call=5,
+                               print_walkers=False,
+                               random_seed=None,
+                               copy_geometry=False,
+                               **opts
+                               ):
         import numpy as np, time
         from ..DoMyCode import WalkerSet
 

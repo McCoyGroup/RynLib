@@ -110,12 +110,19 @@ class PotentialLoader:
         else:
             return 1
     @property
-    def pointer(self):
+    def call_obj(self):
+        """
+        The object that defines how to call the potential.
+        Can either be a pure python function, an FFIModule, or a PyCapsule
+
+        :return:
+        :rtype:
+        """
         if self.python_potential is not False and self.python_potential is not True:
             return self.python_potential
         else:
             if hasattr(self.lib, "_FFIModule"):
-                return FFIModule(self._lib)
+                return FFIModule.from_module(self._lib)
             else:
                 return self._lib._potential
             # return getattr(self.lib, self._attr)

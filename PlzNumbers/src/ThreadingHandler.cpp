@@ -106,6 +106,9 @@ namespace rynlib {
 
 //            printf("  > . > . > 1\n");
 
+            if (rynlib::common::debug_print()) {
+                printf("  > getting argument signature...\n");
+            }
             std::string true_arg_sig = get_python_attr<std::string>(py_params, "arg_sig");
             if (true_arg_sig != arg_sig) {
                 std::string err = "CallerParameters: argument signature '"
@@ -117,16 +120,18 @@ namespace rynlib {
                         );
                 throw std::runtime_error("bad python shit");
             }
+
+            if (rynlib::common::debug_print()) {
+                printf("  > getting argvec...\n");
+            }
             auto argvec = get_python_attr<PyObject *>(py_params, "argvec");
 
-//            printf("  >>> 2 waaat %s\n", arg_sig.c_str());
-            auto garb = get_python_repr(argvec);
-//            printf("  >>> 2.1 %s\n", garb.c_str());
+            if (rynlib::common::debug_print()) {
+                auto garb = get_python_repr(argvec);
+                printf("  > got %s...\n", garb.c_str());
+            }
 
-//            int caller_ap;
             int dbprint, retries, raw_pot, vecced, useOMP, useTBB, pyPot;
-//            double ev;
-
             PyObject *bad_walkers_str, *fun_name_str;
             int passed = PyArg_ParseTuple(
                     argvec,
@@ -164,43 +169,60 @@ namespace rynlib {
             use_TBB = useTBB;
             python_potential = pyPot;
 
+            rynlib::common::set_debug_print(debug_print);
+
             function_name = from_python<std::string>(fun_name_str);
             Py_XDECREF(fun_name_str);
+
+            if (rynlib::common::debug_print()) {
+                printf("  > loading caller for %s...\n", function_name.c_str());
+            }
 
 //            printf("  >>> 4 %s\n", function_name.c_str());
 
             bad_walkers_file = from_python<std::string>(bad_walkers_str);
             Py_XDECREF(bad_walkers_str);
 
+            if (rynlib::common::debug_print()) {
+                printf("  > writing errors to %s...\n", (bad_walkers_file.empty()) ? "stdout" : bad_walkers_file.c_str());
+            }
+
             if (caller_api < 1 || caller_api > 2) {
                 Py_XDECREF(bad_walkers_str);
                 Py_XDECREF(fun_name_str);
 //                printf("  >>> 4 %d\n", caller_api);
+                if (rynlib::common::debug_print()) {
+                    printf("  > ERROR: bad API version %d...\n", caller_api);
+                }
                 throw std::runtime_error("Bad API version");
             }
 //            printf("  >>> 5\n");
 
+
             switch (caller_api) {
                 case 1: {
+                    if (rynlib::common::debug_print()) printf("  > using old caller API...\n");
+                    if (rynlib::common::debug_print()) printf("  > getting extra bools...\n");
                     ext_bools = get_python_attr_iterable<bool>(extra_args, "extra_bools");
-                    ext_ints = get_python_attr_iterable<int>(extra_args, "extra_floats");
+                    if (rynlib::common::debug_print()) printf("  > getting extra ints...\n");
+                    ext_ints = get_python_attr_iterable<int>(extra_args, "extra_ints");
+                    if (rynlib::common::debug_print()) printf("  > getting extra floats...\n");
                     ext_floats = get_python_attr_iterable<double>(extra_args, "extra_floats");
                     break;
                 }
                 case 2: {
+                    if (rynlib::common::debug_print()) printf("  > using new caller API...\n");
+                    if (rynlib::common::debug_print()) {
+                        auto garb = get_python_repr(extra_args);
+                        printf("  > loading parameters from %s...\n", garb.c_str());
+                    }
                     parameters = FFIParameters(extra_args);
-                    module = ffi_from_capsule(extra_args);
                     break;
                 }
                 default:
                     throw std::runtime_error("unkown caller api version");
             }
         };
-
-        template<typename T>
-        FFIMethod<T> CallerParameters::get_method() {
-            return module.get_method<T>(function_name);
-        }
 
         void PotentialApplier::init() {
             switch(params.api_version()) {
@@ -235,11 +257,19 @@ namespace rynlib {
                     break;
                 }
                 case (2) :
+                    if (rynlib::common::debug_print()) printf("  > extracting FFIModule from capsule...\n");
+                    module = ffi_from_capsule(py_pot);
                     break;
                 default:
                     throw std::runtime_error("unknown caller API version");
             }
 
+        }
+
+        template<typename T>
+        FFIMethod<T> PotentialApplier::get_method() {
+            auto fname = params.func_name();
+            return module.get_method<T>(fname);
         }
 
         // Old API
@@ -320,7 +350,7 @@ namespace rynlib {
             auto err_val = params.error_val();
             bool debug_print = params.debug();
 
-            auto method = params.get_method<Real_t>();
+            auto method = get_method<Real_t>();
 
             try {
                 if (debug_print) {
@@ -338,7 +368,8 @@ namespace rynlib {
                 // might need a proper copy?
                 auto call_params = params.ffi_params();
                 std::string key = "coords";
-                auto data_ptr = (void*)coords.data();
+//                auto data_ptr = (void*)coords.data();
+                auto data_ptr = std::shared_ptr<void>(coords.data(), [](RawWalkerBuffer){});
                 auto shp = coords.get_shape();
                 FFIArgument arg (key, FFIType::Double, shp);
                 FFIParameter coords_param(data_ptr, arg);
@@ -391,7 +422,6 @@ namespace rynlib {
                     throw std::runtime_error("unknown caller API version");
             }
         }
-
 
         PotValsManager PotentialApplier::call_vectorized(
                 CoordsManager &coords
@@ -479,13 +509,13 @@ namespace rynlib {
                 printf("calling vectorized potential on %ld walkers", coords.num_geoms());
             }
 
-            auto method = params.get_method<double *>();
+            auto method = get_method<double *>();
             try {
 
                 // might need a proper copy?
                 auto call_params = params.ffi_params();
                 std::string key = "coords";
-                auto data_ptr = (void*)coords.data();
+                auto data_ptr = std::shared_ptr<void>(coords.data(), [](RawWalkerBuffer){});
                 auto shp = coords.get_shape();
                 FFIArgument arg (key, FFIType::Double, shp);
                 FFIParameter coords_param(data_ptr, arg);

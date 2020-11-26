@@ -4,7 +4,8 @@ Provides a Caller that Potential uses to actually evaluate the potential
 
 import numpy as np, os, multiprocessing as mp, sys
 from ..RynUtils import CLoader
-from .PotentialArguments import PotentialArguments
+
+from .PotentialArguments import PotentialArgumentHolder
 from .FFI import FFIModule
 
 __all__ = [
@@ -31,13 +32,13 @@ class PotentialCaller:
                  function_name,
                  *ignore,
                  mpi_manager=None,
-                 bad_walker_file=None,
+                 bad_walker_file='',
                  raw_array_potential=None,
                  vectorized_potential=False,
                  error_value=1.0e9,
                  fortran_potential=False,
                  transpose_call=None,
-                 debug_print=False,
+                 debug_print=True,
                  catch_abort=False,
                  caller_retries=0
                  ):
@@ -179,11 +180,12 @@ class PotentialCaller:
                      _use_tbb=None,
                      _python_potential=None
                      ):
-            if not isinstance(args, PotentialArguments):
+            if not isinstance(args, PotentialArgumentHolder):
                 raise TypeError("{} expects args to be of type {}".format(
                     type(self).__name__,
-                    PotentialArguments.__name__
+                    PotentialArgumentHolder.__name__
                 ))
+
             self.args=args
             self.caller_api=_caller_api
             self.function_name=_function_name
@@ -197,43 +199,35 @@ class PotentialCaller:
             self.use_tbb=_use_tbb
             self.python_potential=_python_potential
 
+        arg_keys = (
+                'caller_api',
+                'function_name',
+                'args',
+                'bad_walkers_file',
+                'error_value',
+                'debug_print',
+                'caller_retries',
+                'raw_array_potential',
+                'vectorized_potential',
+                'use_openmp',
+                'use_tbb',
+                'python_potential'
+            )
         @property
         def argvec(self):
-            args = (
-                self.caller_api,
-                self.function_name,
-                self.args,
-                self.bad_walkers_file,
-                self.error_value,
-                True,
-                # self.debug_print,
-                self.caller_retries,
-                self.raw_array_potential,
-                self.vectorized_potential,
-                self.use_openmp,
-                self.use_tbb,
-                self.python_potential
-            )
-            if None in args:
-                raise ValueError("CallerParameters doesn't have a required value")
-            return args
+            args = []
+            for k in self.arg_keys:
+                v = getattr(self, k)
+                if v is None:
+                    raise ValueError("{} doesn't have a value for {}".format(
+                        type(self).__name__,
+                        k
+                    ))
+                args.append(v)
+            return tuple(args)
 
         def __repr__(self):
-            return "{}{}".format("CallerParameters",
-                                 str((
-                                     self.caller_api,
-                                     self.function_name,
-                                     self.args,
-                                     self.bad_walkers_file,
-                                     self.error_value,
-                                     self.debug_print,
-                                     self.caller_retries,
-                                     self.raw_array_potential,
-                                     self.vectorized_potential,
-                                     self.use_openmp,
-                                     self.use_tbb,
-                                     self.python_potential
-                                 )))
+            return "{}{}".format("CallerParameters", str(self.argvec))
 
     def call_multiple(self, walker, atoms, extra_args,
                       omp_threads=None,

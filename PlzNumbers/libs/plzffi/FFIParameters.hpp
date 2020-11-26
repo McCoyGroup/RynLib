@@ -5,8 +5,12 @@
 #include "PyAllUp.hpp"
 #include <string>
 #include <vector>
+#include <memory>
 
 namespace plzffi {
+
+    bool debug_print();
+    void set_debug_print(bool);
 
 //    namespace PlzNumbers { class FFIParameter {
 //        public: FFIParameter(PyObject*)
@@ -69,7 +73,7 @@ namespace rynlib {
         }
         template<>
         inline plzffi::FFIType from_python<plzffi::FFIType>(PyObject* data) {
-            return static_cast<plzffi::FFIType>(from_python<int>(data));
+            return static_cast<plzffi::FFIType>(get_python_attr<int>(data, "value"));
         }
     }
 }
@@ -82,14 +86,16 @@ namespace plzffi {
         // class that helps us maintain a map between type codes & proper types
     public:
         void validate(FFIType type_code);
-        T cast(FFIType type_code, void* data);
+        T cast(FFIType type_code, std::shared_ptr<void>& data);
+        PyObject* as_python(FFIType type_code, std::shared_ptr<void>& data, std::vector<size_t>& shape);
     };
     template <typename T>
     class FFITypeHandler<T*> {
         // specialization to handle pointer types
     public:
         void validate(FFIType type_code);
-        T* cast(FFIType type_code, void* data);
+        T* cast(FFIType type_code, std::shared_ptr<void>& data);
+        PyObject* as_python(FFIType type_code, std::shared_ptr<void>& data, std::vector<size_t>& shape);
     };
 
     //region Template Garbage
@@ -162,14 +168,29 @@ namespace plzffi {
     //endregion
 
     template <typename T>
-    inline T FFITypeHandler<T>::cast(FFIType type_code, void *data) {
+    inline T FFITypeHandler<T>::cast(FFIType type_code, std::shared_ptr<void>& data) {
         validate(type_code);
-        return *(T*)data;
+        return *static_cast<T*>(data.get());
     }
     template <typename T>
-    inline T* FFITypeHandler<T*>::cast(FFIType type_code, void *data) {
+    inline T* FFITypeHandler<T*>::cast(FFIType type_code, std::shared_ptr<void>& data) {
         validate(type_code);
-        return (T*)data;
+        return static_cast<T*>(data.get());
+    }
+
+    template <typename T>
+    inline PyObject* FFITypeHandler<T>::as_python(FFIType type_code, std::shared_ptr<void>& data, std::vector<size_t>& shape) {
+        if (!shape.empty()) {
+            return FFITypeHandler<T*>().as_python(type_code, data, shape);
+        }
+        validate(type_code);
+        return rynlib::python::as_python<T>(*static_cast<T*>(data.get()));
+    }
+    template <typename T>
+    inline PyObject* FFITypeHandler<T*>::as_python(FFIType type_code, std::shared_ptr<void>& data, std::vector<size_t>& shape) {
+        // we use NumPy for all pointer types
+        validate(type_code);
+        return rynlib::python::numpy_from_data<T>(static_cast<T*>(data.get()), shape);
     }
 
     class FFIArgument {
@@ -181,7 +202,7 @@ namespace plzffi {
                 std::string &name,
                 FFIType type,
                 std::vector<size_t> &shape
-        ) : param_key(name), type_char(type), shape_vec(shape) {}
+        ) : param_key(name), shape_vec(shape), type_char(type) {}
         FFIArgument(
                 const char* name,
                 FFIType type,
@@ -209,7 +230,7 @@ namespace plzffi {
         // object that maps onto the python FFI stuff...
         PyObject *py_obj;
         FFIArgument arg_spec;
-        void *param_data; // we void pointer this to make it easier to handle
+        std::shared_ptr<void> param_data; // we void pointer this to make it easier to handle
     public:
         FFIParameter(
                 PyObject *obj,
@@ -217,9 +238,9 @@ namespace plzffi {
                 ) : py_obj(obj), arg_spec(arg), param_data() {};
 
         FFIParameter(
-                void *data,
+                std::shared_ptr<void>& data,
                 FFIArgument& arg
-        ) : py_obj(NULL), param_data(data), arg_spec(arg) {};
+        ) : py_obj(NULL), arg_spec(arg), param_data(data) {};
 
         explicit FFIParameter(PyObject *obj) : py_obj(obj), arg_spec() { init(); }
 
@@ -237,8 +258,9 @@ namespace plzffi {
             return handler.cast(type(), param_data);
         }
 
-        void* _raw_ptr() { return param_data; } // I put this out there so people smarter than I can use it
+        std::shared_ptr<void> _raw_ptr() { return param_data; } // I put this out there so people smarter than I can use it
 
+        PyObject* as_python();
     };
 
     class FFIParameters {
@@ -269,6 +291,22 @@ namespace plzffi {
 
     };
 
+}
+
+// register a conversion for FFIType
+namespace rynlib {
+    namespace python {
+        template<>
+        inline PyObject* as_python<plzffi::FFIParameter>(plzffi::FFIParameter data) {
+            if (plzffi::debug_print()) printf("  Converting FFIParameter to PyObject...");
+            return data.as_python();
+        }
+        template<>
+        inline plzffi::FFIParameter from_python<plzffi::FFIParameter>(PyObject* data) {
+            if (plzffi::debug_print()) printf("  Converting PyObject to FFIParameter...");
+            return plzffi::FFIParameter(data);
+        }
+    }
 }
 
 #endif //RYNLIB_FFIPARAMETERS_HPP

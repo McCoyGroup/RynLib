@@ -58,9 +58,6 @@ namespace rynlib {
             ExtraInts ext_ints = {};
             ExtraFloats ext_floats = {};
 
-            // used for the new-style caller
-            FFIModule module;
-
             // storage for extra args we might want to pass to functions
             FFIParameters parameters;
 
@@ -115,9 +112,6 @@ namespace rynlib {
 
             FFIParameters ffi_params() { return parameters; }
 
-            template<typename T>
-            FFIMethod<T> get_method();
-
         };
 
         class PotentialApplier {
@@ -125,6 +119,7 @@ namespace rynlib {
             CallerParameters params;
             // we need to load the appropriate one of
             // these _before_ we start calling from our threads
+            FFIModule module;
             PotentialFunction pot;
             FlatPotentialFunction flat_pot;
             VectorizedPotentialFunction vec_pot;
@@ -140,6 +135,9 @@ namespace rynlib {
             }
 
             void init();
+
+            template<typename T>
+            FFIMethod<T> get_method();
 
             CallerParameters call_parameters() {
 
