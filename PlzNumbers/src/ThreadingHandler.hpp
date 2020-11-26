@@ -146,36 +146,15 @@ namespace rynlib {
                 return params;
             }
 
-            Real_t call(
-                    CoordsManager& coords,
-                    std::vector<size_t >& which
-                    );
-            Real_t call_1(
-                    CoordsManager& coords,
-                    std::vector<size_t >& which,
-                    int retries
-            );
-            Real_t call_2(
-                    CoordsManager& coords,
-                    std::vector<size_t >& which,
-                    int retries
-            );
+            Real_t call(CoordsManager& coords, std::vector<size_t >& which);
+            Real_t call_1(CoordsManager& coords, std::vector<size_t >& which, int retries);
+            Real_t call_2(CoordsManager& coords, std::vector<size_t >& which, int retries);
 
-            PotValsManager call_vectorized(
-                    CoordsManager& coords
-            );
-            PotValsManager call_vectorized_1(
-                    CoordsManager& coords,
-                    int retries
-            );
-            PotValsManager call_vectorized_2(
-                    CoordsManager& coords,
-                    int retries
-            );
+            PotValsManager call_vectorized(CoordsManager& coords);
+            PotValsManager call_vectorized_1(CoordsManager& coords, int retries);
+            PotValsManager call_vectorized_2(CoordsManager& coords, int retries);
 
-            PotValsManager call_python(
-                    CoordsManager& coords
-            );
+            PotValsManager call_python(CoordsManager& coords);
 
         };
 
@@ -183,29 +162,15 @@ namespace rynlib {
             PotentialApplier pot;
             ThreadingMode mode;
         public:
-            ThreadingHandler(
-                    PotentialApplier& pot_func,
-                    ThreadingMode threading
-                    ) : pot(pot_func), mode(threading) {}
+            ThreadingHandler(PotentialApplier& pot_func, ThreadingMode threading) : pot(pot_func), mode(threading) {}
 
-            PotValsManager call_potential(
-                    CoordsManager& coords
-                    );
+            PotValsManager call_potential(CoordsManager& coords);
 
-            CallerParameters call_parameters() {
-                auto wat = pot.call_parameters();
-                return wat;
-            }
+            CallerParameters call_parameters() {auto wat = pot.call_parameters(); return wat;}
 
-            void _call_omp(
-                    PotValsManager &pots,
-                    CoordsManager &coords
-            );
+            void _call_omp(PotValsManager &pots, CoordsManager &coords);
 
-            void _call_tbb(
-                    PotValsManager &pots,
-                    CoordsManager &coords
-            );
+            void _call_tbb(PotValsManager &pots, CoordsManager &coords);
 
             void _call_vec(
                     PotValsManager &pots,

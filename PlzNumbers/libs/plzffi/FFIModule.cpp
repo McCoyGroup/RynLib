@@ -93,13 +93,26 @@ namespace plzffi {
         }
 
         FFIModule ffi_from_capsule(PyObject *captup) {
+            set_debug_print(true); // temporary debug hack
+            if (!PyTuple_Check(captup)) {
+                PyErr_SetString(
+                        PyExc_TypeError,
+                        "FFIModule spec. expected to be a tuple looking like (name, capsule)"
+                        );
+                throw std::runtime_error("bad tuple shiz");
+            }
+
+            if (debug_print()) printf("Got FFIModule spec \"%s\"\n", rynlib::python::get_python_repr(captup).c_str());
             auto name_obj = PyTuple_GetItem(captup, 0);
             if (name_obj == NULL) throw std::runtime_error("bad tuple indexing");
+            if (debug_print()) printf("Pulling FFIModule for module \"%s\"\n", rynlib::python::get_python_repr(name_obj).c_str());
             auto cap_obj = PyTuple_GetItem(captup, 1);
             if (cap_obj == NULL) throw std::runtime_error("bad tuple indexing");
+            if (debug_print()) printf("  extracting from capsule \"%s\"\n", rynlib::python::get_python_repr(cap_obj).c_str());
             std::string name = rynlib::python::from_python<std::string>(name_obj);
             std::string doc;
             FFIModule mod(name, doc); // empty module
+            if (debug_print()) printf("  pulling pointer with name \"%s\"\n", mod.ffi_module_attr().c_str());
             return rynlib::python::from_python_capsule<FFIModule>(cap_obj, mod.ffi_module_attr().c_str());
         }
 

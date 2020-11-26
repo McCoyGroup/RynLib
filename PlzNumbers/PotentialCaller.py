@@ -6,7 +6,7 @@ import numpy as np, os, multiprocessing as mp, sys
 from ..RynUtils import CLoader
 
 from .PotentialArguments import PotentialArgumentHolder
-from .FFI import FFIModule
+from .FFI import FFIModule, FFIMethod
 
 __all__ = [
     "PotentialCaller"
@@ -104,7 +104,7 @@ class PotentialCaller:
                              "/lib/x86_64-linux-gnu",
                              os.path.join(TBB_Ubutu, "lib", "intel64", "gcc4.8")
                          ],
-                         linked_libs=["plzffi", 'tbb', 'tbbmalloc', 'tbbmalloc_proxy'],
+                         linked_libs=["plzffi"],# 'tbb', 'tbbmalloc', 'tbbmalloc_proxy'],
                          source_files=[
                              # "PyAllUp.cpp",
                              "PlzNumbers.cpp",
@@ -276,9 +276,10 @@ class PotentialCaller:
 
             # do the actual call into
             poots = self.lib.rynaLovesPootsLots(
+                bool(self.debug_print),
                 coords,
                 atoms,
-                self.potential,
+                self.module.captup if isinstance(self.potential, (FFIModule, FFIMethod)) else self.potential,
                 self.CallerParameters(
                     self.potential,
                     extra_args,

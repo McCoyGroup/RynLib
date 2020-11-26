@@ -22,15 +22,13 @@ namespace rynlib {
                     pot_vals(pot_vector),
                     ncalls(num_calls) {}
 
-            PotValsManager(PotentialVector& pot_vector) : PotValsManager(pot_vector, 1) {}
+            explicit PotValsManager(PotentialVector& pot_vector) : PotValsManager(pot_vector, 1) {}
             explicit PotValsManager() : PotValsManager(1, 1) {}
+//            PotValsManager& operator(PotValsManager& pot) =
 
-            size_t num_calls() {
-                return ncalls;
-            }
-            size_t num_walkers() {
-                return pot_vals.size() / ncalls;
-            }
+
+            size_t num_calls() { return ncalls; }
+            size_t num_walkers() { return pot_vals.size() / ncalls; }
             std::vector<size_t> get_shape() {
                 size_t buf[2] = {num_calls(), num_walkers()};
                 std::vector<size_t> vec(buf, buf+2);
@@ -39,10 +37,10 @@ namespace rynlib {
 
             void assign(size_t n, size_t i, Real_t val);
             void assign(PotentialVector& new_vec) { pot_vals = new_vec; }
-            void assign(PotValsManager& new_manager) {
-                pot_vals = new_manager.vector();
-                ncalls = new_manager.num_calls();
-            }
+//            void assign(PotValsManager& new_manager) {
+//                pot_vals = new_manager.vector();
+//                ncalls = new_manager.num_calls();
+//            }
 
             PotentialVector vector() { return pot_vals; }
 

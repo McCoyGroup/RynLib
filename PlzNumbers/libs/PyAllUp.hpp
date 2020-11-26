@@ -182,7 +182,7 @@ namespace rynlib {
                     if (pyadeeb.debug_print()) printf("      ...and we failed somehow\n");
                     throw std::runtime_error("Iteration error");
                 }
-                if (pyadeeb.debug_print()) printf("      converting from python types\n");
+                if (pyadeeb.debug_print()) printf("    > converting from python types\n");
                 vec[i] = from_python<T>(item);
                 Py_DECREF(item);
                 i+=1;
@@ -191,8 +191,6 @@ namespace rynlib {
             if (PyErr_Occurred()) {
                 throw std::runtime_error("Iteration error");
             }
-
-
             if (i < num_els) {
                 std::string msg =
                         "object was expected to have length "
@@ -364,13 +362,30 @@ namespace rynlib {
             return numpy_from_data<double>(buffer, NPY_FLOAT64, shape );
         }
 
+        inline PyObject* numpy_copy_array(PyObject* obj) {
+            _np_init();
+            _check_py_arr(obj);
+            auto arr = (PyArrayObject*) obj; // I think this is how one builds an array obj...?
+            auto descr = PyArray_DESCR(arr);
+            Py_XINCREF(descr);
+            return PyArray_FromArray(arr, descr, NPY_ARRAY_ENSURECOPY);
+        }
+
+        inline std::vector<size_t> numpy_shape_as_size_t(PyObject* obj) {
+            _np_init();
+            _check_py_arr(obj);
+            auto arr = (PyArrayObject*) obj; // I think this is how one builds an array obj...?
+            auto shp = (size_t*) PyArray_SHAPE(arr);
+            return std::vector<size_t>(shp, shp + PyArray_NDIM(arr));
+        }
         template <typename T>
         inline std::vector<T> numpy_shape(PyObject* obj) {
-            _np_init();
-
-            auto arr = (PyArrayObject*) obj; // I think this is how one builds an array obj...?
-            T* shp = (T*) PyArray_SHAPE(arr);
-            return std::vector<T >(shp, shp + PyArray_NDIM(arr));
+            auto base_shape = numpy_shape_as_size_t(obj);
+            return std::vector<T>(base_shape.begin(), base_shape.end());
+        }
+        template <>
+        inline std::vector<size_t> numpy_shape<size_t>(PyObject* obj) {
+            return numpy_shape_as_size_t(obj);
         }
 
         inline std::string get_py_err_msg() {
@@ -459,6 +474,10 @@ namespace rynlib {
                 Py_XDECREF(attr_ob);
                 throw;
             }
+        }
+        template <>
+        inline PyObject* get_python_attr_ptr<PyObject>(PyObject* obj, std::string& attr) {
+            return get_python_attr<PyObject *>(obj, attr);
         }
         template <typename T>
         inline T* get_python_attr_ptr(PyObject* obj, const char* attr) {

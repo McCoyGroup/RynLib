@@ -223,172 +223,72 @@ namespace plzffi {
 //            return (T*)data;
 //        }
 
-    std::shared_ptr<void> pyobj_to_voidptr(FFIType type_char, PyObject* py_obj) {
+    PyObject * FFIArgument::as_tuple() {
+        return Py_BuildValue("(NNN)",
+                             rynlib::python::as_python<std::string>(param_key),
+                             rynlib::python::as_python<FFIType>(type_char),
+                             rynlib::python::as_python_tuple<size_t>(shape_vec)
+        );
+    }
+    std::string FFIArgument::repr() {
+        auto pp = as_tuple();
+        auto repr = get_python_repr(pp);
+        Py_XDECREF(pp);
+        return repr;
+    }
+
+    template <typename T>
+    std::shared_ptr<void> voided_from_ptr(PyObject* py_obj, const char* attr) {
+        return std::shared_ptr<void>(
+                        get_python_attr_ptr<T>(py_obj, attr),
+                        [](T* val){delete val;}
+                );
+    }
+    template <typename T>
+    std::shared_ptr<void> voided_from(PyObject* py_obj, const char* attr) {
+        return std::make_shared<T>(get_python_attr<T>(py_obj, attr));
+    }
+
+    std::shared_ptr<void> pyobj_to_voidptr(FFIType type_char, PyObject* py_obj, const char* attr) {
         switch(type_char) {
-            case (FFIType::PyObject): {
-                return std::shared_ptr<void>(
-                        get_python_attr<PyObject *>(py_obj, "arg_data"),
-                        [](PyObject*) {}
-                );
-            }
-            case FFIType::UnsignedChar: {
-                return std::make_shared<unsigned char>(
-                        get_python_attr<unsigned char>(py_obj, "arg_data")
-                );
-            }
-            case FFIType::Short: {
-                return std::make_shared<short>(
-                        get_python_attr<short>(py_obj, "arg_data")
-                );
-            }
-            case FFIType::UnsignedShort: {
-                return std::make_shared<unsigned short>(
-                        get_python_attr<unsigned short>(py_obj, "arg_data")
-                );
-            }
-            case FFIType::Int: {
-                return std::make_shared<int>(
-                        get_python_attr<int>(py_obj, "arg_data")
-                );
-            }
-            case FFIType::UnsignedInt: {
-                return std::make_shared<unsigned int>(
-                        get_python_attr<unsigned int>(py_obj, "arg_data")
-                );
-            }
-            case FFIType::Long: {
-                return std::make_shared<long>(
-                        get_python_attr<long>(py_obj, "arg_data")
-                );
-            }
-            case FFIType::UnsignedLong: {
-                return std::make_shared<unsigned long>(
-                        get_python_attr<unsigned long>(py_obj, "arg_data")
-                );
-            }
-            case FFIType::LongLong: {
-                return std::make_shared<long long>(
-                        get_python_attr<long long>(py_obj, "arg_data")
-                );
-            }
-            case FFIType::UnsignedLongLong: {
-                return std::make_shared<unsigned long long>(
-                        get_python_attr<unsigned long long >(py_obj, "arg_data")
-                );
-            }
-            case FFIType::PySizeT:{
-                return std::make_shared<Py_ssize_t>(
-                        get_python_attr<Py_ssize_t>(py_obj, "arg_data")
-                );
-            }
-            case FFIType::Float:{
-                return std::make_shared<float>(
-                        get_python_attr<float>(py_obj, "arg_data")
-                );
-            }
-            case FFIType::Double:{
-                return std::make_shared<double>(
-                        get_python_attr<double>(py_obj, "arg_data")
-                );
-            }
-            case FFIType::Bool:{
-                return std::make_shared<bool>(
-                        get_python_attr<bool>(py_obj, "arg_data")
-                );
-            }
-            case FFIType::String:{
-                return std::make_shared<std::string>(
-                        get_python_attr<std::string>(py_obj, "arg_data")
-                );
-            }
+            case (FFIType::PyObject): return voided_from_ptr<PyObject>(py_obj, attr);
+            case FFIType::UnsignedChar: return voided_from<unsigned char>(py_obj, attr);
+            case FFIType::Short: return voided_from<short>(py_obj, attr);
+            case FFIType::UnsignedShort: return voided_from<unsigned short>(py_obj, attr);
+            case FFIType::Int: return voided_from<int>(py_obj, attr);
+            case FFIType::UnsignedInt: return voided_from<unsigned int>(py_obj, attr);
+            case FFIType::Long: return voided_from<long>(py_obj, attr);
+            case FFIType::UnsignedLong: return voided_from<unsigned long>(py_obj, attr);
+            case FFIType::LongLong: return voided_from<long long >(py_obj, attr);
+            case FFIType::UnsignedLongLong: return voided_from<unsigned long long>(py_obj, attr);
+            case FFIType::PySizeT: return voided_from<Py_ssize_t>(py_obj, attr);
+            case FFIType::Float: return voided_from<float>(py_obj, attr);
+            case FFIType::Double: return voided_from<double>(py_obj, attr);
+            case FFIType::Bool: return voided_from<bool>(py_obj, attr);
+            case FFIType::String: return voided_from<std::string>(py_obj, attr);
 
-            case FFIType::NUMPY_Bool:{
-                return std::shared_ptr<void>(
-                        get_python_attr_ptr<npy_bool>(py_obj, "arg_data"),
-                        [](npy_bool *) {}
-                );
-            }
-            case FFIType::NUMPY_Int8:{
-                return std::shared_ptr<void>(
-                        get_python_attr_ptr<npy_int8>(py_obj, "arg_data"),
-                        [](npy_int8 *) {}
-                );
-            }
-            case FFIType::NUMPY_Int16:{
-                return std::shared_ptr<void>(
-                        get_python_attr_ptr<npy_int16>(py_obj, "arg_data"),
-                        [](npy_int16 *) {}
-                );
-            }
-            case FFIType::NUMPY_Int32:{
-                return std::shared_ptr<void>(
-                        get_python_attr_ptr<npy_int32>(py_obj, "arg_data"),
-                        [](npy_int32 *) {}
-                );
-            }
-            case FFIType::NUMPY_Int64:{
-                return std::shared_ptr<void>(
-                        get_python_attr_ptr<npy_int64>(py_obj, "arg_data"),
-                        [](npy_int64 *) {}
-                );
-            }
-            case FFIType::NUMPY_UnsignedInt8:{
-                return std::shared_ptr<void>(
-                        get_python_attr_ptr<npy_uint8>(py_obj, "arg_data"),
-                        [](npy_uint8 *) {}
-                );
-            }
-            case FFIType::NUMPY_UnsignedInt16:{
-                return std::shared_ptr<void>(
-                        get_python_attr_ptr<npy_uint16>(py_obj, "arg_data"),
-                        [](npy_uint16 *) {}
-                );
-            }
-            case FFIType::NUMPY_UnsignedInt32:{
-                return std::shared_ptr<void>(
-                        get_python_attr_ptr<npy_uint32>(py_obj, "arg_data"),
-                        [](npy_uint32 *) {}
-                );
-            }
-            case FFIType::NUMPY_UnsignedInt64:{
-                return std::shared_ptr<void>(
-                        get_python_attr_ptr<npy_uint64>(py_obj, "arg_data"),
-                        [](npy_uint64 *) {}
-                );
-            }
+            case FFIType::NUMPY_Bool: return voided_from_ptr<npy_bool>(py_obj, attr);
+            case FFIType::NUMPY_Int8: return voided_from_ptr<npy_int8>(py_obj, attr);
+            case FFIType::NUMPY_Int16: return voided_from_ptr<npy_int16>(py_obj, attr);
+            case FFIType::NUMPY_Int32: return voided_from_ptr<npy_int32>(py_obj, attr);
+            case FFIType::NUMPY_Int64: return voided_from_ptr<npy_int64>(py_obj, attr);
+            case FFIType::NUMPY_UnsignedInt8: return voided_from_ptr<npy_uint8>(py_obj, attr);
+            case FFIType::NUMPY_UnsignedInt16: return voided_from_ptr<npy_uint16>(py_obj, attr);
+            case FFIType::NUMPY_UnsignedInt32: return voided_from_ptr<npy_uint32>(py_obj, attr);
+            case FFIType::NUMPY_UnsignedInt64: return voided_from_ptr<npy_uint64>(py_obj, attr);
+            case FFIType::NUMPY_Float16: return voided_from_ptr<npy_float16>(py_obj, attr);
+            case FFIType::NUMPY_Float32: return voided_from_ptr<npy_float32>(py_obj, attr);
+            case FFIType::NUMPY_Float64: return voided_from_ptr<npy_float64>(py_obj, attr);
+            case FFIType::NUMPY_Float128: return voided_from_ptr<npy_float128>(py_obj, attr);
 
-            case FFIType::NUMPY_Float16:{
-                return std::shared_ptr<void>(
-                        get_python_attr_ptr<npy_float16>(py_obj, "arg_data"),
-                        [](npy_float16 *) {}
-                );
+            default: {
+                std::string garb = "unhandled type specifier in converting from python: " + std::to_string(static_cast<int>(type_char));
+                throw std::runtime_error(garb.c_str());
             }
-            case FFIType::NUMPY_Float32:{
-                return std::shared_ptr<void>(
-                        get_python_attr_ptr<npy_float32>(py_obj, "arg_data"),
-                        [](npy_float32 *) {}
-                );
-            }
-            case FFIType::NUMPY_Float64:{
-                return std::shared_ptr<void>(
-                        get_python_attr_ptr<npy_float64>(py_obj, "arg_data"),
-                        [](npy_float64 *) {}
-                );
-            }
-            case FFIType::NUMPY_Float128:{
-                return std::shared_ptr<void>(
-                        get_python_attr_ptr<npy_float128>(py_obj, "arg_data"),
-                        [](npy_float128 *) {}
-                );
-            }
-
-            default:
-                throw std::runtime_error("unhandled type specifier");
         }
     }
 
     void FFIParameter::init() {
-        Py_XINCREF(py_obj);
         if (debug_print()) {
             auto garb = get_python_repr(py_obj);
             printf("Destructuring PyObject %s\n", garb.c_str());
@@ -401,11 +301,9 @@ namespace plzffi {
         if (debug_print()) printf("  > getting arg_shape\n");
         auto shape = get_python_attr_iterable<size_t>(py_obj, "arg_shape");
         if (debug_print()) printf("  > getting arg_val\n");
-        auto val_obj = get_python_attr<PyObject*>(py_obj, "arg_value");
-        if (debug_print()) printf("  converting to voidptr...\n");
-
-        param_data = pyobj_to_voidptr(type_char, val_obj);
-        Py_XDECREF(val_obj); // annoying...
+//        auto val_obj = get_python_attr<PyObject*>(py_obj, "arg_value");
+//        if (debug_print()) printf("  converting to voidptr...\n");
+        param_data = pyobj_to_voidptr(type_char, py_obj, "arg_value"); // pulls arg_value by default...
 
         if (debug_print()) printf("  constructing FFIArgument...\n");
 
@@ -494,11 +392,20 @@ namespace plzffi {
             case FFIType::NUMPY_Float128: {
                 auto shp=shape();
                 return FFITypeHandler<npy_float128*>().as_python(FFIType::NUMPY_Float128, param_data, shp); }
-            default:
-                throw std::runtime_error("unhandled type specifier");
+            default: {
+                std::string garb = "unhandled type specifier in converting to python: " + std::to_string(static_cast<int>(type()));
+                throw std::runtime_error(garb.c_str());
+            }
 
         }
 
+    }
+
+    std::string FFIParameter::repr() {
+      auto pp = as_python();
+      auto repr = get_python_repr(pp);
+      Py_XDECREF(pp);
+      return repr;
     }
 
 
@@ -516,9 +423,14 @@ namespace plzffi {
         size_t i;
         for ( i=0; i < params.size(); i++) {
             auto p = params[i];
+            auto pob = p.as_python();
+            auto rep = get_python_repr(pob);
+            printf("  > wat %lu", i);
+            printf(" %s\n", rep.c_str());
+            Py_XDECREF(pob);
             if (p.name() == param_name) break;
         };
-        if ( i > params.size()) throw std::runtime_error("parameter " + param_name + " not found");
+        if ( i == params.size()) throw std::runtime_error("parameter \"" + param_name + "\" not found");
         return i;
     }
     FFIParameter FFIParameters::get_parameter(std::string& param_name) {
@@ -530,8 +442,25 @@ namespace plzffi {
         return get_parameter(key);
     }
     void FFIParameters::set_parameter(std::string& param_name, FFIParameter& param) {
-        auto i = param_index(param_name);
-        params[i] = param;
+        try {
+            auto i = param_index(param_name);
+            params[i] = param;
+        } catch (std::exception& e) {
+
+            printf("Pushing a new one with name %s, ", param.name().c_str());
+            printf("rtype %d ", static_cast<int>(param.type()));
+            printf("onto stack of size %lu. ", params.size());
+
+            auto pp = params[params.size()-1].as_python();
+            auto rep = get_python_repr(pp);
+            printf("Previous thing is %s\n", rep.c_str());
+            Py_XDECREF(pp);
+            auto p2 = param.as_python();
+            auto rep2 = get_python_repr(p2);
+            printf("New thing is %s\n", rep2.c_str());
+            Py_XDECREF(pp);
+            params.push_back(param);
+        }
     }
     void FFIParameters::set_parameter(const char *param_name, FFIParameter &param) {
         std::string key = param_name;

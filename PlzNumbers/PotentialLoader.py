@@ -31,6 +31,7 @@ class PotentialLoader:
 
     src_folder = os.path.join(os.path.dirname(__file__), "src")
     libs_folder = os.path.join(os.path.dirname(__file__), "libs")
+    cpp_std = '-std=c++17'
     def __init__(self,
                  name,
                  src,
@@ -73,6 +74,7 @@ class PotentialLoader:
                               requires_make=requires_make,
                               out_dir=out_dir,
                               cleanup_build=cleanup_build,
+                              extra_compile_args=[self.cpp_std],
                               **({} if build_kwargs is None else build_kwargs)
                               )
         # else:

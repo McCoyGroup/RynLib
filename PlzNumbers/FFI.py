@@ -260,6 +260,10 @@ class FFIModule(FFISpec):
         self.methods = [FFIMethod(**x) if not isinstance(x, FFIMethod) else x for x in methods]
         self.mod = module
 
+    @property
+    def captup(self):
+        return self.mod._FFIModule
+
     @classmethod
     def from_signature(cls, sig, module=None):
         name, meths = sig

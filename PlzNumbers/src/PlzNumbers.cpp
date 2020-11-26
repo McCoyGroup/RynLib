@@ -111,6 +111,7 @@ namespace rynlib {
 
 PyObject *PlzNumbers_callPotVec(PyObject* self, PyObject* args ) {
 
+    int debug;
     PyObject* coords, *atoms, *pot_function, *parameters, *manager;
 
 //    auto garb = rynlib::python::get_python_repr(args);
@@ -118,7 +119,8 @@ PyObject *PlzNumbers_callPotVec(PyObject* self, PyObject* args ) {
 
     int passed = PyArg_ParseTuple(
             args,
-            "OOOOO",
+            "pOOOOO",
+            &debug,
             &coords,
             &atoms,
             &pot_function,
@@ -129,9 +131,9 @@ PyObject *PlzNumbers_callPotVec(PyObject* self, PyObject* args ) {
 
     try {
 
-        set_debug_print(true);
-        plzffi::set_debug_print(true);
-        rynlib::python::pyadeeb.set_debug_print(true);
+        set_debug_print(debug);
+        plzffi::set_debug_print(debug);
+        rynlib::python::pyadeeb.set_debug_print(debug);
 
         if ( rynlib::common::debug_print() ) {
             printf("Loading coords/atom data from PyObjects...\n");
@@ -170,17 +172,18 @@ PyObject *PlzNumbers_callPotVec(PyObject* self, PyObject* args ) {
 
         if (mpi.is_main()) {
 
+//            printf("  > huh? %f...\n", pot_vals.vector()[0]);
+
 //            if (mpi.is_main() && caller.call_parameters().debug()) {
             if (rynlib::common::debug_print()) {
                 printf("  > constructing NumPy array...\n");
             }
-            auto pot_obj = rynlib::python::numpy_from_data<Real_t>(pot_vals.data(), pot_vals.get_shape());
+            auto base_pot = rynlib::python::numpy_from_data<Real_t>(pot_vals.data(), pot_vals.get_shape());
             if (PyErr_Occurred()) { throw std::runtime_error("failed to construct array..."); }
             // I think I don't need to incref this, but we may need to revisit that thought
 
-            if (rynlib::common::debug_print()) {
-                printf("Successy!\n");
-            }
+            auto pot_obj = rynlib::python::numpy_copy_array(base_pot);
+            Py_XDECREF(base_pot);
 
             return pot_obj;
         } else {

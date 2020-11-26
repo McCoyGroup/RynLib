@@ -345,12 +345,17 @@ namespace rynlib {
         ) {
             Real_t pot_val;
 
+//            printf("Step1\n");
             auto atoms = coords.get_atoms();
+//            printf("Step2\n");
             auto bad_walkers_file = params.bad_walkers_dump();
+//            printf("Step3\n");
             auto err_val = params.error_val();
+//            printf("Step4\n");
             bool debug_print = params.debug();
-
-            auto method = get_method<Real_t>();
+//            printf("Step5\n");
+            auto method = get_method<double>();
+//            printf("Step6\n");
 
             try {
                 if (debug_print) {
@@ -368,17 +373,14 @@ namespace rynlib {
                 // might need a proper copy?
                 auto call_params = params.ffi_params();
                 std::string key = "coords";
-//                auto data_ptr = (void*)coords.data();
-                auto data_ptr = std::shared_ptr<void>(coords.data(), [](RawWalkerBuffer){});
+                auto data_ptr = std::shared_ptr<void>(coords.data(), [](double*){});
                 auto shp = coords.get_shape();
+
                 FFIArgument arg (key, FFIType::Double, shp);
                 FFIParameter coords_param(data_ptr, arg);
                 call_params.set_parameter(key, coords_param);
                 pot_val = method.call(call_params);
-//                pot = pot_func(walker_coords, atoms, extra_bools, extra_ints, extra_floats);
-                if (debug_print) {
-                    printf("  got back energy: %f\n", pot_val);
-                }
+                if (debug_print) printf("  got back energy: %f\n", pot_val);
 
             } catch (std::exception &e) {
                 if (retries > 0) {
@@ -446,7 +448,6 @@ namespace rynlib {
                 CoordsManager &coords,
                 int retries
         ) {
-            PotValsManager pot_vals;
 
             auto debug_print = params.debug();
             auto shape = coords.get_shape();
@@ -561,6 +562,8 @@ namespace rynlib {
 
         }
 
+
+
         PotValsManager ThreadingHandler::call_potential(
                 CoordsManager &coords
         ) {
@@ -606,9 +609,7 @@ namespace rynlib {
 
                 }
                 case (ThreadingMode::SERIAL) : {
-                    if (call_parameters().debug()) {
-                        printf(" > caller unthreaded\n");
-                    }
+                    if (call_parameters().debug()) { printf(" > caller unthreaded\n"); }
                     ThreadingHandler::_call_serial(pots, coords);
                     break;
                 }
@@ -616,6 +617,7 @@ namespace rynlib {
                     throw std::runtime_error("Bad threading mode?");
             }
 
+//            printf("   wwwwwoooasdasd %f\n", pots.vector()[0]);
             return pots;
         }
 
@@ -631,32 +633,26 @@ namespace rynlib {
 
 //            RawPotentialBuffer current_data = pots[n].data();
 
-            size_t which_dat[2] = {n, i};
-            std::vector<size_t> which(which_dat, which_dat+2);
+//            size_t which_dat[2] = {n, i};
+            std::vector<size_t> which = {n, i}; // C++17 support
             Real_t pot_val = pot_caller.call(coords, which);
+
+            if (pot_caller.call_parameters().debug()) {
+                printf("  inserting energy into array at (%lu, %lu)\n", pot_val, n, i);
+            }
 
             pots.assign(n, i, pot_val);
         }
 
-        void ThreadingHandler::_call_vec(
-                PotValsManager &pots,
-                CoordsManager &coords
-        ) {
-            PotValsManager new_pots = pot.call_vectorized(coords);
-            pots.assign(new_pots);
+        void ThreadingHandler::_call_vec(PotValsManager &pots, CoordsManager &coords) {
+            pots = pot.call_vectorized(coords);
         }
 
-        void ThreadingHandler::_call_python(
-                PotValsManager &pots,
-                CoordsManager &coords
-        ) {
-            PotValsManager new_pots = pot.call_python(coords);
-            pots.assign(new_pots);
+        void ThreadingHandler::_call_python(PotValsManager &pots, CoordsManager &coords) {
+            pots = pot.call_python(coords);
         }
 
-        void ThreadingHandler::_call_serial(
-                PotValsManager &pots,
-                CoordsManager &coords
+        void ThreadingHandler::_call_serial(PotValsManager &pots, CoordsManager &coords
         ) {
 
             auto atoms = coords.get_atoms();
@@ -675,6 +671,8 @@ namespace rynlib {
                         w
                 );
             }
+
+//            printf(">>>> boopy %f\n", pots.vector()[0]);
         }
 
         void ThreadingHandler::_call_omp(

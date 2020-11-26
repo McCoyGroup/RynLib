@@ -211,19 +211,23 @@ namespace plzffi {
 //            for (auto s : shape) { shape_vec}
             shape_vec = std::vector<size_t>(shape.begin(), shape.end());
         }
+        // default trivial constructory
         FFIArgument() = default;
+//        // default copy constructor
+//        FFIArgument(const FFIArgument& arg)  : param_key(arg.param_key), shape_vec(arg.shape_vec), type_char(arg.type_char) {
+//            printf("Copying FFIArgument %s\n", repr().c_str());
+//        };
+//        // trivial destructor should be safe?
+//        ~FFIArgument() = default;
+
 
         std::string name() {return param_key;}
         std::vector<size_t> shape() {return shape_vec;}
         FFIType type() {return type_char;}
 
-        PyObject * as_tuple() {
-            return Py_BuildValue("(NNN)",
-                                 rynlib::python::as_python<std::string>(param_key),
-                                 rynlib::python::as_python<FFIType>(type_char),
-                                 rynlib::python::as_python_tuple<size_t>(shape_vec)
-                                 );
-        }
+        PyObject * as_tuple();
+        std::string repr();
+
     };
 
     class FFIParameter {
@@ -242,9 +246,16 @@ namespace plzffi {
                 FFIArgument& arg
         ) : py_obj(NULL), arg_spec(arg), param_data(data) {};
 
-        explicit FFIParameter(PyObject *obj) : py_obj(obj), arg_spec() { init(); }
-
+        explicit FFIParameter(PyObject *obj) : py_obj(obj) { init(); }
+        // default trivial constructor
         FFIParameter() = default;
+//        // default copy constructor
+//        FFIParameter(const FFIParameter& arg) : py_obj(arg.py_obj), arg_spec(arg.arg_spec), param_data(arg.param_data) {
+//                printf("Copying FFIParameter with value %s\n", repr().c_str());
+//        };
+//        // trivial destructor should be safe?
+//        ~FFIParameter() = default;
+//        // ...?
 
         void init();
 
@@ -261,6 +272,7 @@ namespace plzffi {
         std::shared_ptr<void> _raw_ptr() { return param_data; } // I put this out there so people smarter than I can use it
 
         PyObject* as_python();
+        std::string repr();
     };
 
     class FFIParameters {
@@ -298,12 +310,12 @@ namespace rynlib {
     namespace python {
         template<>
         inline PyObject* as_python<plzffi::FFIParameter>(plzffi::FFIParameter data) {
-            if (plzffi::debug_print()) printf("  Converting FFIParameter to PyObject...");
+            if (plzffi::debug_print()) printf("  Converting FFIParameter to PyObject...\n");
             return data.as_python();
         }
         template<>
         inline plzffi::FFIParameter from_python<plzffi::FFIParameter>(PyObject* data) {
-            if (plzffi::debug_print()) printf("  Converting PyObject to FFIParameter...");
+            if (plzffi::debug_print()) printf("  Converting PyObject to FFIParameter...\n");
             return plzffi::FFIParameter(data);
         }
     }

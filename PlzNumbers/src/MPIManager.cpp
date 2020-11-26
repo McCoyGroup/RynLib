@@ -85,6 +85,7 @@ namespace rynlib {
                 PotValsManager& pots
         ) {
 
+
             if (no_mpi()) return pots;
 
             auto ncalls = coords.num_calls();
