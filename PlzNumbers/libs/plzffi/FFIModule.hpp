@@ -54,6 +54,37 @@ namespace plzffi {
 
         };
 
+        enum class FFIThreadingMode {
+            OpenMP,
+            TBB,
+            SERIAL
+        };
+
+        template <typename T>
+        class FFIThreader {
+            FFIMethod<T> method;
+            FFIThreadingMode mode;
+        public:
+            FFIThreader(FFIMethod<T>& method, FFIThreadingMode mode) : method(method), mode(mode) {}
+            FFIThreader(FFIMethod<T>& method, std::string& mode_name) : method(method) {
+                if (mode_name == "OpenMP") {
+                    mode = FFIThreadingMode::OpenMP;
+                } else if (mode_name == "TBB") {
+                    mode = FFIThreadingMode::TBB;
+                } else if (mode_name == "serial") {
+                    mode = FFIThreadingMode::SERIAL;
+                } else {
+                    throw std::runtime_error("FFIThreader: unknown threading method");
+                }
+            }
+
+            std::vector<T>
+            call(FFIParameters& params, std::string& var) {
+                auto threaded_param = params.get_parameter(var);
+
+            }
+        };
+
         class FFIModule {
             // possibly memory leaky, but barely so & thus we won't worry too much until we _know_ it's an issue
             std::string name;
@@ -98,7 +129,19 @@ namespace plzffi {
             const char* doc();
             struct PyModuleDef get_def();
             std::string ffi_module_attr() { return capsule_name; };
+
+            template<typename T>
+            T call_method(std::string& method_name, FFIParameters& params) {
+                return get_method<T>(method_name).call(params);
+            }
+            template<typename T>
+            std::vector<T> call_method_threaded(std::string& method_name, FFIParameters& params, std::string& threaded_var, std::string& mode) {
+                return FFIThreader<T>(get_method<T>(method_name), mode).call(params, threaded_var);
+            }
+
             PyObject *python_signature();
+            PyObject *py_call_method(PyObject* method_name, PyObject* params);
+            PyObject *py_call_method_threaded(PyObject* method_name, PyObject* params, PyObject* looped_var, PyObject* threading_mode);
 
         };
 
@@ -137,7 +180,7 @@ namespace plzffi {
 
         template <typename T>
         FFIMethod<T> FFIModule::get_method(std::string& method_name) {
-            printf("Uh...?\n");
+//            printf("Uh...?\n");
             for (size_t i=0; i < method_names.size(); i++) {
                 if (method_names[i] == method_name) {
                     printf("Method %s is the %lu-th method in %s\n", method_name.c_str(), i, name.c_str());
@@ -150,12 +193,12 @@ namespace plzffi {
         template <typename T>
         FFIMethod<T> FFIModule::get_method_from_index(size_t i) {
 
-            printf("Making a thing...?\n");
+//            printf("Making a thing...?\n");
             FFITypeHandler<T> handler;
             handler.validate(return_types[i]);
-            printf("Validated return type?\n");
+//            printf("Validated return type?\n");
             auto methodptr = static_cast<FFIMethod<T>*>(method_pointers[i]);
-            printf("Constructed pointer?\n");
+//            printf("Constructed pointer?\n");
 
             if (methodptr == NULL) {
                 std::string err = "Bad pointer for method '%s'" + method_names[i];
@@ -163,17 +206,21 @@ namespace plzffi {
             }
 
 
-            printf("Got name %s\n", methodptr->method_name().c_str());
+//            printf("Got name %s\n", methodptr->method_name().c_str());
 
             auto method = *methodptr;
-            printf("Dereferenced pointer?\n");
+//            printf("Dereferenced pointer?\n");
 
             return method;
         }
+
+
         //endregion
 
     PyObject * _pycall_python_signature(PyObject* self, PyObject* args);
     PyObject * _pycall_module_name(PyObject* self, PyObject* args);
+    PyObject * _pycall_evaluate_method(PyObject* self, PyObject* args);
+    PyObject * _pycall_evaluate_method_threaded(PyObject* self, PyObject* args);
 
 }
 
