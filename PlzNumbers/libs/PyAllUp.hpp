@@ -286,9 +286,10 @@ namespace rynlib {
         template<typename T>
         inline NPY_TYPES numpy_type() {
                numpy_type_error<T> err;
-               if (pyadeeb.debug_print()) ("ERROR: failed to convert to python for dtype %s\n", err.type_id().c_str());
+               if (pyadeeb.debug_print()) printf("ERROR: failed to convert to python for dtype %s\n", err.type_id().c_str());
                throw numpy_type_error<T>();
             };
+
         template <>
         inline NPY_TYPES numpy_type<npy_bool>() { return NPY_BOOL; }
         template <>
@@ -315,6 +316,10 @@ namespace rynlib {
         inline NPY_TYPES numpy_type<npy_float64>() { return NPY_FLOAT64; }
         template <>
         inline NPY_TYPES numpy_type<npy_float128>() { return NPY_FLOAT128; }
+//        template <>
+//        inline NPY_TYPES numpy_type<double>() { return NPY_DOUBLE; }
+//        template <>
+//        inline NPY_TYPES numpy_type<float>() { return NPY_FLOAT; }
 
         template<typename T>
         inline PyObject * numpy_from_data(
@@ -369,6 +374,14 @@ namespace rynlib {
             auto descr = PyArray_DESCR(arr);
             Py_XINCREF(descr);
             return PyArray_FromArray(arr, descr, NPY_ARRAY_ENSURECOPY);
+        }
+
+
+        template<typename T>
+        inline PyObject* as_python(std::vector<T> data) {
+            std::vector<size_t > shape = {data.size()};
+            auto arr = numpy_from_data<T>(data.data(), shape);
+            return arr; // We'll let other parts of the code-base do copies if they want
         }
 
         inline std::vector<size_t> numpy_shape_as_size_t(PyObject* obj) {

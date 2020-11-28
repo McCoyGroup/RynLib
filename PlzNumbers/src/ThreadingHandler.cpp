@@ -563,7 +563,6 @@ namespace rynlib {
         }
 
 
-
         PotValsManager ThreadingHandler::call_potential(
                 CoordsManager &coords
         ) {
@@ -638,7 +637,7 @@ namespace rynlib {
             Real_t pot_val = pot_caller.call(coords, which);
 
             if (pot_caller.call_parameters().debug()) {
-                printf("  inserting energy into array at (%lu, %lu)\n", pot_val, n, i);
+                printf("  inserting energy into array at (%lu, %lu)\n", n, i);
             }
 
             pots.assign(n, i, pot_val);

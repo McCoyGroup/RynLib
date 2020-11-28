@@ -49,11 +49,13 @@ namespace plzffi {
     struct PyModuleDef FFIModule::get_def() {
         // once I have them, I should hook into python methods to return, e.g. the method names and return types
         // inside the module
-        auto *methods = new PyMethodDef[3]; // I think Python manages this memory if def() only gets called once
+        auto *methods = new PyMethodDef[5]; // I think Python manages this memory if def() only gets called once
         // but we'll need to be careful to avoid any memory leaks
-        methods[0] = {"get_signature", _pycall_python_signature, METH_VARARGS, "gets the signature for an FFI module"},
-        methods[1] = {"get_name", _pycall_module_name, METH_VARARGS, "gets the module name for an FFI module"},
-        methods[2] = {NULL, NULL, 0, NULL};
+        methods[0] = {"get_signature", _pycall_python_signature, METH_VARARGS, "gets the signature for an FFI module"};
+        methods[1] = {"get_name", _pycall_module_name, METH_VARARGS, "gets the module name for an FFI module"};
+        methods[2] = {"call_method", _pycall_evaluate_method, METH_VARARGS, "calls a method from an FFI module"};
+        methods[3] = {"call_method_threaded", _pycall_evaluate_method_threaded, METH_VARARGS, "calls a method from an FFI module using a threading strategey"};
+        methods[4] = {NULL, NULL, 0, NULL};
         return {
                 PyModuleDef_HEAD_INIT,
                 name.c_str(),   /* name of module */
@@ -118,18 +120,51 @@ namespace plzffi {
         return rynlib::python::from_python_capsule<FFIModule>(cap_obj, mod.ffi_module_attr().c_str());
     }
 
-    PyObject *FFIModule::py_call_method(PyObject *method_name, PyObject *params) {
+    size_t FFIModule::get_method_index(std::string &method_name) {
+        for (size_t i = 0; i < method_names.size(); i++) {
+            if (method_names[i] == method_name) { return i; }
+        }
+        throw std::runtime_error("method " + method_name + "not found");
+    }
+
+    PyObject* FFIModule::py_call_method(PyObject *method_name, PyObject *params) {
 
         auto mname = rynlib::python::from_python<std::string>(method_name);
-        switch (get_method_type(method_name)) {
-
-        }
-
+        auto meth_idx = get_method_index(mname);
+        auto argtype = return_types[meth_idx];
+        auto args = FFIParameters(params);
+        return ffi_call_method(
+                argtype,
+                *this,
+                mname,
+                args
+                );
     }
-    PyObject *FFIModule::py_call_method_threaded(PyObject *method_name, PyObject *params,
+
+    PyObject *FFIModule::py_call_method_threaded(PyObject *method_name,
+                                                 PyObject *params,
                                                  PyObject *looped_var,
                                                  PyObject *threading_mode
                                                  ) {
+
+        auto mname = rynlib::python::from_python<std::string>(method_name);
+        auto meth_idx = get_method_index(mname);
+        auto argtype = return_types[meth_idx];
+        auto args = FFIParameters(params);
+
+        auto varname = rynlib::python::from_python<std::string>(looped_var);
+        auto mode = rynlib::python::from_python<std::string>(threading_mode);
+        auto thread_var = args.get_parameter(varname);
+        auto ttype = thread_var.type();
+
+        return ffi_call_method_threaded(
+                argtype,
+                ttype,
+                *this,
+                mname,
+                varname, mode,
+                args
+        );
 
     }
 
@@ -186,8 +221,12 @@ namespace plzffi {
     }
 
     PyObject *_pycall_evaluate_method(PyObject *self, PyObject *args) {
-        PyObject *cap, *method_name, *params;
-        auto parsed = PyArg_ParseTuple(args, "OOO", &cap, &method_name, &params);
+        PyObject *cap, *method_name, *params, *looped_var, *threading_mode;
+        auto parsed = PyArg_ParseTuple(args, "OOO",
+                                       &cap,
+                                       &method_name,
+                                       &params
+                                       );
         if (!parsed) { return NULL; }
 
         try {

@@ -8,6 +8,7 @@
 #include <memory>
 #include <tuple>
 #include <type_traits>
+#include <algorithm>
 
 namespace plzffi {
 
@@ -80,104 +81,37 @@ namespace rynlib::python {
 
 namespace plzffi {
 
-    // we add some validation info...
-    template <typename T, int n, FFIType F, FFIType...R>
-    struct FFIValidTypeset {
-        // thank you again StackOverflow
-        static const int ntypes = n;
-        constexpr static const FFIType valid_types[n] = {F, R...};
+    // we set up an object that can store a sequence
+    // of FFITypes
+    template <FFIType...ffi_types>
+    struct FFITypeTuple {
+    };
+
+    template <typename T, FFIType...ffi_types>
+    struct FFIValidTypeset{
         using type=T;
+        constexpr static const auto valid = std::make_tuple(ffi_types...);
     };
 
     using FFITypesets = std::tuple<
-            FFIValidTypeset<npy_bool, 3,
+            FFIValidTypeset<npy_bool,
                     FFIType::NUMPY_Bool, FFIType::NUMPY_UnsignedInt8, FFIType::UnsignedChar>,
-            FFIValidTypeset<npy_int8, 1, FFIType::NUMPY_Int8>,
-            FFIValidTypeset<npy_int16, 2, FFIType::Short, FFIType::NUMPY_Int16>,
-            FFIValidTypeset<npy_int32, 2, FFIType::NUMPY_Int32, FFIType::Int>,
-            FFIValidTypeset<npy_int64, 3, FFIType::NUMPY_Int64, FFIType::Long, FFIType::PySizeT>,
-            FFIValidTypeset<npy_uint16, 3,
+            FFIValidTypeset<npy_int8, FFIType::NUMPY_Int8>,
+            FFIValidTypeset<npy_int16, FFIType::Short, FFIType::NUMPY_Int16>,
+            FFIValidTypeset<npy_int32, FFIType::NUMPY_Int32, FFIType::Int>,
+            FFIValidTypeset<npy_int64, FFIType::NUMPY_Int64, FFIType::Long, FFIType::PySizeT>,
+            FFIValidTypeset<npy_uint16,
                     FFIType::NUMPY_UnsignedInt16, FFIType::NUMPY_Float16, FFIType::UnsignedShort>,
-            FFIValidTypeset<npy_uint32, 2, FFIType::NUMPY_UnsignedInt32, FFIType::UnsignedInt>,
-            FFIValidTypeset<npy_uint64, 2, FFIType::NUMPY_UnsignedInt64, FFIType::UnsignedLong>,
-            FFIValidTypeset<npy_float32, 2, FFIType::NUMPY_Float32, FFIType::Float>,
-            FFIValidTypeset<npy_float64, 2, FFIType::NUMPY_Float64, FFIType::Double>,
-            FFIValidTypeset<npy_float128, 1, FFIType::NUMPY_Float128>,
-            FFIValidTypeset<long long, 1, FFIType::LongLong>,
-            FFIValidTypeset<unsigned long long, 1, FFIType::UnsignedLongLong>,
-            FFIValidTypeset<bool, 1, FFIType::Bool>,
-            FFIValidTypeset<std::string, 1, FFIType::String>
+            FFIValidTypeset<npy_uint32, FFIType::NUMPY_UnsignedInt32, FFIType::UnsignedInt>,
+            FFIValidTypeset<npy_uint64, FFIType::NUMPY_UnsignedInt64, FFIType::UnsignedLong>,
+            FFIValidTypeset<npy_float32, FFIType::NUMPY_Float32, FFIType::Float>,
+            FFIValidTypeset<npy_float64, FFIType::NUMPY_Float64, FFIType::Double>,
+            FFIValidTypeset<npy_float128, FFIType::NUMPY_Float128>,
+            FFIValidTypeset<long long, FFIType::LongLong>,
+            FFIValidTypeset<unsigned long long, FFIType::UnsignedLongLong>,
+            FFIValidTypeset<bool, FFIType::Bool>,
+            FFIValidTypeset<std::string, FFIType::String>
     >;
-    template <typename, typename...>
-    struct FFITypeValidator;
-    template <typename T>
-    struct FFITypeValidator<T> {
-        static void validate (FFIType type) {
-            throw std::runtime_error("unhandled data type");
-        }
-    };
-    template <typename D, typename T, typename... Args> // expects FFITypeset objects
-    struct FFITypeValidator<D, T, Args...> {
-        static void validate (FFIType type) {
-            if (std::is_same<D, T>::value) {
-                auto vecs = T::valid_types;
-                auto ntypes = T::ntypes;
-                auto found = std::find(vecs, vecs + ntypes, type);
-                if (found == vecs + ntypes) {
-                    throw std::runtime_error("typename/FFIType mismatch");
-                }
-            } else {
-                FFITypeValidator<D, Args...>::validate(type);
-            }
-        }
-    };
-    template <typename T, size_t... Idx>
-    inline void validate_type(FFIType type, std::index_sequence<Idx...>) {
-        return FFITypeValidator<T, std::tuple_element_t<Idx, FFITypesets>...>::validate(type);
-    }
-    template <typename T>
-    void validate_type(FFIType type) {
-        return validate_type<T>(type, std::make_index_sequence<std::tuple_size<FFITypesets>{}>{});
-    }
-
-    //
-    template <typename T>
-    class FFITypeHandler {
-        // class that helps us maintain a map between type codes & proper types
-    public:
-        void validate(FFIType type_code) { validate_type<T>(type_code); }
-        T cast(FFIType type_code, std::shared_ptr<void>& data) {
-            validate(type_code);
-            return *static_cast<T*>(data.get());
-        }
-        PyObject* as_python(FFIType type_code, std::shared_ptr<void>& data, std::vector<size_t>& shape);
-    };
-    template <typename T>
-    class FFITypeHandler<T*> {
-        // specialization to handle pointer types
-    public:
-        void validate(FFIType type_code) { validate_type<T>(type_code); }
-        T* cast(FFIType type_code, std::shared_ptr<void>& data) {
-            validate(type_code);
-            return static_cast<T*>(data.get());
-        }
-        PyObject* as_python(FFIType type_code, std::shared_ptr<void>& data, std::vector<size_t>& shape);
-    };
-
-    template <typename T>
-    inline PyObject* FFITypeHandler<T>::as_python(FFIType type_code, std::shared_ptr<void>& data, std::vector<size_t>& shape) {
-        if (!shape.empty()) {
-            return FFITypeHandler<T*>().as_python(type_code, data, shape);
-        }
-        validate(type_code);
-        return rynlib::python::as_python<T>(*static_cast<T*>(data.get()));
-    }
-    template <typename T>
-    inline PyObject* FFITypeHandler<T*>::as_python(FFIType type_code, std::shared_ptr<void>& data, std::vector<size_t>& shape) {
-        // we use NumPy for all pointer types
-        validate(type_code);
-        return rynlib::python::numpy_from_data<T>(static_cast<T*>(data.get()), shape);
-    }
 
     template <FFIType F, typename T>
     struct FFITypePair {
@@ -216,6 +150,112 @@ namespace plzffi {
             FFITypePair<FFIType::NUMPY_Float64, npy_float64>,
             FFITypePair<FFIType::NUMPY_Float128, npy_float128>
     >;
+
+
+
+    template <typename, typename...>
+    struct FFITypeValidator;
+    template <typename T>
+    struct FFITypeValidator<T> {
+        static void validate (FFIType type) {
+            throw std::runtime_error("unhandled data type");
+        }
+        static FFIType typecode() {
+            throw std::runtime_error("unhandled data type");
+        }
+    };
+    template <typename D, typename T, typename... Args> // expects FFITypeset objects
+    struct FFITypeValidator<D, T, Args...> {
+        static void validate (FFIType type) {
+            if (std::is_same<D, typename T::type>::value) {
+//                auto valids = T::valid;
+//                auto nels = std::tuple_size_v<decltype(T::valid)>;
+                // https://stackoverflow.com/a/40233852/5720002
+                // Functional-programming loop over tuple elements
+                // to check if the type is in the held tuple
+                // This is basically a bunch of template fuckery
+                // just to avoid a huge switch...I think it's worth it
+                bool found = std::apply(
+                        [type](auto &&... args) {
+                            return ( (decltype(args)(args) == type) || ...);
+                        },
+                        T::valid
+                );
+                if ( !found ) {
+                    throw std::runtime_error("typename/FFIType mismatch");
+                }
+            } else {
+                FFITypeValidator<D, Args...>::validate(type);
+            }
+        }
+        static FFIType typecode() {
+            if (std::is_same<D, typename T::type>::value) {
+                return T::value;
+            } else {
+                return FFITypeValidator<D, Args...>::typecode();
+            }
+        }
+    };
+
+    template <typename T, size_t... Idx>
+    inline void validate_type(FFIType type, std::index_sequence<Idx...>) {
+        return FFITypeValidator<T, std::tuple_element_t<Idx, FFITypesets>...>::validate(type);
+    }
+    template <typename T>
+    inline void validate_type(FFIType type) {
+        return validate_type<T>(type, std::make_index_sequence<std::tuple_size<FFITypesets>{}>{});
+    }
+
+    template <typename T, size_t... Idx>
+    inline FFIType ffi_typecode(std::index_sequence<Idx...>) {
+        return FFITypeValidator<T, std::tuple_element_t<Idx, FFITypePairs>...>::typecode();
+    }
+    template <typename T>
+    inline FFIType ffi_typecode() {
+        return ffi_typecode<T>(std::make_index_sequence<std::tuple_size<FFITypePairs>{}>{});
+    }
+
+    //
+    template <typename T>
+    class FFITypeHandler {
+        // class that helps us maintain a map between type codes & proper types
+    public:
+        FFIType ffi_type() { return ffi_typecode<T>(); }
+        void validate(FFIType type_code) { validate_type<T>(type_code); }
+        T cast(FFIType type_code, std::shared_ptr<void> &data) {
+            validate(type_code);
+            return *static_cast<T *>(data.get());
+        }
+        PyObject *as_python(FFIType type_code, std::shared_ptr<void> &data, std::vector<size_t> &shape);
+    };
+    template <typename T>
+    class FFITypeHandler<T*> {
+        // specialization to handle pointer types
+    public:
+        FFIType ffi_type() {return ffi_typecode<T>();}
+        void validate(FFIType type_code) { validate_type<T>(type_code); }
+        T* cast(FFIType type_code, std::shared_ptr<void>& data) {
+            validate(type_code);
+            return static_cast<T*>(data.get());
+        }
+        PyObject* as_python(FFIType type_code, std::shared_ptr<void>& data, std::vector<size_t>& shape);
+    };
+
+    template <typename T>
+    inline PyObject* FFITypeHandler<T>::as_python(FFIType type_code, std::shared_ptr<void>& data, std::vector<size_t>& shape) {
+        if (!shape.empty()) {
+            return FFITypeHandler<T*>().as_python(type_code, data, shape);
+        }
+        validate(type_code);
+        return rynlib::python::as_python<T>(*static_cast<T*>(data.get()));
+    }
+    template <typename T>
+    inline PyObject* FFITypeHandler<T*>::as_python(FFIType type_code, std::shared_ptr<void>& data, std::vector<size_t>& shape) {
+        // we use NumPy for all pointer types
+        validate(type_code);
+        return rynlib::python::numpy_from_data<T>(static_cast<T*>(data.get()), shape);
+    }
+
     // recursive definition to loop through and test all the type pairs (thank you StackOverflow)
     // we'll embed most conversion functions here so that we don't need to duplicate the boiler plate
     template <typename...>
@@ -223,7 +263,7 @@ namespace plzffi {
     template<>
     class FFIConversionManager<> {
     public:
-        static std::shared_ptr<void> from_python_attr(FFIType type, PyObject* py_obj, const char* attr) {
+        static std::shared_ptr<void> from_python_attr(FFIType type, PyObject* py_obj, const char* attr, std::vector<size_t>& shape) {
             std::string garb = "unhandled type specifier in converting from python: " + std::to_string(static_cast<int>(type));
             throw std::runtime_error(garb.c_str());
         }
@@ -251,28 +291,30 @@ namespace plzffi {
                 FFIType::NUMPY_Float64
         };
     public:
-        static std::shared_ptr<void> from_python_attr(FFIType type, PyObject* py_obj, const char* attr) {
+        static std::shared_ptr<void> from_python_attr(FFIType type, PyObject* py_obj, const char* attr, std::vector<size_t>& shape) {
             if (type == T::value) {
                 auto pos = std::find(pointer_types, pointer_types + num_ptrtypes, type);
-                if (pos < pointer_types + num_ptrtypes ) {
+                if (pos < pointer_types + num_ptrtypes || !shape.empty()) {
                     return std::shared_ptr<void>(
-                            rynlib::python::get_python_attr_ptr<T>(py_obj, attr),
-                            [](T* val){delete val;}
+                            rynlib::python::get_python_attr_ptr<typename T::type>(py_obj, attr),
+                            [](typename T::type* val){delete val;}
                     );
                 } else {
-                    return std::make_shared<T>(rynlib::python::get_python_attr<T>(py_obj, attr));
+                    return std::make_shared<typename T::type>(
+                            rynlib::python::get_python_attr<typename T::type>(py_obj, attr)
+                            );
                 }
             } else {
-                return FFIConversionManager<Args...>::from_python_attr(type, py_obj, attr);
+                return FFIConversionManager<Args...>::from_python_attr(type, py_obj, attr, shape);
             }
         }
-        static PyObject* as_python(FFIType type,  std::shared_ptr<void>& data, std::vector<size_t>& shape) {
+        static PyObject* as_python(FFIType type, std::shared_ptr<void>& data, std::vector<size_t>& shape) {
             if (type == T::value) {
                 auto pos = std::find(pointer_types, pointer_types + num_ptrtypes, type);
                 if (pos < pointer_types + num_ptrtypes ) {
-                    return FFITypeHandler<T>().as_python(type, data, shape);
+                    return FFITypeHandler<typename T::type>().as_python(type, data, shape);
                 } else {
-                    return FFITypeHandler<T*>().as_python(type, data, shape);
+                    return FFITypeHandler<typename T::type*>().as_python(type, data, shape);
                 }
             } else {
                 return FFIConversionManager<Args...>::as_python(type, data, shape);
@@ -290,12 +332,14 @@ namespace plzffi {
     }
     template <size_t... Idx>
     inline std::shared_ptr<void> ffi_from_python_attr(FFIType type, PyObject* obj, const char* attr,
-                                   std::index_sequence<Idx...> inds) {
-        return FFIConversionManager<std::tuple_element_t<Idx, FFITypePairs>...>::from_python_attr(type, obj, attr);
+                                                      std::vector<size_t>& shape,
+                                                      std::index_sequence<Idx...> inds) {
+        return FFIConversionManager<std::tuple_element_t<Idx, FFITypePairs>...>::from_python_attr(type, obj, attr, shape);
     }
-    inline std::shared_ptr<void> ffi_from_python_attr(FFIType type, PyObject* obj, const char* attr) {
-        return ffi_from_python_attr(type, obj, attr,
-                             std::make_index_sequence<std::tuple_size<FFITypePairs>{}>{});
+    inline std::shared_ptr<void> ffi_from_python_attr(FFIType type, PyObject* obj, const char* attr,
+                                                      std::vector<size_t>& shape) {
+        return ffi_from_python_attr(type, obj, attr, shape,
+                                    std::make_index_sequence<std::tuple_size<FFITypePairs>{}>{});
     }
 
     class FFIArgument {
@@ -411,18 +455,17 @@ namespace plzffi {
 }
 
 // register a conversion for FFIType
-namespace rynlib {
-    namespace python {
-        template<>
-        inline PyObject* as_python<plzffi::FFIParameter>(plzffi::FFIParameter data) {
-            if (plzffi::debug_print()) printf("  Converting FFIParameter to PyObject...\n");
-            return data.as_python();
-        }
-        template<>
-        inline plzffi::FFIParameter from_python<plzffi::FFIParameter>(PyObject* data) {
-            if (plzffi::debug_print()) printf("  Converting PyObject to FFIParameter...\n");
-            return plzffi::FFIParameter(data);
-        }
+namespace rynlib::python {
+    template<>
+    inline PyObject *as_python<plzffi::FFIParameter>(plzffi::FFIParameter data) {
+        if (plzffi::debug_print()) printf("  Converting FFIParameter to PyObject...\n");
+        return data.as_python();
+    }
+
+    template<>
+    inline plzffi::FFIParameter from_python<plzffi::FFIParameter>(PyObject *data) {
+        if (plzffi::debug_print()) printf("  Converting PyObject to FFIParameter...\n");
+        return plzffi::FFIParameter(data);
     }
 }
 

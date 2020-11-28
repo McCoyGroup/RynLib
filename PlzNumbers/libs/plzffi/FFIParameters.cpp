@@ -17,8 +17,11 @@ namespace plzffi {
         pyadeeb.set_debug_print(db); // because of bad design choices I gotta do this multiple places...
     }
 
-    // defines a compiler map between FFIType and proper types
+    // weirdness with constexpr... (https://stackoverflow.com/a/8016853/5720002)
+    template <typename T, typename... Args>
+    constexpr const FFIType FFIConversionManager<T, Args...>::pointer_types[];
 
+    // defines a compiler map between FFIType and proper types
     PyObject * FFIArgument::as_tuple() {
         return Py_BuildValue("(NNN)",
                              rynlib::python::as_python<std::string>(param_key),
@@ -48,7 +51,7 @@ namespace plzffi {
         if (debug_print()) printf("  > getting arg_val\n");
 //        auto val_obj = get_python_attr<PyObject*>(py_obj, "arg_value");
 //        if (debug_print()) printf("  converting to voidptr...\n");
-        param_data = ffi_from_python_attr(type_char, py_obj, "arg_value"); // pulls arg_value by default...
+        param_data = ffi_from_python_attr(type_char, py_obj, "arg_value", shape); // pulls arg_value by default...
 
         if (debug_print()) printf("  constructing FFIArgument...\n");
 

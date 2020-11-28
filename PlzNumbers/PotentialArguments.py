@@ -36,7 +36,6 @@ class PotentialArgumentHolder:
         if self.arg_vec is None:
             raise ValueError("Python thinks we're using an old-style potential")
         else:
-
             return self.arg_vec.values()
 
 class OldStyleArg:

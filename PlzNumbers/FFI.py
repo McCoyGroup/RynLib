@@ -152,11 +152,14 @@ class FFIArgument(FFISpec):
         type_str, dtype = FFIType.type_data(self.arg_type)
         if isinstance(dtype, np.dtype): # have a numpy type
             dat = np.asarray(val, dtype=dtype)
+        elif len(self.arg_shape) > 0:
+            dat = np.asarray(val, dtype=dtype)
         else:
             if not isinstance(val, dtype):
                 dat = dtype(val)
             else:
                 dat = val
+
         # do some shape checks...
 
         return FFIParameter(self, dat)
@@ -190,6 +193,22 @@ class FFIParameter:
             self.arg_value
         )
 
+class FFIParameters:
+    """
+
+    """
+    def __init__(self, dats):
+        self.dats = dats
+    def __iter__(self):
+        return iter(self.ffi_parameters)
+    @property
+    def ffi_parameters(self):
+        if isinstance(self.dats, collections.OrderedDict):
+            dat = tuple(self.dats.values())
+        else:
+            dat = self.dats
+        return dat
+
 class FFIMethod(FFISpec):
     """
     Represents a C++ method callable through the plzffi interface
@@ -200,7 +219,9 @@ class FFIMethod(FFISpec):
         self.name = name
         self.args = [FFIArgument(**x) if not isinstance(x, FFIArgument) else x for x in arguments]
         self.rtype = FFIType(rtype)
-        self.mod = module
+        self.mod = module #type: None | FFIModule
+    def bind_module(self, mod):
+        self.mod = mod #type: FFIModule
 
     @property
     def arg_names(self):
@@ -240,6 +261,15 @@ class FFIMethod(FFISpec):
             rtype=ret,
             module=module
         )
+
+
+    def __call__(self, *args, threading_var=None, threading_mode="serial", **kwargs):
+        fack = self.collect_args(*args, **kwargs)
+        if threading_var is None:
+            return self.mod.call_method(self.name, fack)
+        else:
+            return self.mod.call_method_threaded(self.name, fack, threading_var, threading_mode=threading_mode)
+
     def __repr__(self):
         return "{}('{}', {})=>{}".format(
             type(self).__name__,
@@ -258,6 +288,8 @@ class FFIModule(FFISpec):
         super().__init__(name=name, methods=methods)
         self.name = name
         self.methods = [FFIMethod(**x) if not isinstance(x, FFIMethod) else x for x in methods]
+        for m in self.methods:
+            m.bind_module(self)
         self.mod = module
 
     @property
@@ -269,7 +301,7 @@ class FFIModule(FFISpec):
         name, meths = sig
         return cls(
             name=name,
-            methods=[FFIMethod.from_signature(x, module=module) for x in meths],
+            methods=[FFIMethod.from_signature(x) for x in meths],
             module=module
         )
 
@@ -291,6 +323,46 @@ class FFIModule(FFISpec):
             return self.methods[idx]
         else:
             raise AttributeError("FFIModule {} has no method {}".format(self.name, name))
+
+    def call_method(self, name, params):
+        """
+        Calls a method
+
+        :param name:
+        :type name:
+        :param params:
+        :type params:
+        :return:
+        :rtype:
+        """
+        req_attrs = ("arg_type", "arg_name", "arg_shape", "arg_value")
+        if isinstance(params, collections.OrderedDict):
+            params = FFIParameters(params)
+        for p in params:
+            if not all(hasattr(p, x) for x in req_attrs):
+                raise AttributeError("parameter {} needs attributes {}".format(p, req_attrs))
+        return self.mod.call_method(self.captup, name, params)
+    def call_method_threaded(self, name, params, thread_var, mode="serial"):
+        """
+        Calls a method with threading enabled
+
+        :param name:
+        :type name:
+        :param params:
+        :type params:
+        :param thread_var:
+        :type thread_var: str
+        :param mode:
+        :type mode:
+        :return:
+        :rtype:
+        """
+        req_attrs = ("arg_type", "arg_name", "arg_shape", "arg_value")
+        for p in params:
+            if not all(hasattr(p, x) for x in req_attrs):
+                raise AttributeError("parameter needs attributes {}", req_attrs)
+        return self.mod.call_method_threaded(self.mod, name, params, thread_var, mode)
+
     def __getattr__(self, item):
         return self.get_method(item)
 
