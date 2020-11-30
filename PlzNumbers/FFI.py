@@ -180,7 +180,10 @@ class FFIParameter:
         return self.arg.arg_type
     @property
     def arg_shape(self):
-        return self.arg.arg_shape
+        argshp = self.arg.arg_shape
+        if 0 in argshp:
+            argshp = self.val.shape # gotta be a numpy value
+        return argshp
     @property
     def arg_value(self):
         return self.val
@@ -315,6 +318,7 @@ class FFIModule(FFISpec):
         return tuple(x.name for x in self.methods)
 
     def get_method(self, name):
+        # print(self.method_names)
         try:
             idx = self.method_names.index(name)
         except (ValueError, IndexError):

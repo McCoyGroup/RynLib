@@ -23,38 +23,46 @@ namespace plzffi {
 //        template <typename >
 //        typedef T (*Func)(const FFIParameters&);
 
-    template<typename T>
-    class FFIMethod {
+    // data for an FFI method so that FFIModule gets a uniform interface
+    struct FFIMethodData {
         std::string name;
         std::vector<FFIArgument> args;
         FFIType ret_type;
-
+        bool vectorized;
+    };
+    template<typename T>
+    class FFIMethod {
+        FFIMethodData data;
         T (*function_pointer)(FFIParameters &);
 
     public:
         FFIMethod(
+                FFIMethodData& data,
+                T (*function)(FFIParameters &)
+        ) : data(data), function_pointer(function) {};
+        FFIMethod(
                 std::string &method_name,
                 std::vector<FFIArgument> &arg,
                 FFIType return_type,
+                bool vectorized,
                 T (*function)(FFIParameters &)
-        ) : name(method_name), args(arg), ret_type(return_type), function_pointer(function) { type_check(); };
-
+        ) : data(FFIMethodData {method_name, arg, return_type, vectorized}), function_pointer(function) { type_check(); };
         FFIMethod(
                 const char *method_name,
                 std::vector<FFIArgument> arg,
                 FFIType return_type,
+                bool vectorized,
                 T (*function)(FFIParameters &)
-        ) : name(method_name), args(arg), ret_type(return_type), function_pointer(function) { type_check(); };
+        ) : data(FFIMethodData{method_name, arg, return_type, vectorized}), function_pointer(function) { type_check(); };
 
         void type_check();
 
         T call(FFIParameters &params);
 
-        std::string method_name() { return name; }
-
-        std::vector<FFIArgument> method_arguments() { return args; }
-
-        FFIType return_type() { return ret_type; }
+        FFIMethodData method_data() { return data; }
+        std::string method_name() { return data.name; }
+        std::vector<FFIArgument> method_arguments() { return data.args; }
+        FFIType return_type() { return data.ret_type; }
 
 //            PyObject * python_signature() {
 //                std::vector<PyObject*> py_args(args.size(), NULL);
@@ -218,7 +226,6 @@ namespace plzffi {
 #endif
     }
 
-
     class FFIModule {
         // possibly memory leaky, but barely so & thus we won't worry too much until we _know_ it's an issue
         std::string name;
@@ -226,20 +233,15 @@ namespace plzffi {
         int size = -1; // size of module per interpreter...for future use
         std::string attr = "_FFIModule"; // attribute use when attaching to Python module
         std::string capsule_name;
-        std::vector<std::string> method_names;
-        std::vector<std::vector<FFIArgument> > method_args;
-        std::vector<FFIType> return_types;
         std::vector<void *> method_pointers; // pointers to FFI methods, but return types are ambiguous
+        // we maintain a secondary cache of this data just because it's easier
+        std::vector<FFIMethodData> method_data;
     public:
         FFIModule() = default;
 
         FFIModule(std::string &module_name, std::string &module_doc) :
                 name(module_name),
                 docstring(module_doc) { init(); }
-
-//                    return_types({}),
-//                    method_names({}),
-//                    method_pointers({}) {};
         FFIModule(const char *module_name, const char *module_doc) :
                 name(module_name),
                 docstring(module_doc) { init(); }
@@ -254,6 +256,21 @@ namespace plzffi {
                  std::vector<FFIArgument> arg,
                  FFIType return_type,
                  T (*function)(FFIParameters &));
+        template<typename T>
+        void add(const char *method_name,
+                 std::vector<FFIArgument> arg,
+                 T (*function)(FFIParameters &));
+        template<typename T>
+        void add(const char *method_name,
+                 std::vector<FFIArgument> arg,
+                 FFIType return_type,
+                 std::vector<T> (*function)(FFIParameters &));
+        template<typename T>
+        void add(const char *method_name,
+                 std::vector<FFIArgument> arg,
+                 std::vector<T> (*function)(FFIParameters &));
+
+        FFIMethodData get_method_data(std::string &method_name);
 
         template<typename T>
         FFIMethod<T> get_method(std::string &method_name);
@@ -304,20 +321,26 @@ namespace plzffi {
     //region Template Fuckery
     template<typename T>
     T FFIMethod<T>::call(FFIParameters &params) {
+        if (debug_print()) printf("  > calling function pointer on parameters...\n");
         return function_pointer(params);
     }
 
     template<typename T>
     void FFIMethod<T>::type_check() {
         FFITypeHandler<T> handler;
-        handler.validate(ret_type);
+        handler.validate(return_type());
     }
 
     template<typename T>
     void FFIModule::add_method(FFIMethod<T> &method) {
-        method_names.push_back(method.method_name());
-        method_args.push_back(method.method_arguments());
-        return_types.push_back(method.return_type());
+//        plzffi::set_debug_print(true);
+        if (plzffi::debug_print()) {
+            printf(" > adding method %s to module %s\n",
+                   method.method_data().name.c_str(),
+                   name.c_str()
+                   );
+        }
+        method_data.push_back(method.method_data());
         method_pointers.push_back((void *) &method);
     }
 
@@ -326,43 +349,71 @@ namespace plzffi {
             const char *method_name,
             std::vector<FFIArgument> arg,
             FFIType return_type,
-            T (*function)(FFIParameters &)) {
+            T (*function)(FFIParameters &)
+            ) {
+        // TODO: need to introduce destructor to FFIModule to clean up all of these methods once we go out of scope
+        auto meth = new FFIMethod<T>(method_name, arg, return_type, false, function);
+        add_method(*meth);
+    }
+    template<typename T>
+    void FFIModule::add(
+            const char *method_name,
+            std::vector<FFIArgument> arg,
+            T (*function)(FFIParameters &)
+    ) {
         // need to introduce destructor to FFIModule to clean up all of these methods once we go out of scope
-        auto meth = new FFIMethod<T>(method_name, arg, return_type, function);
+        auto return_type = FFITypeHandler<T>().ffi_type();
+        auto meth = new FFIMethod<T>(method_name, arg, return_type, false, function);
+        add_method(*meth);
+    }
+    template<typename T>
+    void FFIModule::add(
+            const char *method_name,
+            std::vector<FFIArgument> arg,
+            FFIType return_type,
+            std::vector<T> (*function)(FFIParameters &)
+    ) {
+        auto meth = new FFIMethod<std::vector<T>>(method_name, arg, return_type, true, function);
+        add_method(*meth);
+    }
+    template<typename T>
+    void FFIModule::add(
+            const char *method_name,
+            std::vector<FFIArgument> arg,
+            std::vector<T> (*function)(FFIParameters &)
+    ) {
+        auto return_type = FFITypeHandler<T>().ffi_type();
+        auto meth = new FFIMethod<std::vector<T>>(method_name, arg, return_type, true, function);
         add_method(*meth);
     }
 
     template<typename T>
     FFIMethod<T> FFIModule::get_method(std::string &method_name) {
 //            printf("Uh...?\n");
-        for (size_t i = 0; i < method_names.size(); i++) {
-            if (method_names[i] == method_name) {
-//                printf("Method %s is the %lu-th method in %s\n", method_name.c_str(), i, name.c_str());
+        for (size_t i = 0; i < method_data.size(); i++) {
+            if (method_data[i].name == method_name) {
+//                if (debug_print()) printf(" > FFIModuleMethodCaller found appropriate type dispatch!\n");
+                if (debug_print()) printf("  > method %s is the %lu-th method in %s\n", method_name.c_str(), i, name.c_str());
                 return FFIModule::get_method_from_index<T>(i);
             }
         }
-        throw std::runtime_error("method " + method_name + "not found");
+        throw std::runtime_error("method " + method_name + " not found");
     }
 
     template<typename T>
     FFIMethod<T> FFIModule::get_method_from_index(size_t i) {
 
-//            printf("Making a thing...?\n");
+        if (debug_print()) printf("  > checking return type...\n");
         FFITypeHandler<T> handler;
-        handler.validate(return_types[i]);
-//            printf("Validated return type?\n");
+        handler.validate(method_data[i].ret_type);
+        if (debug_print()) printf("  > casting method pointer...\n");
         auto methodptr = static_cast<FFIMethod<T> *>(method_pointers[i]);
-//            printf("Constructed pointer?\n");
-
         if (methodptr == NULL) {
-            std::string err = "Bad pointer for method '%s'" + method_names[i];
+            std::string err = "Bad pointer for method '%s'" + method_data[i].name;
             throw std::runtime_error(err.c_str());
         }
 
-//            printf("Got name %s\n", methodptr->method_name().c_str());
-
         auto method = *methodptr;
-//            printf("Dereferenced pointer?\n");
 
         return method;
     }
@@ -374,7 +425,7 @@ namespace plzffi {
     public:
         static PyObject* call(FFIType type, FFIModule& mod, std::string& method, FFIParameters& params) {
             std::string garb =
-                    "unhandled type specifier in calling threading "
+                    "unhandled type specifier in threaded call to "
                     + method + ": " + std::to_string(static_cast<int>(type));
             throw std::runtime_error(garb.c_str());
         }
@@ -384,9 +435,24 @@ namespace plzffi {
     public:
         static PyObject* call(FFIType type, FFIModule& mod, std::string& method_name, FFIParameters& params) {
             if (type == T::value) {
-                auto val = mod.call_method<typename T::type>(method_name, params);
+                if (debug_print()) printf(" > FFIModuleMethodCaller found appropriate type dispatch!\n");
+                PyObject* obj;
+                if (mod.get_method_data(method_name).vectorized) {
+                    if (debug_print()) printf("  > evaluating vectorized potential\n");
+                    auto val = mod.call_method<std::vector<typename T::type> >(method_name, params);
+                    if (debug_print()) printf("  > constructing python return value\n");
+                    auto test = val;
+                    auto arr = rynlib::python::as_python<typename T::type>(test);
+                    if (debug_print()) rynlib::python::print_obj("  > got %s\n", arr);
+                    obj = rynlib::python::numpy_copy_array(arr);
+                } else {
+                    if (debug_print()) printf("  > evaluating non-vectorized potential\n");
+                    auto val = mod.call_method<typename T::type>(method_name, params);
+                    if (debug_print()) printf("  > constructing python return value\n");
+                    obj = rynlib::python::as_python<typename T::type>(val);
+                }
                 // need to actually return the values...
-                return rynlib::python::as_python<typename T::type>(val);
+                return obj;
             } else {
                 return FFIModuleMethodCaller<Args...>::call(type, mod, method_name, params);
             }
@@ -404,10 +470,7 @@ namespace plzffi {
                                std::make_index_sequence<std::tuple_size<FFITypePairs>{}>{});
     }
 
-    class FFIThreaderTypeIterationError : public std::exception {
-
-    };
-
+    class FFIThreaderTypeIterationError : public std::exception {};
     template <typename, typename...>
     class FFIModuleMethodThreadingCaller;
     template<typename T>

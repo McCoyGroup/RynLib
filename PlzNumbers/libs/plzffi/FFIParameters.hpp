@@ -158,10 +158,17 @@ namespace plzffi {
     template <typename T>
     struct FFITypeValidator<T> {
         static void validate (FFIType type) {
-            throw std::runtime_error("unhandled data type");
+            std::string msg = "ERROR: unhandled typename/FFIType pair";
+            std::string tname = typeid(T).name();
+            msg += "(" + tname + "/" + std::to_string(static_cast<int>(type)) + ")";
+            printf("%s\n", msg.c_str());
+            throw std::runtime_error(msg);
         }
         static FFIType typecode() {
-            throw std::runtime_error("unhandled data type");
+            std::string msg = "ERROR: unhandled typename";
+            msg += typeid(T).name();
+            printf("%s\n", msg.c_str());
+            throw std::runtime_error(msg);
         }
     };
     template <typename D, typename T, typename... Args> // expects FFITypeset objects
@@ -228,6 +235,19 @@ namespace plzffi {
         }
         PyObject *as_python(FFIType type_code, std::shared_ptr<void> &data, std::vector<size_t> &shape);
     };
+
+    template <typename T>
+    class FFITypeHandler<std::vector<T> > {
+        // specialization to handle vector types
+    public:
+        FFIType ffi_type() {return ffi_typecode<T>();}
+        void validate(FFIType type_code) { validate_type<T>(type_code); }
+        std::vector<T> cast(FFIType type_code, std::shared_ptr<void>& data) {
+            validate(type_code);
+            return *static_cast<std::vector<T>>(data.get());
+        }
+        PyObject* as_python(FFIType type_code, std::shared_ptr<void>& data, std::vector<size_t>& shape);
+    };
     template <typename T>
     class FFITypeHandler<T*> {
         // specialization to handle pointer types
@@ -248,6 +268,11 @@ namespace plzffi {
         }
         validate(type_code);
         return rynlib::python::as_python<T>(*static_cast<T*>(data.get()));
+    }
+    template <typename T>
+    inline PyObject* FFITypeHandler<std::vector<T> >::as_python(FFIType type_code, std::shared_ptr<void>& data, std::vector<size_t>& shape) {
+        validate(type_code);
+        return rynlib::python::as_python<std::vector<T> >(*static_cast<std::vector<T>*>(data.get()));
     }
     template <typename T>
     inline PyObject* FFITypeHandler<T*>::as_python(FFIType type_code, std::shared_ptr<void>& data, std::vector<size_t>& shape) {
@@ -449,6 +474,18 @@ namespace plzffi {
         T value(const char* key) {
             return get_parameter(key).value<T>();
         }
+        std::vector<size_t> shape(std::string& key) {
+            return get_parameter(key).shape();
+        }
+        std::vector<size_t> shape(const char* key) {
+            return get_parameter(key).shape();
+        }
+        FFIType typecode(std::string& key) {
+            return get_parameter(key).type();
+        }
+        FFIType typecode(const char* key) {
+            return get_parameter(key).type();
+        }
 
     };
 
@@ -458,13 +495,13 @@ namespace plzffi {
 namespace rynlib::python {
     template<>
     inline PyObject *as_python<plzffi::FFIParameter>(plzffi::FFIParameter data) {
-        if (plzffi::debug_print()) printf("  Converting FFIParameter to PyObject...\n");
+        if (plzffi::debug_print()) printf("Converting FFIParameter to PyObject...\n");
         return data.as_python();
     }
 
     template<>
     inline plzffi::FFIParameter from_python<plzffi::FFIParameter>(PyObject *data) {
-        if (plzffi::debug_print()) printf("  Converting PyObject to FFIParameter...\n");
+        if (plzffi::debug_print()) printf("Converting PyObject to FFIParameter...\n");
         return plzffi::FFIParameter(data);
     }
 }

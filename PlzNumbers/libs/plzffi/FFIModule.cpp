@@ -68,10 +68,12 @@ namespace plzffi {
 
     PyObject *FFIModule::python_signature() {
 
-        std::vector<PyObject *> py_sigs(method_args.size(), NULL);
-        for (size_t i = 0; i < method_args.size(); i++) {
+        std::vector<PyObject *> py_sigs(method_data.size(), NULL);
+        for (size_t i = 0; i < method_data.size(); i++) {
 
-            auto args = method_args[i];
+            auto args = method_data[i].args;
+            if (debug_print()) printf(" > constructing signature for %s\n",
+                                      method_data[i].name.c_str());
 //                    printf("....wat %lu\n", args.size());
             std::vector<PyObject *> subargs(args.size(), NULL);
             for (size_t j = 0; j < args.size(); j++) {
@@ -80,9 +82,9 @@ namespace plzffi {
 
             py_sigs[i] = Py_BuildValue(
                     "(NNN)",
-                    rynlib::python::as_python<std::string>(method_names[i]),
+                    rynlib::python::as_python<std::string>(method_data[i].name),
                     rynlib::python::as_python_tuple<PyObject *>(subargs),
-                    rynlib::python::as_python<int>(static_cast<int>(return_types[i])) // to be python portable
+                    rynlib::python::as_python<int>(static_cast<int>(method_data[i].ret_type)) // to be python portable
             );
         }
 
@@ -95,7 +97,7 @@ namespace plzffi {
     }
 
     FFIModule ffi_from_capsule(PyObject *captup) {
-        set_debug_print(true); // temporary debug hack
+//        set_debug_print(true); // temporary debug hack
         if (!PyTuple_Check(captup)) {
             PyErr_SetString(
                     PyExc_TypeError,
@@ -121,18 +123,34 @@ namespace plzffi {
     }
 
     size_t FFIModule::get_method_index(std::string &method_name) {
-        for (size_t i = 0; i < method_names.size(); i++) {
-            if (method_names[i] == method_name) { return i; }
+        for (size_t i = 0; i < method_data.size(); i++) {
+            if (method_data[i].name == method_name) { return i; }
         }
         throw std::runtime_error("method " + method_name + "not found");
     }
 
+    FFIMethodData FFIModule::get_method_data(std::string &method_name) {
+        for (auto data : method_data) {
+            if (data.name == method_name) {
+//                printf("Method %s is the %lu-th method in %s\n", method_name.c_str(), i, name.c_str());
+                return data;
+            }
+        }
+        throw std::runtime_error("method " + method_name + " not found");
+    }
+
     PyObject* FFIModule::py_call_method(PyObject *method_name, PyObject *params) {
 
+        if (debug_print()) printf("Calling from python ");
         auto mname = rynlib::python::from_python<std::string>(method_name);
+        if (debug_print()) printf(" into method %s\n", mname.c_str());
         auto meth_idx = get_method_index(mname);
-        auto argtype = return_types[meth_idx];
+        auto argtype = method_data[meth_idx].ret_type;
+
+        if (debug_print()) printf(" > loading parameters...\n");
         auto args = FFIParameters(params);
+
+        if (debug_print()) printf(" > calling on parameters...\n");
         return ffi_call_method(
                 argtype,
                 *this,
@@ -149,7 +167,7 @@ namespace plzffi {
 
         auto mname = rynlib::python::from_python<std::string>(method_name);
         auto meth_idx = get_method_index(mname);
-        auto argtype = return_types[meth_idx];
+        auto argtype = method_data[meth_idx].ret_type;
         auto args = FFIParameters(params);
 
         auto varname = rynlib::python::from_python<std::string>(looped_var);
@@ -228,6 +246,9 @@ namespace plzffi {
                                        &params
                                        );
         if (!parsed) { return NULL; }
+
+//        set_debug_print(true);
+//        rynlib::python::pyadeeb.set_debug_print(true);
 
         try {
             auto obj = ffi_from_capsule(cap);

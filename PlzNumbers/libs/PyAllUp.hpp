@@ -111,6 +111,18 @@ namespace rynlib {
             return str;
         }
 
+        inline std::string get_python_repr(PyObject* obj) {
+            PyObject *repr= PyObject_Repr(obj);
+            auto rep = from_python<std::string>(repr);
+            Py_XDECREF(repr);
+            return rep;
+        }
+
+        inline void print_obj(const char* fmt, PyObject* obj) {
+            auto garb = get_python_repr(obj);
+            printf(fmt, garb.c_str());
+        }
+
         template <typename T>
         class as_python_error : public std::runtime_error {
                 const char* typestr = typeid(T).name();
@@ -225,13 +237,6 @@ namespace rynlib {
         template<typename T>
         inline PyObject *as_python_tuple(std::vector<T> data) {
             return as_python_tuple<T>(data, data.size());
-        }
-
-        inline std::string get_python_repr(PyObject* obj) {
-            PyObject *repr= PyObject_Repr(obj);
-            auto rep = from_python<std::string>(repr);
-            Py_XDECREF(repr);
-            return rep;
         }
 
         template<typename T>
@@ -357,14 +362,18 @@ namespace rynlib {
                 std::vector<size_t> shape
         ) {
             auto shp = shape;
-            return numpy_from_data<T>(buffer, numpy_type<T>(), shp );
+            auto npy_type = numpy_type<T>();
+            return numpy_from_data<T>(buffer, npy_type, shp );
         }
         template<>
         inline PyObject* numpy_from_data<double>(
                 double* buffer,
                 std::vector<size_t> shape
         ) {
-            return numpy_from_data<double>(buffer, NPY_FLOAT64, shape );
+//            printf("....? %f %f %f\n", buffer[0], buffer[1], buffer[2]);
+            auto wat = numpy_from_data<double>(buffer, NPY_FLOAT64, shape );
+//            print_obj("wat %s\n", wat);
+            return wat;
         }
 
         inline PyObject* numpy_copy_array(PyObject* obj) {
@@ -375,14 +384,41 @@ namespace rynlib {
             Py_XINCREF(descr);
             return PyArray_FromArray(arr, descr, NPY_ARRAY_ENSURECOPY);
         }
-
-
         template<typename T>
         inline PyObject* as_python(std::vector<T> data) {
-            std::vector<size_t > shape = {data.size()};
-            auto arr = numpy_from_data<T>(data.data(), shape);
-            return arr; // We'll let other parts of the code-base do copies if they want
+            if (!data.empty()) {
+                std::vector<size_t> shape = {data.size()};
+                T *buffer = data.data();
+                auto arr = numpy_from_data<T>(buffer, shape);
+                return numpy_copy_array(arr); // since we pass by value we need to copy again...
+            } else {
+                npy_intp dims[0];
+                auto npy_type = numpy_type<T>();
+                auto arr = PyArray_EMPTY(0, dims, npy_type, false);
+                return arr;
+            }
         }
+        template<>
+        inline PyObject* as_python<bool>(std::vector<bool> data) {
+            if (!data.empty()) {
+                auto nels = data.size();
+                std::vector<size_t> shape = {nels};
+                bool buffer[nels];
+                for (size_t i=0; i < nels; i++) { buffer[nels] = data[i]; }
+                auto arr = numpy_from_data<bool>(buffer, shape);
+                return numpy_copy_array(arr); // We'll let other parts of the code-base do copies if they want
+            } else {
+                npy_intp dims[0];
+                auto npy_type = numpy_type<bool>();
+                auto arr = PyArray_EMPTY(0, dims, npy_type, false);
+                return arr;
+            }
+        }
+        template<>
+        inline PyObject* as_python<PyObject*>(std::vector<PyObject*> data) {
+            return as_python_tuple<PyObject *>(data);
+        }
+
 
         inline std::vector<size_t> numpy_shape_as_size_t(PyObject* obj) {
             _np_init();

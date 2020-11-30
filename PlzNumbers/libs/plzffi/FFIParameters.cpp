@@ -81,8 +81,8 @@ namespace plzffi {
             auto p = params[i];
             auto pob = p.as_python();
             auto rep = get_python_repr(pob);
-            printf("  > wat %lu", i);
-            printf(" %s\n", rep.c_str());
+//            printf("  > wat %lu", i);
+//            printf(" %s\n", rep.c_str());
             Py_XDECREF(pob);
             if (p.name() == param_name) break;
         };
@@ -102,19 +102,19 @@ namespace plzffi {
             auto i = param_index(param_name);
             params[i] = param;
         } catch (std::exception& e) {
-
-            printf("Pushing a new one with name %s, ", param.name().c_str());
-            printf("rtype %d ", static_cast<int>(param.type()));
-            printf("onto stack of size %lu. ", params.size());
-
-            auto pp = params[params.size()-1].as_python();
-            auto rep = get_python_repr(pp);
-            printf("Previous thing is %s\n", rep.c_str());
-            Py_XDECREF(pp);
-            auto p2 = param.as_python();
-            auto rep2 = get_python_repr(p2);
-            printf("New thing is %s\n", rep2.c_str());
-            Py_XDECREF(pp);
+//
+//            printf("Pushing a new one with name %s, ", param.name().c_str());
+//            printf("rtype %d ", static_cast<int>(param.type()));
+//            printf("onto stack of size %lu. ", params.size());
+//
+//            auto pp = params[params.size()-1].as_python();
+//            auto rep = get_python_repr(pp);
+//            printf("Previous thing is %s\n", rep.c_str());
+//            Py_XDECREF(pp);
+//            auto p2 = param.as_python();
+//            auto rep2 = get_python_repr(p2);
+//            printf("New thing is %s\n", rep2.c_str());
+//            Py_XDECREF(pp);
             params.push_back(param);
         }
     }
