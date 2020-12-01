@@ -37,18 +37,27 @@ class PotentialArgumentHolder:
             raise ValueError("Python thinks we're using an old-style potential")
         else:
             return self.arg_vec.values()
+    def __repr__(self):
+        return "{}(<>)".format(type(self).__name__)
 
 class OldStyleArg:
     """
     Shim that supports old-style args
     """
-    def __init__(self, name=None, dtype=None, extra=None, default=None):
+    def __init__(self, name=None, dtype=None, extra=None, shape=None, default=None):
         self.name=name
-        self.dtype=dtype #type: type
+        self.dtype=self.canonicalize_dtype(dtype)
         self.extra=extra
+        self.shape=shape
         if default is not None:
             raise ValueError("currrently, no longer supporting default values")
         self.default=default
+    _type_map = {'int':int, 'float':float, 'str':str}
+    def canonicalize_dtype(self, dtype):
+        if isinstance(dtype, str):
+            return self._type_map[dtype]
+        else:
+            raise ValueError("don't know how to handle old-style dtype '{}'".format(dtype))
     def cast(self, v):
         if not isinstance(v, self.dtype):
             raise ValueError(
@@ -78,13 +87,15 @@ class OldStyleArgList:
         req_dict = OrderedDict(
             (k.arg_name, k) for k in self.args
         )
-        if excluded_args is not None:
-            for k in excluded_args:
-                del req_dict[k]
-
         for k in kwargs:
             arg_dict[k] = req_dict[k].cast(kwargs[k])
             del req_dict[k]
+
+        if excluded_args is not None:
+            for k in excluded_args:
+                if k in req_dict:
+                    del req_dict[k]
+
         if len(req_dict) > 0:
             for v, k in zip(args, req_dict.copy()):
                 arg_dict[k] = req_dict[k].cast(v)
@@ -137,7 +148,7 @@ class PotentialArgumentSpec:
         return OldStyleArgList(arg_list)
 
     def collect_args(self, *args, **kwargs):
-        return PotentialArgumentHolder(self.arg_pat.collect_args(*args, excluded_args=['coords'], **kwargs))
+        return PotentialArgumentHolder(self.arg_pat.collect_args(*args, excluded_args=["coords", "raw_coords", "atoms"], **kwargs))
 
     def arg_names(self, excluded=None):
         """

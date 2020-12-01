@@ -5,8 +5,7 @@
 #include <string>
 #include "Python.h"
 
-namespace rynlib {
-    namespace common {
+namespace rynlib::common {
 
         // annoying
         bool debug_print();
@@ -63,7 +62,6 @@ namespace rynlib {
                 const ExtraFloats
         );
 
-    }
 }
 #define RYNLIB_RYNTYPES_HPP
 

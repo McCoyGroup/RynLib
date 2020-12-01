@@ -169,7 +169,7 @@ class Potential:
         return self.spec.name
 
     def __repr__(self):
-        arg_names = self._argspec.arg_names(excluded=["coords", "raw_coords"])
+        arg_names = self._argspec.arg_names(excluded=["coords", "raw_coords", "atoms"])
         return "Potential('{}', {}({}), atoms={})".format(
             self.name,
             self.function_name,
@@ -210,11 +210,11 @@ class Potential:
                        **kwargs
                        ):
         if caller_api_version != 1:
-            raise ValueError(
+            raise ValueError((
                 "{}.{} is intended to wrap old-style (single pointer) potentials. "
                 "If you want that form of potential, set `caller_api_version=1`. "
                 "Otherwise you will be better off using tools from the FFI module."
-            )
+            ).format(cls.__name__, 'wrap_potential'))
         #
         # if potential_directory is None:
         #     from ..Interface import RynLib

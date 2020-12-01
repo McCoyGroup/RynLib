@@ -34,11 +34,11 @@ class PotentialCaller:
                  mpi_manager=None,
                  bad_walker_file='',
                  raw_array_potential=None,
-                 vectorized_potential=False,
+                 vectorized_potential=None,
                  error_value=1.0e9,
                  fortran_potential=False,
                  transpose_call=None,
-                 debug_print=True,
+                 debug_print=False,
                  catch_abort=False,
                  caller_retries=0
                  ):
@@ -49,16 +49,19 @@ class PotentialCaller:
             self.potential = potential.get_method(function_name)
             self._py_pot = False
             self._caller_api = 2
+            self.vectorized_potential = self.potential.vectorized
         elif repr(potential).startswith("<capsule object "):
             self.module = None
             self.potential = potential
             self._py_pot = False
             self._caller_api = 1
+            self.vectorized_potential = bool(vectorized_potential)
         else:
             self.module = None
             self.potential = potential
             self._py_pot = True
             self._caller_api = 1
+            self.vectorized_potential = False
         self.function_name = function_name
 
         self._mpi_manager = mpi_manager
@@ -68,7 +71,7 @@ class PotentialCaller:
 
         # flags that we use
         self.bad_walkers_file = bad_walker_file
-        self.vectorized_potential = vectorized_potential
+        # self.vectorized_potential = vectorized_potential
         self.raw_array_potential = fortran_potential if raw_array_potential is None else raw_array_potential
         self.error_value = error_value
         self.fortran_potential = fortran_potential
@@ -82,29 +85,28 @@ class PotentialCaller:
 
     libs_folder = os.path.join(os.path.dirname(__file__), "libs")
     cpp_std = '-std=c++17'
+    IRS_Ubuntu = '2020.0.166'  # needs to be synced with Dockerfile
+    TBB_Ubutu = '/opt/intel/compilers_and_libraries_{IRS}/linux/tbb/'.format(IRS=IRS_Ubuntu)
+    IRS_CentOS = '2020.0.88'  # needs to be synced with Dockerfile
+    TBB_CentOS = '/opt/intel/compilers_and_libraries_{IRS}/linux/tbb/'.format(IRS=IRS_CentOS)
     @classmethod
     def load_lib(cls):
-        IRS_Ubuntu='2020.0.166'# needs to be synced with Dockerfile
-        TBB_Ubutu='/opt/intel/compilers_and_libraries_{IRS}/linux/tbb/'.format(IRS=IRS_Ubuntu)
-        IRS_CentOS = '2020.0.88'  # needs to be synced with Dockerfile
-        TBB_CentOS='/opt/intel/compilers_and_libraries_{IRS}/linux/tbb/'.format(IRS=IRS_CentOS)
-
         loader = CLoader("PlzNumbers",
                          os.path.dirname(os.path.abspath(__file__)),
                          extra_compile_args=["-fopenmp", cls.cpp_std],
                          extra_link_args=["-fopenmp"],
                          include_dirs=[
                              "/lib/x86_64-linux-gnu",
-                             os.path.join(TBB_Ubutu, "include"),
-                             os.path.join(TBB_Ubutu, "lib", "intel64", "gcc4.8"),
+                             os.path.join(cls.TBB_Ubutu, "include"),
+                             os.path.join(cls.TBB_Ubutu, "lib", "intel64", "gcc4.8"),
                              os.path.join(cls.libs_folder),
                              np.get_include()
                          ],
                          runtime_dirs=[
                              "/lib/x86_64-linux-gnu",
-                             os.path.join(TBB_Ubutu, "lib", "intel64", "gcc4.8")
+                             os.path.join(cls.TBB_Ubutu, "lib", "intel64", "gcc4.8")
                          ],
-                         linked_libs=["plzffi"],# 'tbb', 'tbbmalloc', 'tbbmalloc_proxy'],
+                         linked_libs=["plzffi", 'tbb', 'tbbmalloc', 'tbbmalloc_proxy'],
                          source_files=[
                              # "PyAllUp.cpp",
                              "PlzNumbers.cpp",
@@ -114,9 +116,7 @@ class PotentialCaller:
                              "PotValsManager.cpp",
                              "ThreadingHandler.cpp"
                          ],
-                         macros=[
-                             ("_TBB",)
-                         ],
+                         macros=[("_TBB", True)],
                          requires_make=True
                          )
         return loader.load()
@@ -258,8 +258,9 @@ class PotentialCaller:
         else:
             # clumy way to determine the # of threads we need
             omp = self._get_omp_threads() if omp_threads is None else omp_threads
-            if omp and (self.mpi_manager is not None):
-                omp = self.mpi_manager.hybrid_parallelization
+            if omp:
+                if (self.mpi_manager is not None):
+                    omp = self.mpi_manager.hybrid_parallelization
                 tbb = False
             else:
                 omp = False
@@ -273,17 +274,17 @@ class PotentialCaller:
             if self.transpose_call:
                 walker = walker.transpose((0, 1, 3, 2))
             coords = np.ascontiguousarray(walker).astype(float)
-
-            # do the actual call into
+            new_style = isinstance(self.potential, (FFIModule, FFIMethod))
+            # do the actual call into the C++ side
             poots = self.lib.rynaLovesPootsLots(
                 bool(self.debug_print),
                 coords,
                 atoms,
-                self.module.captup if isinstance(self.potential, (FFIModule, FFIMethod)) else self.potential,
+                self.module.captup if new_style else self.potential,
                 self.CallerParameters(
                     self.potential,
                     extra_args,
-                    _function_name=self.function_name,
+                    _function_name=self.function_name if new_style else '_potential',
                     _caller_api=self.caller_api_version,
                     _bad_walkers_file=self.bad_walkers_file,
                     _error_value=float(self.error_value),

@@ -14,7 +14,7 @@
 
 #ifdef _TBB // I gotta set this now but like it'll allow for better scalability
 #include "tbb/parallel_for.h"
-#include "tbb/task_scheduler_init.h"
+#include "tbb/task_arena.h"
 #endif
 
 
@@ -441,8 +441,7 @@ namespace plzffi {
                     if (debug_print()) printf("  > evaluating vectorized potential\n");
                     auto val = mod.call_method<std::vector<typename T::type> >(method_name, params);
                     if (debug_print()) printf("  > constructing python return value\n");
-                    auto test = val;
-                    auto arr = rynlib::python::as_python<typename T::type>(test);
+                    auto arr = rynlib::python::as_python<typename T::type>(val);
                     if (debug_print()) rynlib::python::print_obj("  > got %s\n", arr);
                     obj = rynlib::python::numpy_copy_array(arr);
                 } else {

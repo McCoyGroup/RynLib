@@ -216,6 +216,19 @@ class PotentialManager:
             else:
                 cfig = {}
 
+            if 'steps_per_call' in cfig:
+                steps_per_call = cfig['steps_per_call']
+            if 'walkers_per_core' in cfig:
+                walkers_per_core = cfig['walkers_per_core']
+            if 'random_seed' in cfig:
+                walkers_per_core = cfig['random_seed']
+            if 'copy_geometry' in cfig:
+                copy_geometry = cfig['copy_geometry']
+            if 'time_step' in cfig:
+                time_step = cfig['time_step']
+            if 'iterations' in cfig:
+                iterations = cfig['iterations']
+
             walkers = coordinates if coordinates is not None else cfig["coordinates"]
             if isinstance(walkers, str):
                 walkers = np.load(walkers)

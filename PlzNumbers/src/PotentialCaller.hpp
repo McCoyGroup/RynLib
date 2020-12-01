@@ -10,8 +10,7 @@
 #include "MPIManager.hpp"
 #include "ThreadingHandler.hpp"
 
-namespace rynlib {
-    namespace PlzNumbers {
+namespace rynlib::PlzNumbers {
 
         class PotentialCaller {
 
@@ -39,7 +38,6 @@ namespace rynlib {
 
         };
 
-    }
 }
 
 #endif //RYNLIB_POTENTIALCALLER_HPP

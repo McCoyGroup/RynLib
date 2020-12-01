@@ -11,7 +11,7 @@
 
 #ifdef _TBB // I gotta set this now but like it'll allow for better scalability
 #include "tbb/parallel_for.h"
-#include "tbb/task_scheduler_init.h"
+#include "tbb/task_arena.h"
 #endif
 
 namespace rynlib {
@@ -150,7 +150,6 @@ namespace rynlib {
                     &pyPot
             );
 
-
 //            printf("  >>> 2.2 %f\n", err_val);
 
             if (!passed) {
@@ -232,9 +231,15 @@ namespace rynlib {
                             break;
                         case ThreadingMode::VECTORIZED: {
                             if (params.flat_mode()) {
+                                if (debug_print()) printf("  > getting pointer to vectorized flat potential %s (pointer: %s)\n",
+                                                          get_python_repr(py_pot).c_str(),
+                                                          params.func_name().c_str());
                                 vec_flat_pot = get_pycapsule_ptr<VectorizedFlatPotentialFunction>(py_pot,
                                                                                                   params.func_name());
                             } else {
+                                if (debug_print()) printf("  > getting pointer to vectorized potential %s (pointer: %s)\n",
+                                                          get_python_repr(py_pot).c_str(),
+                                                          params.func_name().c_str());
                                 vec_pot = get_pycapsule_ptr<VectorizedPotentialFunction>(py_pot, params.func_name());
                             }
                             break;
@@ -243,8 +248,15 @@ namespace rynlib {
                         case ThreadingMode::TBB:
                         case ThreadingMode::SERIAL: {
                             if (params.flat_mode()) {
+                                if (debug_print()) printf("  > getting pointer to flat potential %s (pointer: %s)\n",
+                                                          get_python_repr(py_pot).c_str(),
+                                                          params.func_name().c_str());
                                 flat_pot = get_pycapsule_ptr<FlatPotentialFunction>(py_pot,params.func_name());
                             } else {
+
+                                if (debug_print()) printf("  > getting pointer to potential %s (pointer: %s)\n",
+                                                          get_python_repr(py_pot).c_str(),
+                                                          params.func_name().c_str());
                                 pot = get_pycapsule_ptr<PotentialFunction>(py_pot, params.func_name());
                             }
                             break;
@@ -345,17 +357,11 @@ namespace rynlib {
         ) {
             Real_t pot_val;
 
-//            printf("Step1\n");
             auto atoms = coords.get_atoms();
-//            printf("Step2\n");
             auto bad_walkers_file = params.bad_walkers_dump();
-//            printf("Step3\n");
             auto err_val = params.error_val();
-//            printf("Step4\n");
             bool debug_print = params.debug();
-//            printf("Step5\n");
             auto method = get_method<double>();
-//            printf("Step6\n");
 
             try {
                 if (debug_print) {
@@ -370,15 +376,23 @@ namespace rynlib {
                     printf("%s\n", walker_string.c_str());
                 }
 
-                // might need a proper copy?
+                // insert coordinates into Parameters
                 auto call_params = params.ffi_params();
-                std::string key = "coords";
+                std::string coords_key = "coords";
                 auto data_ptr = std::shared_ptr<void>(coords.data(), [](double*){});
                 auto shp = coords.get_shape();
-
-                FFIArgument arg (key, FFIType::Double, shp);
+                FFIArgument arg (coords_key, FFIType::Double, shp);
                 FFIParameter coords_param(data_ptr, arg);
-                call_params.set_parameter(key, coords_param);
+                call_params.set_parameter(coords_key, coords_param);
+
+                // insert atoms into Parameters
+                std::string atoms_key = "atoms";
+                auto atdata_ptr = std::shared_ptr<void>(atoms.data(), [](std::string*){});
+                std::vector<size_t> at_shp = {atoms.size()};
+                FFIArgument atsarg (atoms_key, FFIType::String, at_shp);
+                FFIParameter ats_param(atdata_ptr, atsarg);
+                call_params.set_parameter(atoms_key, ats_param);
+
                 pot_val = method.call(call_params);
                 if (debug_print) printf("  got back energy: %f\n", pot_val);
 
@@ -505,12 +519,13 @@ namespace rynlib {
 
             auto debug_print = params.debug();
             auto shape = coords.get_shape();
+            auto atoms = coords.get_atoms();
 
             if (debug_print) {
-                printf("calling vectorized potential on %ld walkers", coords.num_geoms());
+                printf("  > calling vectorized potential on %ld walkers\n", coords.num_geoms());
             }
 
-            auto method = get_method<double *>();
+            auto method = get_method<std::vector<double> >();
             try {
 
                 // might need a proper copy?
@@ -521,15 +536,25 @@ namespace rynlib {
                 FFIArgument arg (key, FFIType::Double, shp);
                 FFIParameter coords_param(data_ptr, arg);
                 call_params.set_parameter(key, coords_param);
-                auto pot_buf = method.call(call_params);
-                std::vector<double> pot_vec(pot_buf, pot_buf+coords.num_calls());
+
+                // insert atoms into Parameters
+                std::string atoms_key = "atoms";
+                auto atdata_ptr = std::shared_ptr<void>(atoms.data(), [](std::string*){});
+                std::vector<size_t> at_shp = {atoms.size()};
+                FFIArgument atsarg (atoms_key, FFIType::String, at_shp);
+                FFIParameter ats_param(atdata_ptr, atsarg);
+                call_params.set_parameter(atoms_key, ats_param);
+
+                auto poop = call_params.shape("atoms");
+
+                auto pot_vec = method.call(call_params);
                 pot_vals = PotValsManager(pot_vec, coords.num_calls());
 
             } catch (std::exception &e) {
                 if (retries > 0) {
                     pot_vals = call_vectorized_2(coords, retries - 1);
                 } else {
-                    printf("Error in vectorized call %s\n", e.what());
+                    printf("  > error in vectorized call %s\n", e.what());
                     pot_vals = PotValsManager(coords.num_calls(), coords.num_walkers(), params.error_val());
                 }
             }
@@ -562,7 +587,6 @@ namespace rynlib {
 
         }
 
-
         PotValsManager ThreadingHandler::call_potential(
                 CoordsManager &coords
         ) {
@@ -570,11 +594,13 @@ namespace rynlib {
             auto ncalls = coords.num_calls();
             auto nwalkers = coords.num_walkers();
 
-            printf("Calling into potential '%s' for %lu steps with %lu walkers\n",
-                   call_parameters().func_name().c_str(),
-                   ncalls,
-                   nwalkers
-                   );
+            if (call_parameters().debug()) {
+                printf("Calling into potential '%s' for %lu steps with %lu walkers\n",
+                       call_parameters().func_name().c_str(),
+                       ncalls,
+                       nwalkers
+                );
+            }
             PotValsManager pots(ncalls, nwalkers);
 
             switch (mode) {
@@ -678,7 +704,9 @@ namespace rynlib {
                 PotValsManager &pots,
                 CoordsManager &coords
         ) {
+
 #ifdef _OPENMP
+            Py_BEGIN_ALLOW_THREADS
             auto atoms = coords.get_atoms();
             auto ncalls = coords.num_calls();
             auto nwalkers = coords.num_walkers();
@@ -686,8 +714,11 @@ namespace rynlib {
             auto total_walkers = ncalls * nwalkers;
 //            auto debug_print = args.debug_print;
 
-#pragma omp parallel for
+            #pragma omp parallel for
             for (size_t w = 0; w < total_walkers; w++) {
+                if (debug_print()) {
+                    printf("  > calling walker %lu on thread %d", w, omp_get_thread_num());
+                }
                 _loop_inner(
                         pots,
                         coords,
@@ -696,6 +727,7 @@ namespace rynlib {
                         w
                 );
             }
+            Py_END_ALLOW_THREADS
 #else
             throw std::runtime_error("OpenMP not installed");
 
@@ -707,6 +739,7 @@ namespace rynlib {
                 CoordsManager &coords
         ) {
 #ifdef _TBB
+            Py_BEGIN_ALLOW_THREADS
             auto atoms = coords.get_atoms();
             auto ncalls = coords.num_calls();
             auto nwalkers = coords.num_walkers();
@@ -718,6 +751,9 @@ namespace rynlib {
                     tbb::blocked_range<size_t>(0, total_walkers),
                     [&](const tbb::blocked_range <size_t> &r) {
                         for (size_t w = r.begin(); w < r.end(); ++w) {
+                            if (debug_print()) {
+                                printf("  > calling walker %lu on thread %d", w, tbb::task_arena::current_thread_index());
+                            }
                             _loop_inner(
                                     pots,
                                     coords,
@@ -728,7 +764,7 @@ namespace rynlib {
                         }
                     }
             );
-
+            Py_END_ALLOW_THREADS
 #else
             throw std::runtime_error("TBB not installed");
 #endif

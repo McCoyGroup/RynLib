@@ -6,6 +6,8 @@
 
 namespace plzffi {
 
+    using rynlib::python::py_printf;
+
     using namespace rynlib::python;
 
     bool DEBUG_PRINT=false;
@@ -39,21 +41,21 @@ namespace plzffi {
     void FFIParameter::init() {
         if (debug_print()) {
             auto garb = get_python_repr(py_obj);
-            printf("Destructuring PyObject %s\n", garb.c_str());
+            py_printf("Destructuring PyObject %s\n", garb.c_str());
         }
-        if (debug_print()) printf("  > getting arg_type\n");
+        if (debug_print()) py_printf("  > getting arg_type\n");
         auto type_char = get_python_attr<FFIType>(py_obj, "arg_type");
-        if (debug_print()) printf("    > got %d\n", static_cast<int>(type_char));
-        if (debug_print()) printf("  > getting arg_name\n");
+        if (debug_print()) py_printf("    > got %d\n", static_cast<int>(type_char));
+        if (debug_print()) py_printf("  > getting arg_name\n");
         auto name = get_python_attr<std::string>(py_obj, "arg_name");
-        if (debug_print()) printf("  > getting arg_shape\n");
+        if (debug_print()) py_printf("  > getting arg_shape\n");
         auto shape = get_python_attr_iterable<size_t>(py_obj, "arg_shape");
-        if (debug_print()) printf("  > getting arg_val\n");
+        if (debug_print()) py_printf("  > getting arg_val\n");
 //        auto val_obj = get_python_attr<PyObject*>(py_obj, "arg_value");
-//        if (debug_print()) printf("  converting to voidptr...\n");
+//        if (debug_print()) py_printf("  converting to voidptr...\n");
         param_data = ffi_from_python_attr(type_char, py_obj, "arg_value", shape); // pulls arg_value by default...
 
-        if (debug_print()) printf("  constructing FFIArgument...\n");
+        if (debug_print()) py_printf("  constructing FFIArgument...\n");
 
         arg_spec = FFIArgument(name, type_char, shape);
 
@@ -77,13 +79,12 @@ namespace plzffi {
 
     size_t FFIParameters::param_index(std::string& param_name) {
         size_t i;
+//        py_printf("  > looking through ");
+//        py_printf("%lu poopies\n", params.size());
         for ( i=0; i < params.size(); i++) {
             auto p = params[i];
-            auto pob = p.as_python();
-            auto rep = get_python_repr(pob);
-//            printf("  > wat %lu", i);
-//            printf(" %s\n", rep.c_str());
-            Py_XDECREF(pob);
+//            py_printf("  > this is not my mom (%lu) ", i);
+//            py_printf("%s\n", p.name().c_str());
             if (p.name() == param_name) break;
         };
         if ( i == params.size()) throw std::runtime_error("parameter \"" + param_name + "\" not found");
@@ -102,25 +103,25 @@ namespace plzffi {
             auto i = param_index(param_name);
             params[i] = param;
         } catch (std::exception& e) {
-//
-//            printf("Pushing a new one with name %s, ", param.name().c_str());
-//            printf("rtype %d ", static_cast<int>(param.type()));
-//            printf("onto stack of size %lu. ", params.size());
-//
-//            auto pp = params[params.size()-1].as_python();
-//            auto rep = get_python_repr(pp);
-//            printf("Previous thing is %s\n", rep.c_str());
-//            Py_XDECREF(pp);
-//            auto p2 = param.as_python();
-//            auto rep2 = get_python_repr(p2);
-//            printf("New thing is %s\n", rep2.c_str());
-//            Py_XDECREF(pp);
             params.push_back(param);
         }
     }
     void FFIParameters::set_parameter(const char *param_name, FFIParameter &param) {
         std::string key = param_name;
         set_parameter(key, param);
+    }
+
+    std::vector<size_t> FFIParameters::shape(std::string &key) {
+        return get_parameter(key).shape();
+    }
+    std::vector<size_t> FFIParameters::shape(const char *key) {
+        return get_parameter(key).shape();
+    }
+    FFIType FFIParameters::typecode(std::string &key) {
+        return get_parameter(key).type();
+    }
+    FFIType FFIParameters::typecode(const char *key) {
+        return get_parameter(key).type();
     }
 
 }

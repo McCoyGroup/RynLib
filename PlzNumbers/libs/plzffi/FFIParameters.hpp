@@ -460,6 +460,7 @@ namespace plzffi {
             init();
         }
         void init();
+
         size_t param_index(std::string& key);
         FFIParameter get_parameter(std::string& key);
         FFIParameter get_parameter(const char* key);
@@ -467,25 +468,13 @@ namespace plzffi {
         void set_parameter(const char* key, FFIParameter& param);
 
         template <typename T>
-        T value(std::string& key) {
-            return get_parameter(key).value<T>();
-        }
+        T value(std::string& key) { return get_parameter(key).value<T>(); }
         template <typename T>
-        T value(const char* key) {
-            return get_parameter(key).value<T>();
-        }
-        std::vector<size_t> shape(std::string& key) {
-            return get_parameter(key).shape();
-        }
-        std::vector<size_t> shape(const char* key) {
-            return get_parameter(key).shape();
-        }
-        FFIType typecode(std::string& key) {
-            return get_parameter(key).type();
-        }
-        FFIType typecode(const char* key) {
-            return get_parameter(key).type();
-        }
+        T value(const char* key) { return get_parameter(key).value<T>(); }
+        std::vector<size_t> shape(std::string& key);
+        std::vector<size_t> shape(const char* key);
+        FFIType typecode(std::string& key);
+        FFIType typecode(const char* key);
 
     };
 

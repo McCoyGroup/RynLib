@@ -3,6 +3,8 @@
 
 namespace plzffi {
 
+    using rynlib::python::py_printf;
+
     void FFIModule::init() {
         capsule_name = name + "." + attr;
     }
@@ -72,7 +74,7 @@ namespace plzffi {
         for (size_t i = 0; i < method_data.size(); i++) {
 
             auto args = method_data[i].args;
-            if (debug_print()) printf(" > constructing signature for %s\n",
+            if (debug_print()) py_printf(" > constructing signature for %s\n",
                                       method_data[i].name.c_str());
 //                    printf("....wat %lu\n", args.size());
             std::vector<PyObject *> subargs(args.size(), NULL);
@@ -81,10 +83,11 @@ namespace plzffi {
             }
 
             py_sigs[i] = Py_BuildValue(
-                    "(NNN)",
+                    "(NNNN)",
                     rynlib::python::as_python<std::string>(method_data[i].name),
                     rynlib::python::as_python_tuple<PyObject *>(subargs),
-                    rynlib::python::as_python<int>(static_cast<int>(method_data[i].ret_type)) // to be python portable
+                    rynlib::python::as_python<int>(static_cast<int>(method_data[i].ret_type)), // to be python portable
+                    rynlib::python::as_python<bool>(method_data[i].vectorized)
             );
         }
 
@@ -106,19 +109,19 @@ namespace plzffi {
             throw std::runtime_error("bad tuple shiz");
         }
 
-        if (debug_print()) printf("Got FFIModule spec \"%s\"\n", rynlib::python::get_python_repr(captup).c_str());
+        if (debug_print()) py_printf("Got FFIModule spec \"%s\"\n", rynlib::python::get_python_repr(captup).c_str());
         auto name_obj = PyTuple_GetItem(captup, 0);
         if (name_obj == NULL) throw std::runtime_error("bad tuple indexing");
         if (debug_print())
-            printf("Pulling FFIModule for module \"%s\"\n", rynlib::python::get_python_repr(name_obj).c_str());
+            py_printf("Pulling FFIModule for module \"%s\"\n", rynlib::python::get_python_repr(name_obj).c_str());
         auto cap_obj = PyTuple_GetItem(captup, 1);
         if (cap_obj == NULL) throw std::runtime_error("bad tuple indexing");
         if (debug_print())
-            printf("  extracting from capsule \"%s\"\n", rynlib::python::get_python_repr(cap_obj).c_str());
+            py_printf("  extracting from capsule \"%s\"\n", rynlib::python::get_python_repr(cap_obj).c_str());
         std::string name = rynlib::python::from_python<std::string>(name_obj);
         std::string doc;
         FFIModule mod(name, doc); // empty module
-        if (debug_print()) printf("  pulling pointer with name \"%s\"\n", mod.ffi_module_attr().c_str());
+        if (debug_print()) py_printf("  pulling pointer with name \"%s\"\n", mod.ffi_module_attr().c_str());
         return rynlib::python::from_python_capsule<FFIModule>(cap_obj, mod.ffi_module_attr().c_str());
     }
 
@@ -132,7 +135,7 @@ namespace plzffi {
     FFIMethodData FFIModule::get_method_data(std::string &method_name) {
         for (auto data : method_data) {
             if (data.name == method_name) {
-//                printf("Method %s is the %lu-th method in %s\n", method_name.c_str(), i, name.c_str());
+//                py_printf("Method %s is the %lu-th method in %s\n", method_name.c_str(), i, name.c_str());
                 return data;
             }
         }
@@ -141,16 +144,16 @@ namespace plzffi {
 
     PyObject* FFIModule::py_call_method(PyObject *method_name, PyObject *params) {
 
-        if (debug_print()) printf("Calling from python ");
+        if (debug_print()) py_printf("Calling from python ");
         auto mname = rynlib::python::from_python<std::string>(method_name);
-        if (debug_print()) printf(" into method %s\n", mname.c_str());
+        if (debug_print()) py_printf(" into method %s\n", mname.c_str());
         auto meth_idx = get_method_index(mname);
         auto argtype = method_data[meth_idx].ret_type;
 
-        if (debug_print()) printf(" > loading parameters...\n");
+        if (debug_print()) py_printf(" > loading parameters...\n");
         auto args = FFIParameters(params);
 
-        if (debug_print()) printf(" > calling on parameters...\n");
+        if (debug_print()) py_printf(" > calling on parameters...\n");
         return ffi_call_method(
                 argtype,
                 *this,

@@ -2,8 +2,7 @@
 
 #include "PotentialCaller.hpp"
 
-namespace rynlib {
-    namespace PlzNumbers {
+namespace rynlib::PlzNumbers {
 
         PotValsManager PotentialCaller::get_pot() {
             if (mpi_manager.is_main() && caller.call_parameters().debug()) {
@@ -19,5 +18,4 @@ namespace rynlib {
             }
             return mpi_manager.gather_potentials(walker_data, pots);
         };
-    }
 }

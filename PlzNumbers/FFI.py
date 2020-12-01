@@ -216,12 +216,13 @@ class FFIMethod(FFISpec):
     """
     Represents a C++ method callable through the plzffi interface
     """
-    __fields__ = ["name", "arguments", "rtype"]
-    def __init__(self, name=None, arguments=None, rtype=None, module=None):
-        super().__init__(name=name, arguments=arguments, rtype=rtype)
+    __fields__ = ["name", "arguments", "rtype", "vectorized"]
+    def __init__(self, name=None, arguments=None, rtype=None, vectorized=None, module=None):
+        super().__init__(name=name, arguments=arguments, rtype=rtype, vectorized=vectorized)
         self.name = name
         self.args = [FFIArgument(**x) if not isinstance(x, FFIArgument) else x for x in arguments]
         self.rtype = FFIType(rtype)
+        self.vectorized = vectorized
         self.mod = module #type: None | FFIModule
     def bind_module(self, mod):
         self.mod = mod #type: FFIModule
@@ -236,17 +237,21 @@ class FFIMethod(FFISpec):
         req_dict = collections.OrderedDict(
             (k.arg_name, k) for k in self.args
         )
-        if excluded_args is not None:
-            for k in excluded_args:
-                del req_dict[k]
 
         for k in kwargs:
             arg_dict[k] = req_dict[k].cast(kwargs[k])
             del req_dict[k]
+
+        if excluded_args is not None:
+            for k in excluded_args:
+                if k in req_dict:
+                    del req_dict[k]
+
         if len(req_dict) > 0:
             for v, k in zip(args, req_dict.copy()):
                 arg_dict[k] = req_dict[k].cast(v)
                 del req_dict[k]
+
         if len(req_dict) > 0:
             raise ValueError("{}.{}: missing required arguments {}".format(
                 type(self).__name__,
@@ -257,11 +262,12 @@ class FFIMethod(FFISpec):
 
     @classmethod
     def from_signature(cls, sig, module=None):
-        name, args, ret = sig
+        name, args, ret, vec = sig
         return cls(
             name=name,
             arguments=[{k:v for k,v in zip(FFIArgument.__fields__, x)} for x in args],
             rtype=ret,
+            vectorized=vec,
             module=module
         )
 
@@ -278,7 +284,7 @@ class FFIMethod(FFISpec):
             type(self).__name__,
             self.name,
             self.args,
-            self.rtype
+            "array({})".format(self.rtype) if self.vectorized else self.rtype
         )
 
 class FFIModule(FFISpec):

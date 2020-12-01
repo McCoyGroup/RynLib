@@ -4,6 +4,7 @@ Provides a Loader object to load a potential from a C++ extension
 
 import os, numpy as np
 from ..RynUtils import CLoader, ModuleLoader
+from .PotentialCaller import PotentialCaller
 from .FFI import FFIModule
 
 __all__ = [
@@ -56,10 +57,14 @@ class PotentialLoader:
 
         if include_dirs is None:
             include_dirs = []
-        include_dirs = tuple(include_dirs) + (self.src_folder, self.libs_folder, np.get_include())
+        include_dirs = (
+                               tuple(include_dirs)
+                               + (self.src_folder, self.libs_folder, np.get_include())
+                               + (PotentialCaller.TBB_CentOS, PotentialCaller.TBB_Ubutu)
+        )
         if linked_libs is None:
             linked_libs = []
-        linked_libs = tuple(linked_libs) + ("plzffi",)
+        linked_libs = tuple(linked_libs) + ("plzffi", 'tbb', 'tbbmalloc', 'tbbmalloc_proxy')
 
         self.c_loader = CLoader(name, src,
                               load_path=load_path,

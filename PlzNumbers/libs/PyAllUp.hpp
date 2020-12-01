@@ -24,6 +24,24 @@ namespace rynlib {
             }
         };
 
+        inline void py_printf(const char* fmt, ...) {
+            va_list args;
+            va_start(args, fmt);
+//            printf("PRINTING: ");
+            auto print_err = vprintf(fmt, args);
+            va_end(args);
+            if (print_err <= 0) {
+                std::string msg = "printf shat the bed with ferror = " + std::to_string(print_err);
+                PyErr_SetString(
+                        PyExc_SystemError,
+                        msg.c_str()
+                        );
+                throw std::runtime_error(msg);
+            }
+//            printf("...?");
+//            printf(" (got %d) \n", print_err);
+        }
+
         static PyallupDebugFuckery pyadeeb;
 
         inline long* _np_fuckery() {
@@ -52,12 +70,13 @@ namespace rynlib {
         public:
             from_python_error() : std::runtime_error(typestr) {};
             std::string type_id() { return typestr; }
+            const char * what() const noexcept override { return typestr; }
         };
 
         template<typename T>
         inline T from_python(PyObject* data) {
             from_python_error<T> err;
-            printf("WARNING: Failed to convert from python for dtype %s\n", err.type_id().c_str());
+            py_printf("WARNING: Failed to convert from python for dtype %s\n", err.type_id().c_str());
             throw from_python_error<T>();
         }
         template<typename T>
@@ -94,7 +113,7 @@ namespace rynlib {
         template <>
         inline unsigned long long from_python<unsigned long long>(PyObject *data) { return from_python<unsigned long long>(data, "K"); }
         template <>
-        inline float from_python<float>(PyObject *data) { return from_python<float>(data, "f");; }
+        inline float from_python<float>(PyObject *data) { return from_python<float>(data, "f"); }
         template <>
         inline double from_python<double>(PyObject *data) { return from_python<double>(data, "d"); }
         template <>
@@ -120,7 +139,7 @@ namespace rynlib {
 
         inline void print_obj(const char* fmt, PyObject* obj) {
             auto garb = get_python_repr(obj);
-            printf(fmt, garb.c_str());
+            py_printf(fmt, garb.c_str());
         }
 
         template <typename T>
@@ -129,12 +148,13 @@ namespace rynlib {
         public:
             as_python_error() : std::runtime_error(typestr) {};
             std::string type_id() { return typestr; }
+            const char * what() const noexcept override { return typestr; }
         };
 
         template<typename T>
         inline PyObject* as_python(T data) {
             as_python_error<T> err;
-            if (pyadeeb.debug_print()) printf("ERROR: failed to convert to python for dtype %s\n", err.type_id().c_str());
+            if (pyadeeb.debug_print()) py_printf("ERROR: failed to convert to python for dtype %s\n", err.type_id().c_str());
             throw as_python_error<T>();
         }
         template <>
@@ -170,6 +190,14 @@ namespace rynlib {
         template <>
         inline PyObject *as_python<double>(double data) { return Py_BuildValue("d", data); }
         template <>
+        inline PyObject *as_python<bool>(bool data) {
+            if (data) {
+                Py_RETURN_TRUE;
+            } else {
+                Py_RETURN_FALSE;
+            }
+        }
+        template <>
         inline PyObject * as_python<std::string>(std::string data) {
             return Py_BuildValue("s", data.c_str());
         }
@@ -189,12 +217,12 @@ namespace rynlib {
             PyObject *item;
             Py_ssize_t i = 0;
             while ((item = PyIter_Next(iterator))) {
-                if (pyadeeb.debug_print()) printf("    > getting item %lu\n", i);
+                if (pyadeeb.debug_print()) py_printf("    > getting item %lu\n", i);
                 if (PyErr_Occurred()) {
-                    if (pyadeeb.debug_print()) printf("      ...and we failed somehow\n");
+                    if (pyadeeb.debug_print()) py_printf("      ...and we failed somehow\n");
                     throw std::runtime_error("Iteration error");
                 }
-                if (pyadeeb.debug_print()) printf("    > converting from python types\n");
+                if (pyadeeb.debug_print()) py_printf("    > converting from python types\n");
                 vec[i] = from_python<T>(item);
                 Py_DECREF(item);
                 i+=1;
@@ -291,7 +319,7 @@ namespace rynlib {
         template<typename T>
         inline NPY_TYPES numpy_type() {
                numpy_type_error<T> err;
-               if (pyadeeb.debug_print()) printf("ERROR: failed to convert to python for dtype %s\n", err.type_id().c_str());
+               if (pyadeeb.debug_print()) py_printf("ERROR: failed to convert to python for dtype %s\n", err.type_id().c_str());
                throw numpy_type_error<T>();
             };
 
@@ -336,7 +364,7 @@ namespace rynlib {
 
             auto nd = shape.size();
             auto dims = (npy_intp*) shape.data();
-//            printf("huh fack %lu %lu %lu %lu\n", dims[0], dims[1], dims[2], dims[3]);
+//            py_printf("huh fack %lu %lu %lu %lu\n", dims[0], dims[1], dims[2], dims[3]);
             auto data = (void*)buffer;
             PyObject *dat = PyArray_SimpleNewFromData(
                     nd,
@@ -345,12 +373,12 @@ namespace rynlib {
                     data
             );
 
-//            printf("huh fack\n");
+//            py_printf("huh fack\n");
             if (dat == NULL) {
                 throw std::runtime_error("bad numpy shit");
             }
 //            else {
-//                printf("huh fack2...\n");
+//                py_printf("huh fack2...\n");
 //                throw std::runtime_error("good numpy shit");
 //            }
 
@@ -370,7 +398,7 @@ namespace rynlib {
                 double* buffer,
                 std::vector<size_t> shape
         ) {
-//            printf("....? %f %f %f\n", buffer[0], buffer[1], buffer[2]);
+//            py_printf("....? %f %f %f\n", buffer[0], buffer[1], buffer[2]);
             auto wat = numpy_from_data<double>(buffer, NPY_FLOAT64, shape );
 //            print_obj("wat %s\n", wat);
             return wat;
@@ -453,7 +481,7 @@ namespace rynlib {
             auto attr_ob = get_python_attr<PyObject*>(obj, attr);
             if (pyadeeb.debug_print()) {
                 auto garb = get_python_repr(attr_ob);
-                printf("    > got attr \"%s\", now converting %s to value\n", attr.c_str(), garb.c_str());
+                py_printf("    > got attr \"%s\", now converting %s to value\n", attr.c_str(), garb.c_str());
             }
             try {
                 auto val = from_python<T>(attr_ob);
@@ -467,14 +495,14 @@ namespace rynlib {
         template<>
         inline PyObject* get_python_attr<PyObject *>(PyObject* obj, std::string& attr) {
             if (obj == NULL) {
-                if (pyadeeb.debug_print()) printf("ERROR: object is NULL! (can't get %s)\n", attr.c_str());
+                if (pyadeeb.debug_print()) py_printf("ERROR: object is NULL! (can't get %s)\n", attr.c_str());
                 std::string err = "requested attrib " + attr + " from NULL object";
                 PyErr_SetString(PyExc_TypeError, err.c_str());
                 throw std::runtime_error("no obj issue");
             }
             PyObject* ret = PyObject_GetAttrString(obj, attr.c_str());
             if (ret == NULL) {
-                if (pyadeeb.debug_print()) printf("ERROR: failed to get attr %s\n", attr.c_str());
+                if (pyadeeb.debug_print()) py_printf("ERROR: failed to get attr %s\n", attr.c_str());
                 if (get_py_err_msg().empty()) {
                     std::string err = "Requested attrib. \"" + attr + "\" but got NULL back...?";
                     PyErr_SetString(PyExc_AttributeError, err.c_str());
@@ -488,7 +516,7 @@ namespace rynlib {
             std::string attr_str = attr;
             if (pyadeeb.debug_print()) {
                 auto garb = get_python_repr(obj);
-                printf("    > getting attr \"%s\" from %s\n", attr, garb.c_str());
+                py_printf("    > getting attr \"%s\" from %s\n", attr, garb.c_str());
             }
             return get_python_attr<T>(obj, attr_str);
         }
@@ -496,7 +524,7 @@ namespace rynlib {
         template <typename T>
         inline std::vector<T> get_python_attr_iterable(PyObject* obj, std::string& attr) {
             auto attr_ob = get_python_attr<PyObject *>(obj, attr);
-            if (pyadeeb.debug_print()) printf("  > getting iterable out of object attr %s\n", attr.c_str());
+            if (pyadeeb.debug_print()) py_printf("  > getting iterable out of object attr %s\n", attr.c_str());
             try {
                 auto val = from_python_iterable<T>(attr_ob);
                 Py_XDECREF(attr_ob); // annoying...
