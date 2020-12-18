@@ -22,6 +22,6 @@ namespace rynlib::PlzNumbers {
             if (mpi_manager.is_main() && caller.call_parameters().debug()) {
                 printf("  > gathering potentials\n");
             }
-            return mpi_manager.gather_potentials(walker_data, pots);
+            return mpi_manager.gather_potentials(scattered, pots);
         };
 }

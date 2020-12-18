@@ -72,9 +72,8 @@ namespace rynlib {
 
         PotValsManager MPIManager::gather_potentials(
                 CoordsManager &coords,
-                PotValsManager& pots
+                PotValsManager &pots
         ) {
-
 
             if (no_mpi()) return pots;
 
