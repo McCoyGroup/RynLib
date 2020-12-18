@@ -66,7 +66,8 @@ class PotentialLoader:
             linked_libs = []
         linked_libs = tuple(linked_libs) + ("plzffi", 'tbb', 'tbbmalloc', 'tbbmalloc_proxy')
 
-        self.c_loader = CLoader(name, src,
+        self.c_loader = CLoader(
+                              name, src,
                               load_path=load_path,
                               src_ext=src_ext,
                               description=description,
@@ -79,7 +80,8 @@ class PotentialLoader:
                               requires_make=requires_make,
                               out_dir=out_dir,
                               cleanup_build=cleanup_build,
-                              extra_compile_args=[self.cpp_std],
+                              extra_compile_args=["-fopenmp", self.cpp_std],
+                              extra_link_args=["-fopenmp"],
                               **({} if build_kwargs is None else build_kwargs)
                               )
         # else:

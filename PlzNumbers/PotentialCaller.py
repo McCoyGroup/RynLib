@@ -106,7 +106,9 @@ class PotentialCaller:
                              "/lib/x86_64-linux-gnu",
                              os.path.join(cls.TBB_Ubutu, "lib", "intel64", "gcc4.8")
                          ],
-                         linked_libs=["plzffi", 'tbb', 'tbbmalloc', 'tbbmalloc_proxy'],
+                         linked_libs=["plzffi"
+                            , 'tbb', 'tbbmalloc', 'tbbmalloc_proxy'
+                          ],
                          source_files=[
                              # "PyAllUp.cpp",
                              "PlzNumbers.cpp",
@@ -274,6 +276,8 @@ class PotentialCaller:
             if self.transpose_call:
                 walker = walker.transpose((0, 1, 3, 2))
             coords = np.ascontiguousarray(walker).astype(float)
+            if self.transpose_call:
+                coords = np.asfortranarray(coords)
             new_style = isinstance(self.potential, (FFIModule, FFIMethod))
             # do the actual call into the C++ side
             poots = self.lib.rynaLovesPootsLots(
