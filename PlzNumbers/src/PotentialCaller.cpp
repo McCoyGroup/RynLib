@@ -13,6 +13,12 @@ namespace rynlib::PlzNumbers {
                 printf("  > calling potential\n");
             }
             auto pots = caller.call_potential(scattered);
+            if(!mpi().no_mpi()) {
+                if (mpi_manager.is_main() && caller.call_parameters().debug()) {
+                    printf("  > cleaning up walkers\n");
+                }
+                scattered.cleanup();
+            }
             if (mpi_manager.is_main() && caller.call_parameters().debug()) {
                 printf("  > gathering potentials\n");
             }

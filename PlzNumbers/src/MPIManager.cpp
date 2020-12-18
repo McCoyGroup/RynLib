@@ -21,7 +21,6 @@ namespace rynlib {
 
         CoordsManager MPIManager::scatter_walkers(CoordsManager &coords) {
 
-//            printf("       > 1\n");
             if (no_mpi()) return coords; // short circuit
 
             // The way this works is that we start with an array of data that looks like (ncalls, num_walkers, *walker_shape)
@@ -32,15 +31,8 @@ namespace rynlib {
             //
             // At the end we have a potential array that is m * (ncalls * num_walkers_per_core) walkers and we need to make this
             // back into the clean (ncalls, num_walkers) array we expect in the end
-
-
-//            printf("       > 2\n");
             auto ncalls = coords.num_calls();
             auto num_walkers = coords.num_walkers();
-
-
-//            printf("       > 3\n");
-
             // we're gonna assume the former is divisible by the latter on world_rank == 0
             // and that it's just plain `num_walkers` on every other world_rank
             auto num_walkers_per_core = (num_walkers / world_size());
@@ -50,9 +42,6 @@ namespace rynlib {
             } else if (num_walkers % world_size()) {
                 throw std::runtime_error("Number of walkers not divisible by number of MPI processes");
             }
-
-
-//            printf("       > 4\n");
 
             // create a buffer for the walkers to be fed into MPI
             auto num_atoms = coords.num_atoms();
@@ -77,6 +66,7 @@ namespace rynlib {
 
             auto atoms = coords.get_atoms();
             auto shp = coords.get_shape();
+            shp[0] = num_walkers_per_core;
             return CoordsManager(walker_buf, atoms, shp);
         }
 

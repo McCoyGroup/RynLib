@@ -21,7 +21,8 @@ namespace rynlib {
             CoordsManager(
                     RawWalkerBuffer walkers,
                     Names& atom_names,
-                    std::vector<size_t>& shape_vector
+                    std::vector<size_t>& shape_vector,
+                    bool new_obj = false
                     ) :
                     walker_data(walkers),
                     atoms(atom_names),
@@ -42,6 +43,12 @@ namespace rynlib {
             size_t num_geoms() { return shape[0] * shape[1]; }
 
             PyObject* as_numpy_array();
+            void cleanup() { free(walker_data); };
+            // can't be called in the destructor
+            // because python manages the initial set of structures that comes in...
+            // I should move this all to a std::move/std::vector approach,
+            // but at this point in time I just don't have the free time to clean it up
+
         };
     }
 }
