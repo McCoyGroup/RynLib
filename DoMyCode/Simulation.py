@@ -789,11 +789,9 @@ class Simulation:
             energies[dying] = energies[cloning]
         return eliminated_walkers
 
-    def branch(self, energies):
-        """Handles branching in the system.
-
-        :return:
-        :rtype:
+    def branch(self, energies, max_its=10):
+        """
+        Handles branching in the system.
         """
 
         # this is the only place where we actually reach into the walkers...
@@ -825,8 +823,10 @@ class Simulation:
             verbosity=self.logger.LogLevel.STATUS
             )
 
-        while len(eliminated_walkers) > 0:
+        while len(eliminated_walkers) > 0 or num_its < max_its:
+            num_its = 0
             eliminated_walkers = self.chop_weights(eliminated_walkers, weights, parents, walkers, energies)
+            num_its += 1
 
         # WalkerMasks.where basicall just returns a np.where statement
         # so we pull the first index 

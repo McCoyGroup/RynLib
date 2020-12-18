@@ -231,7 +231,13 @@ function rynlib_shifter() {
       vols="$vols;$config:/config";
     fi
     if [[ -d "$entos" ]]; then
-      vols="$vols,$entos:/opt/entos";
+      # check if we passed the path to an entire sandbox
+      if [[ -d "$entos/opt/entos" ]]; then
+         vols="$vols,$entos/opt/entos:/opt/entos,$entos/usr/local:/usr/entos_local";
+      else
+         # otherwise just mount to opt/entos
+         vols="$vols,$entos:/opt/entos";
+      fi
     fi
     if [[ -d "$ext" ]]; then
       vols="$vols,$ext:/ext";
@@ -341,7 +347,13 @@ function rynlib_singularity() {
     fi
 
     if [[ -d "$entos" ]]; then
-      vols="$vols,$entos:/opt/entos";
+      # check if we passed the path to an entire sandbox
+      if [[ -d "$entos/opt/entos" ]]; then
+         vols="$vols,$entos/opt/entos:/opt/entos,$entos/usr/local:/usr/entos_local";
+      else
+         # otherwise just mount to opt/entos
+         vols="$vols,$entos:/opt/entos";
+      fi
     fi
     if [[ -d "$ext" ]]; then
       vols="$vols,$ext:/ext";
@@ -474,7 +486,13 @@ function rynlib_docker() {
     fi
 
     if [[ -d "$entos" ]]; then
-      vols="$vols --mount type=bind,source=$entos,target=/opt/entos";
+      # check if we passed the path to an entire sandbox
+      if [[ -d "$entos/opt/entos" ]]; then
+         vols="$vols --mount type=bind,source=$entos/opt/entos,target=/opt/entos --mount type=bind,source=$entos/usr/local,target=/usr/entos_local";
+      else
+         # otherwise just mount to opt/entos
+         vols="$vols --mount type=bind,source=$entos,target=/opt/entos";
+      fi
     fi
     if [[ -d "$ext" ]]; then
       vols="$vols --mount type=bind,source=$ext,target=/ext";
