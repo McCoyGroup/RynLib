@@ -379,7 +379,8 @@ namespace rynlib {
                 // insert coordinates into Parameters
                 auto call_params = params.ffi_params();
                 std::string coords_key = "coords";
-                auto data_ptr = std::shared_ptr<void>(coords.data(), [](double*){});
+                auto walker = coords.get_flat_walker(which);
+                auto data_ptr = std::shared_ptr<void>(walker.data(), [](double*){});
                 auto shp = coords.get_shape();
                 FFIArgument arg (coords_key, FFIType::Double, shp);
                 FFIParameter coords_param(data_ptr, arg);
@@ -388,7 +389,7 @@ namespace rynlib {
                 // insert atoms into Parameters
                 std::string atoms_key = "atoms";
                 auto atdata_ptr = std::shared_ptr<void>(atoms.data(), [](std::string*){});
-                std::vector<size_t> at_shp = {atoms.size()};
+                std::vector<size_t> at_shp = { atoms.size() };
                 FFIArgument atsarg (atoms_key, FFIType::String, at_shp);
                 FFIParameter ats_param(atdata_ptr, atsarg);
                 call_params.set_parameter(atoms_key, ats_param);
