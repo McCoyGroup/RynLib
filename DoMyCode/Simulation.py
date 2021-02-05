@@ -80,7 +80,6 @@ class Simulation:
             post_run_script=None
             ):
         """
-
         :param name:
         :type name: str
         :param description:
@@ -823,8 +822,8 @@ class Simulation:
             verbosity=self.logger.LogLevel.STATUS
             )
 
-        while len(eliminated_walkers) > 0 or num_its < max_its:
-            num_its = 0
+        num_its = 0
+        while len(eliminated_walkers) > 0 and num_its < max_its:
             eliminated_walkers = self.chop_weights(eliminated_walkers, weights, parents, walkers, energies)
             num_its += 1
 
