@@ -38,7 +38,8 @@ class Simulation:
         "parallelize_diffusion",
         "branch_on_cores", "branch_on_steps",
         "random_seed",
-        "pre_run_script", "post_run_script"
+        "pre_run_script", "post_run_script",
+        "save_all_evaluations"
     ]
     def __init__(self, params):
         """Initializes the simulation from the simulation parameters
@@ -77,7 +78,8 @@ class Simulation:
             branch_on_cores = False,
             random_seed = None,
             pre_run_script=None,
-            post_run_script=None
+            post_run_script=None,
+            save_all_evaluations=False
             ):
         """
 
@@ -225,6 +227,8 @@ class Simulation:
             potential.mpi_manager = self.mpi_manager
         else:
             potential.mpi_manager = None
+
+        self.save_all_evaluations = save_all_evaluations
 
         self.pre_run_script=pre_run_script
         self.post_run_script=post_run_script
@@ -532,7 +536,12 @@ class Simulation:
             start = end
             self.log_print("Computing potential energy", coord_sets.shape, verbosity=self.logger.LogLevel.STATUS)
 
+            if self.save_all_evaluations:
+                self.logger.save_coords(coord_sets)
             energies = self._evaluate_potential(coord_sets)
+            if self.save_all_evaluations:
+                self.logger.save_energies(energies)
+
             if not self.dummied:
                 end = time.time()
                 self.log_print("    took {}s", end - start, verbosity=self.logger.LogLevel.STATUS)
