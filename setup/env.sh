@@ -231,6 +231,12 @@ function rynlib_shifter() {
       vols="$vols;$config:/config";
     fi
     if [[ -d "$entos" ]]; then
+      if [[ "$LD_LIBRARY_PATH" == "*entos_local*" ]]; then
+        export LD_LIBRARY_PATH=$LD_LIBRARY_PATH
+      else
+        export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/entos/lib:/usr/entos_local/lib
+      fi
+      export LD_PRELOAD=libtbbmalloc_proxy.so.2
       # check if we passed the path to an entire sandbox
       if [[ -d "$entos/opt/entos" ]]; then
          vols="$vols,$entos/opt/entos:/opt/entos,$entos/usr/local:/usr/entos_local";
@@ -346,9 +352,16 @@ function rynlib_singularity() {
       vols="$vols,$config:/config";
     fi
 
+    export SINGULARITYENV_LD_PRELOAD=libtbbmalloc_proxy.so.2
     if [[ -d "$entos" ]]; then
       # check if we passed the path to an entire sandbox
       if [[ -d "$entos/opt/entos" ]]; then
+         if [[ "$LD_LIBRARY_PATH" == "*entos_local*" ]]; then
+           export LD_LIBRARY_PATH=$LD_LIBRARY_PATH
+         else
+           export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/entos/lib:/usr/entos_local/lib
+         fi
+         export LD_PRELOAD=libtbbmalloc_proxy.so.2
          vols="$vols,$entos/opt/entos:/opt/entos,$entos/usr/local:/usr/entos_local";
       else
          # otherwise just mount to opt/entos

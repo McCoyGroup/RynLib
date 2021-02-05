@@ -13,6 +13,7 @@ class WalkerSet:
                  masses=None,
                  initial_walker=None,
                  initial_weights=1.,
+                 mass_scaling=None,
                  num_walkers=None,
                  mpi_manager=None,
                  walkers_per_core=None
@@ -43,6 +44,8 @@ class WalkerSet:
         if masses is None:
             masses = [Constants.mass(a) for a in atoms]
         masses = np.array(masses)
+        if mass_scaling is not None:
+            masses = masses * mass_scaling
 
         self.atoms = atoms
         self.masses = masses
