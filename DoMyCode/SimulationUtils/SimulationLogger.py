@@ -120,7 +120,10 @@ class SimulationLogger:
             f = os.path.join(self.output_folder, file)
         out_dir = os.path.dirname(f)
         if not os.path.isdir(out_dir):
-            os.makedirs(out_dir)
+            try:
+                os.makedirs(out_dir)
+            except FileExistsError:
+                pass
         self.sim.params.serialize(self.sim, f)
 
     def snapshot_walkers(self, file="walkers{core}_{n}.npz", save_stepnum = True):
@@ -140,7 +143,10 @@ class SimulationLogger:
             f = os.path.join(self.checkpoint_folder, file)
         out_dir = os.path.dirname(f)
         if not os.path.isdir(out_dir):
-            os.makedirs(out_dir)
+            try:
+                os.makedirs(out_dir)
+            except FileExistsError:
+                pass
         self.sim.walkers.snapshot(f)
 
     def snapshot_trial_wavefunction(self, file="psit{core}_{n}.npz", save_stepnum = True):
@@ -163,7 +169,10 @@ class SimulationLogger:
                     f = os.path.join(self.checkpoint_folder, file)
                 out_dir = os.path.dirname(f)
                 if not os.path.isdir(out_dir):
-                    os.makedirs(out_dir)
+                    try:
+                        os.makedirs(out_dir)
+                    except FileExistsError:
+                        pass
                 np.save(f, psi)
 
     def save_wavefunction(self, wf, file = 'wavefunction{core}_{n}.npz'):
@@ -183,7 +192,10 @@ class SimulationLogger:
             file = os.path.join(self.wavefunctions_folder, file)
         wf_dir = os.path.dirname(file)
         if not os.path.isdir(wf_dir):
-            os.makedirs(wf_dir)
+            try:
+                os.makedirs(wf_dir)
+            except FileExistsError:
+                pass
         if not self.sim.dummied:
             self.log_print("Saving wavefunction to {}", file, verbosity=self.LogLevel.STEPS)
         np.savez(file, **wf)
@@ -207,7 +219,10 @@ class SimulationLogger:
             f = os.path.abspath(file)
             if not os.path.isfile(f):
                 if not os.path.isdir(self.output_folder):
-                    os.makedirs(self.output_folder)
+                    try:
+                        os.makedirs(self.output_folder)
+                    except FileExistsError:
+                        pass
                 f = os.path.join(self.output_folder, file)
 
             np.save(f, np.array(self.sim.full_weights).astype("float"))
@@ -231,7 +246,11 @@ class SimulationLogger:
             f = os.path.abspath(file)
             if not os.path.isfile(f):
                 if not os.path.isdir(self.output_folder):
-                    os.makedirs(self.output_folder)
+                    try:
+                        os.makedirs(self.output_folder)
+                    except FileExistsError:
+                        pass
+
                 f = os.path.join(self.output_folder, file)
 
             np.save(f, np.array(self.sim.full_energies).astype("float"))
@@ -254,7 +273,10 @@ class SimulationLogger:
         f = os.path.abspath(file)
         if not os.path.isfile(f):
             if not os.path.isdir(self.output_folder):
-                os.makedirs(self.output_folder)
+                try:
+                    os.makedirs(self.output_folder)
+                except FileExistsError:
+                    pass
             f = os.path.join(self.output_folder, file)
 
         np.save(f, np.array(self.sim.reference_potentials))
@@ -291,7 +313,11 @@ class SimulationLogger:
         f = os.path.abspath(file)
         if not os.path.isfile(f):
             if not os.path.isdir(folder):
-                os.makedirs(folder)
+                try:
+                    os.makedirs(folder)
+                except FileExistsError:
+                    pass
+                
             f = os.path.join(folder, file)
 
         np.save(f, np.asarray(data))
