@@ -260,6 +260,71 @@ class SimulationLogger:
         np.save(f, np.array(self.sim.reference_potentials))
         return f
 
+    def save_data(self, data, file, folder="checkpoints", save_stepnum=True):
+        """
+        Saves the passed data to a numpy file.
+        Fills in template parameters in the file name.
+
+        :param file:
+        :type file:
+        :return:
+        :rtype:
+        """
+
+        n = "" if not save_stepnum else self.sim.counter.step_num
+
+        core = self.sim.world_rank
+        if core == 0:
+            core = ""
+        file = file.format(core=core, n=n)
+
+        if folder == "checkpoints":
+            folder = self.checkpoint_folder
+        elif folder == "wavefunctions":
+            folder = self.wavefunctions_folder
+        elif folder == "output":
+            folder = self.output_folder
+        else:
+            if os.path.abspath(folder) != folder:
+                folder = os.path.join(self.output_folder, folder)
+
+        f = os.path.abspath(file)
+        if not os.path.isfile(f):
+            if not os.path.isdir(folder):
+                os.makedirs(folder)
+            f = os.path.join(folder, file)
+
+        np.save(f, np.asarray(data))
+        return f
+
+    def save_energies(self, energies, file="energies{core}_{n}.npy", save_stepnum=True):
+        """
+        Saves the given energies to a file
+
+        :param energies:
+        :type energies:
+        :param file:
+        :type file:
+        :return:
+        :rtype:
+        """
+
+        return self.save_data(energies, file, save_stepnum=save_stepnum)
+
+    def save_coords(self, coords, file="coordinates{core}_{n}.npy", save_stepnum=True):
+        """
+        Saves the given energies to a file
+
+        :param energies:
+        :type energies:
+        :param file:
+        :type file:
+        :return:
+        :rtype:
+        """
+
+        return self.save_data(coords, file, save_stepnum=save_stepnum)
+
     def checkpoint(self, save_stepnum = True):
         # if not self.sim.dummied:
         self.log_print("Checkpointing simulation", verbosity=self.LogLevel.STEPS)
