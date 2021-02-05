@@ -506,7 +506,13 @@ class Simulation:
             self.log_print("    took {}s", end - start, verbosity=self.logger.LogLevel.STATUS)
             self.log_print("Computing potential energy", verbosity=self.logger.LogLevel.STATUS)
             start = time.time()
+
+            if self.save_all_evaluations:
+                self.logger.save_coords(coord_sets)
             energies = self._evaluate_potential(coord_sets)
+            if self.save_all_evaluations:
+                self.logger.save_energies(energies)
+
             end = time.time()
             self.log_print("    took {}s", end - start, verbosity=self.logger.LogLevel.STATUS)
             if not self.dummied:
@@ -560,6 +566,8 @@ class Simulation:
             else:
                 weights = None
 
+            if not self.dummied:
+                self.log_print("    getting energies/coords off cores")
             res = get_results(coords, energies, weights, self.mpi_manager)
 
             if res is None:

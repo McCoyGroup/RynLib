@@ -317,7 +317,7 @@ class SimulationLogger:
                     os.makedirs(folder)
                 except FileExistsError:
                     pass
-                
+
             f = os.path.join(folder, file)
 
         np.save(f, np.asarray(data))
