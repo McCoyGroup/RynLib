@@ -276,8 +276,9 @@ class PotentialCaller:
             if self.transpose_call:
                 walker = walker.transpose((0, 1, 3, 2))
             coords = np.ascontiguousarray(walker).astype(float)
-            if self.transpose_call:
-                coords = np.asfortranarray(coords)
+            # gotta comment this out or we end up reversing the effect of the transpose
+            # if self.transpose_call:
+            #     coords = np.asfortranarray(coords)
             new_style = isinstance(self.potential, (FFIModule, FFIMethod))
             # do the actual call into the C++ side
             poots = self.lib.rynaLovesPootsLots(

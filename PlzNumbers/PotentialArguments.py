@@ -122,6 +122,7 @@ class PotentialArgumentSpec:
             return self.arg_pat.name
         else:
             return self._name
+            
 
     def canonicalize_pats(self, pats):
         if isinstance(pats, FFIMethod):
